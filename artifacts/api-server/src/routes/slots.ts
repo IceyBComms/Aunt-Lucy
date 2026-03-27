@@ -13,8 +13,15 @@ router.post("/slots/:slotId/claim", async (req, res) => {
     pin?: string;
   };
 
-  if (!firstName || !contact) {
+  const firstNameTrimmed = typeof firstName === "string" ? firstName.trim() : "";
+  const contactTrimmed = typeof contact === "string" ? contact.trim() : "";
+
+  if (!firstNameTrimmed || !contactTrimmed) {
     res.status(400).json({ error: "First name and contact are required." });
+    return;
+  }
+  if (firstNameTrimmed.length > 100 || contactTrimmed.length > 200) {
+    res.status(400).json({ error: "Input exceeds maximum length." });
     return;
   }
 
@@ -33,6 +40,12 @@ router.post("/slots/:slotId/claim", async (req, res) => {
 
   const { slot, page } = result;
 
+  // Only allow claiming on active pages
+  if (page.status !== "active") {
+    res.status(404).json({ error: "This slot doesn't exist." });
+    return;
+  }
+
   // PIN-protected pages require the PIN when claiming
   if (page.privacy === "pin_protected") {
     if (!pin || pin !== page.pin) {
@@ -47,8 +60,8 @@ router.post("/slots/:slotId/claim", async (req, res) => {
     .update(slotsTable)
     .set({
       isClaimed: true,
-      claimedByName: firstName.trim(),
-      claimedByContact: contact.trim(),
+      claimedByName: firstNameTrimmed,
+      claimedByContact: contactTrimmed,
       claimedNote: note?.trim() ?? null,
     })
     .where(and(eq(slotsTable.id, slot.id), eq(slotsTable.isClaimed, false)))
