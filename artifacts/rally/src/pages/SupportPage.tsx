@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Heart, MapPin, ShieldAlert, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
-import type { SlotResponse, ClaimSlotRequest } from "@workspace/api-client-react/src/generated/api.schemas";
+import type { SlotResponse, ClaimSlotRequest } from "@workspace/api-client-react";
 
 export default function SupportPage() {
   const [, params] = useRoute("/s/:slug");

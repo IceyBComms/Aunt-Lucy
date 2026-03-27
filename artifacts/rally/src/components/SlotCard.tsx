@@ -1,4 +1,4 @@
-import { SlotResponse } from "@workspace/api-client-react/src/generated/api.schemas";
+import type { SlotResponse } from "@workspace/api-client-react";
 import { Button } from "./ui/button";
 import { format, parseISO } from "date-fns";
 import { CheckCircle2, Clock } from "lucide-react";

@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db, slotsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 
 const router: IRouter = Router();
 
@@ -17,6 +17,7 @@ router.post("/slots/:slotId/claim", async (req, res) => {
     return;
   }
 
+  // Verify slot exists before attempting claim
   const slot = await db.query.slotsTable.findFirst({
     where: eq(slotsTable.id, slotId),
   });
@@ -26,12 +27,10 @@ router.post("/slots/:slotId/claim", async (req, res) => {
     return;
   }
 
-  if (slot.isClaimed) {
-    res.status(409).json({ error: "This slot has already been claimed by someone else." });
-    return;
-  }
-
-  const [updated] = await db
+  // Atomic conditional update: only update if is_claimed = false.
+  // This prevents race conditions where two helpers claim simultaneously.
+  // If the update returns 0 rows, the slot was already taken.
+  const updated = await db
     .update(slotsTable)
     .set({
       isClaimed: true,
@@ -39,21 +38,28 @@ router.post("/slots/:slotId/claim", async (req, res) => {
       claimedByContact: contact.trim(),
       claimedNote: note?.trim() ?? null,
     })
-    .where(eq(slotsTable.id, slotId))
+    .where(and(eq(slotsTable.id, slotId), eq(slotsTable.isClaimed, false)))
     .returning();
 
+  if (updated.length === 0) {
+    res.status(409).json({ error: "This slot has already been claimed by someone else." });
+    return;
+  }
+
+  const [row] = updated;
+
   res.json({
-    id: updated.id,
-    pageId: updated.pageId,
-    slotType: updated.slotType,
-    customLabel: updated.customLabel ?? null,
-    slotDate: updated.slotDate,
-    slotTime: updated.slotTime ?? null,
-    notes: updated.notes ?? null,
-    isClaimed: updated.isClaimed,
-    claimedByName: updated.claimedByName ?? null,
-    claimedNote: updated.claimedNote ?? null,
-    createdAt: updated.createdAt.toISOString(),
+    id: row.id,
+    pageId: row.pageId,
+    slotType: row.slotType,
+    customLabel: row.customLabel ?? null,
+    slotDate: row.slotDate,
+    slotTime: row.slotTime ?? null,
+    notes: row.notes ?? null,
+    isClaimed: row.isClaimed,
+    claimedByName: row.claimedByName ?? null,
+    claimedNote: row.claimedNote ?? null,
+    createdAt: row.createdAt.toISOString(),
   });
 });
 

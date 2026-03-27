@@ -1,21 +1,31 @@
-import { Card, CardContent } from "@/components/ui/card";
-import { AlertCircle } from "lucide-react";
+import { Heart } from "lucide-react";
 
 export default function NotFound() {
   return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-gray-50">
-      <Card className="w-full max-w-md mx-4">
-        <CardContent className="pt-6">
-          <div className="flex mb-4 gap-2">
-            <AlertCircle className="h-8 w-8 text-red-500" />
-            <h1 className="text-2xl font-bold text-gray-900">404 Page Not Found</h1>
-          </div>
+    <div
+      className="min-h-screen flex flex-col items-center justify-center px-6 text-center"
+      style={{ backgroundColor: "hsl(var(--background))" }}
+    >
+      <div
+        className="mb-6 flex items-center justify-center w-16 h-16 rounded-full"
+        style={{ backgroundColor: "hsl(var(--muted) / 0.2)" }}
+      >
+        <Heart className="w-7 h-7" style={{ color: "hsl(var(--muted-foreground))" }} />
+      </div>
 
-          <p className="mt-4 text-sm text-gray-600">
-            Did you forget to add the page to the router?
-          </p>
-        </CardContent>
-      </Card>
+      <h1
+        className="text-3xl font-bold mb-3 font-serif"
+        style={{ color: "hsl(var(--foreground))" }}
+      >
+        Page not found
+      </h1>
+
+      <p
+        className="text-base max-w-xs leading-relaxed"
+        style={{ color: "hsl(var(--muted-foreground))" }}
+      >
+        This page doesn&apos;t exist or has been removed. If someone shared a link with you, please double-check it.
+      </p>
     </div>
   );
 }

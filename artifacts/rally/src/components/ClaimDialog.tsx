@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import type { SlotResponse } from "@workspace/api-client-react/src/generated/api.schemas";
+import type { SlotResponse } from "@workspace/api-client-react";
 import { Dialog, DialogHeader, DialogTitle, DialogDescription } from "./ui/dialog-framer";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -46,6 +46,7 @@ export function ClaimDialog({ slot, isOpen, onClose, onSubmit, isSubmitting }: C
       const timer = setTimeout(() => reset(), 200);
       return () => clearTimeout(timer);
     }
+    return undefined;
   }, [isOpen, reset]);
 
   if (!slot) return null;
