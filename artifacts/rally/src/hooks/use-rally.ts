@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { 
   useGetSupportPage, 
@@ -24,14 +24,16 @@ export function useSupportPageFlow(slug: string) {
     }
   });
 
-  // Intercept 401 errors to trigger PIN entry flow
-  if (query.isError) {
-    const error = query.error;
-    const status = error instanceof ApiError ? error.status : undefined;
-    if (status === 401 && !needsPin) {
-      setNeedsPin(true);
+  // Move PIN detection into an effect to avoid setState during render
+  useEffect(() => {
+    if (query.isError) {
+      const error = query.error;
+      const status = error instanceof ApiError ? error.status : undefined;
+      if (status === 401) {
+        setNeedsPin(true);
+      }
     }
-  }
+  }, [query.isError, query.error]);
 
   const claimMutation = useClaimSlot({
     mutation: {
