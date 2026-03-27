@@ -2,7 +2,7 @@
 
 ## Overview
 
-**Rally** — a community crisis support coordination app. Helps friends and family coordinate practical support for someone going through a crisis (meals, school pickups, errands etc.). One person creates a support page with help slots, shares a single link, and helpers claim slots with no login or account required.
+**Aunt Lucy** — a community crisis support coordination app. Helps friends and family coordinate practical support for someone going through a crisis (meals, school pickups, errands etc.). One person creates a support page with help slots, shares a single link, and helpers claim slots with no login or account required. Domain: auntlucy.com.au
 
 pnpm workspace monorepo using TypeScript. Each package manages its own dependencies.
 
@@ -41,7 +41,7 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 artifacts-monorepo/
 ├── artifacts/
 │   ├── api-server/         # Express API server
-│   └── rally/              # React + Vite frontend (Rally app, served at /)
+│   └── rally/              # React + Vite frontend (Aunt Lucy app, served at /)
 ├── lib/                    # Shared libraries
 │   ├── api-spec/           # OpenAPI spec + Orval codegen config
 │   ├── api-client-react/   # Generated React Query hooks
@@ -123,7 +123,7 @@ React + Vite web app. Currently only the helper (public visitor) experience is b
 - Pages: `src/pages/SupportPage.tsx`, `src/pages/Home.tsx`
 - Components: `src/components/SlotCard.tsx`, `src/components/ClaimDialog.tsx`
 - Custom hook: `src/hooks/use-rally.ts`
-- Styles: `src/index.css` — Tailwind v4 + Rally brand colors + Google Fonts
+- Styles: `src/index.css` — Tailwind v4 + Aunt Lucy brand colors + Google Fonts
 
 ### `artifacts/api-server` (`@workspace/api-server`)
 

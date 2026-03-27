@@ -197,7 +197,7 @@ export default function SupportPage() {
 
       {/* Footer */}
       <footer className="mt-auto py-8 text-center text-muted-foreground text-sm font-medium">
-        Powered by <span className="font-serif font-bold text-foreground">Rally</span>
+        Powered by <span className="font-serif font-bold text-foreground">Aunt Lucy</span>
       </footer>
 
       {/* Modals */}
