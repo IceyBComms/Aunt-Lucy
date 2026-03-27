@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { db, slotsTable, supportPagesTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
+import { sendClaimConfirmation } from "../lib/email";
 
 const router: IRouter = Router();
 
@@ -73,6 +74,18 @@ router.post("/slots/:slotId/claim", async (req, res) => {
   }
 
   const [row] = updated;
+
+  void sendClaimConfirmation({
+    helperFirstName: firstNameTrimmed,
+    helperContact: contactTrimmed,
+    recipientName: page.recipientName,
+    slotType: row.slotType,
+    customLabel: row.customLabel,
+    slotDate: row.slotDate,
+    slotTime: row.slotTime,
+    notes: row.notes,
+    location: page.location,
+  });
 
   res.json({
     id: row.id,
