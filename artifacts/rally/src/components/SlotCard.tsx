@@ -1,7 +1,7 @@
 import type { SlotResponse } from "@workspace/api-client-react";
 import { Button } from "./ui/button";
 import { format, parseISO } from "date-fns";
-import { CheckCircle2, Clock } from "lucide-react";
+import { CheckCircle2, Clock, ClipboardList } from "lucide-react";
 import { motion } from "framer-motion";
 
 interface SlotCardProps {
@@ -30,7 +30,6 @@ export function SlotCard({ slot, onClaim, index }: SlotCardProps) {
   
   let formattedTime = "";
   if (slot.slotTime) {
-    // Basic formatting for time "18:00" -> "6:00 PM"
     const [hours, minutes] = slot.slotTime.split(":");
     const h = parseInt(hours, 10);
     const ampm = h >= 12 ? "PM" : "AM";
@@ -98,8 +97,14 @@ export function SlotCard({ slot, onClaim, index }: SlotCardProps) {
       </div>
       
       {slot.notes && (
-        <div className="mb-6 p-4 rounded-2xl bg-secondary/30 text-sm text-foreground/80 leading-relaxed">
-          {slot.notes}
+        <div className="mb-6 rounded-2xl bg-primary/5 border border-primary/10 p-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-primary/70 flex items-center gap-1.5 mb-2">
+            <ClipboardList className="w-3.5 h-3.5" />
+            Task instructions
+          </p>
+          <p className="text-sm text-foreground/80 leading-relaxed">
+            {slot.notes}
+          </p>
         </div>
       )}
       

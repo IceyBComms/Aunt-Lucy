@@ -9,6 +9,7 @@ import { Input } from "./ui/input";
 import { Textarea } from "./ui/textarea";
 import { Label } from "./ui/label";
 import { format, parseISO } from "date-fns";
+import { ClipboardList } from "lucide-react";
 
 const claimSchema = z.object({
   firstName: z.string().min(2, "Please enter your first name"),
@@ -64,6 +65,18 @@ export function ClaimDialog({ slot, isOpen, onClose, onSubmit, isSubmitting }: C
         </DialogDescription>
       </DialogHeader>
 
+      {slot.notes && (
+        <div className="rounded-2xl bg-primary/5 border border-primary/10 p-4 -mt-1">
+          <p className="text-xs font-semibold uppercase tracking-wide text-primary/70 flex items-center gap-1.5 mb-2">
+            <ClipboardList className="w-3.5 h-3.5" />
+            Task instructions
+          </p>
+          <p className="text-sm text-foreground/80 leading-relaxed">
+            {slot.notes}
+          </p>
+        </div>
+      )}
+
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
         <div className="space-y-1.5">
           <Label htmlFor="firstName" className="text-foreground/80 pl-1">
@@ -100,13 +113,17 @@ export function ClaimDialog({ slot, isOpen, onClose, onSubmit, isSubmitting }: C
 
         <div className="space-y-1.5">
           <Label htmlFor="note" className="text-foreground/80 pl-1">
-            Note (optional)
+            Message to the organiser{" "}
+            <span className="font-normal text-muted-foreground">(optional)</span>
           </Label>
           <Textarea
             id="note"
-            placeholder="e.g. I'll drop it off around 5pm!"
+            placeholder="e.g. I can drop things off around 5:30pm — just let me know if you need anything specific."
             {...register("note")}
           />
+          <p className="text-xs text-muted-foreground pl-1">
+            Anything useful for the organiser to know — timing, questions, a kind word.
+          </p>
         </div>
 
         <div className="pt-4">
