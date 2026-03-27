@@ -1,0 +1,10 @@
+packages:
+  "framer-motion": "Smooth animations for page loads, dialogs, and interactions fitting the soft/human design"
+  "date-fns": "For elegant, human-readable date and time formatting"
+  "react-hook-form": "For smooth, accessible form state management in the claim dialog"
+  "@hookform/resolvers": "For Zod validation integration with react-hook-form"
+
+notes:
+  - Using generated Orval hooks from @workspace/api-client-react
+  - Colors: Background #FAF7F2, Primary #2D6A4F, Accent #E76F51
+  - Fonts: Lora (headings), Plus Jakarta Sans (body)

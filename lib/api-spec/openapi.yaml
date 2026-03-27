@@ -10,6 +10,10 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: pages
+    description: Support page operations
+  - name: slots
+    description: Slot operations
 paths:
   /healthz:
     get:
@@ -24,6 +28,82 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /pages/{slug}:
+    get:
+      operationId: getSupportPage
+      tags: [pages]
+      summary: Get a support page by slug
+      description: Returns page details and all slots. For PIN-protected pages, requires the PIN to be passed as a query parameter.
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: pin
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Support page found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SupportPageWithSlots"
+        "401":
+          description: PIN required or incorrect
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PinRequiredError"
+        "404":
+          description: Page not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotFoundError"
+
+  /slots/{slotId}/claim:
+    post:
+      operationId: claimSlot
+      tags: [slots]
+      summary: Claim a slot
+      description: Claim an open slot. Returns 409 if already claimed.
+      parameters:
+        - name: slotId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClaimSlotRequest"
+      responses:
+        "200":
+          description: Slot claimed successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SlotResponse"
+        "409":
+          description: Slot already claimed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConflictError"
+        "404":
+          description: Slot not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotFoundError"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +114,125 @@ components:
       required:
         - status
 
+    SlotType:
+      type: string
+      enum:
+        - meal
+        - school_pickup
+        - errand
+        - dog_walking
+        - shopping
+        - visit
+        - other
+
+    SlotResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        pageId:
+          type: string
+        slotType:
+          $ref: "#/components/schemas/SlotType"
+        customLabel:
+          type: string
+          nullable: true
+        slotDate:
+          type: string
+        slotTime:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        isClaimed:
+          type: boolean
+        claimedByName:
+          type: string
+          nullable: true
+        claimedNote:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+      required:
+        - id
+        - pageId
+        - slotType
+        - slotDate
+        - isClaimed
+        - createdAt
+
+    SupportPageWithSlots:
+      type: object
+      properties:
+        id:
+          type: string
+        slug:
+          type: string
+        recipientName:
+          type: string
+        situationDescription:
+          type: string
+          nullable: true
+        location:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [draft, pending_approval, active, closed]
+        privacy:
+          type: string
+          enum: [open, pin_protected]
+        slots:
+          type: array
+          items:
+            $ref: "#/components/schemas/SlotResponse"
+      required:
+        - id
+        - slug
+        - recipientName
+        - status
+        - privacy
+        - slots
+
+    ClaimSlotRequest:
+      type: object
+      properties:
+        firstName:
+          type: string
+        contact:
+          type: string
+        note:
+          type: string
+          nullable: true
+      required:
+        - firstName
+        - contact
+
+    PinRequiredError:
+      type: object
+      properties:
+        error:
+          type: string
+        pinRequired:
+          type: boolean
+      required:
+        - error
+        - pinRequired
+
+    NotFoundError:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+
+    ConflictError:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error

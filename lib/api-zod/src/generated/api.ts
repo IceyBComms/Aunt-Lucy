@@ -14,3 +14,84 @@ import * as zod from "zod";
 export const HealthCheckResponse = zod.object({
   status: zod.string(),
 });
+
+/**
+ * Returns page details and all slots. For PIN-protected pages, requires the PIN to be passed as a query parameter.
+ * @summary Get a support page by slug
+ */
+export const GetSupportPageParams = zod.object({
+  slug: zod.coerce.string(),
+});
+
+export const GetSupportPageQueryParams = zod.object({
+  pin: zod.coerce.string().optional(),
+});
+
+export const GetSupportPageResponse = zod.object({
+  id: zod.string(),
+  slug: zod.string(),
+  recipientName: zod.string(),
+  situationDescription: zod.string().nullish(),
+  location: zod.string().nullish(),
+  status: zod.enum(["draft", "pending_approval", "active", "closed"]),
+  privacy: zod.enum(["open", "pin_protected"]),
+  slots: zod.array(
+    zod.object({
+      id: zod.string(),
+      pageId: zod.string(),
+      slotType: zod.enum([
+        "meal",
+        "school_pickup",
+        "errand",
+        "dog_walking",
+        "shopping",
+        "visit",
+        "other",
+      ]),
+      customLabel: zod.string().nullish(),
+      slotDate: zod.string(),
+      slotTime: zod.string().nullish(),
+      notes: zod.string().nullish(),
+      isClaimed: zod.boolean(),
+      claimedByName: zod.string().nullish(),
+      claimedNote: zod.string().nullish(),
+      createdAt: zod.string(),
+    }),
+  ),
+});
+
+/**
+ * Claim an open slot. Returns 409 if already claimed.
+ * @summary Claim a slot
+ */
+export const ClaimSlotParams = zod.object({
+  slotId: zod.coerce.string(),
+});
+
+export const ClaimSlotBody = zod.object({
+  firstName: zod.string(),
+  contact: zod.string(),
+  note: zod.string().nullish(),
+});
+
+export const ClaimSlotResponse = zod.object({
+  id: zod.string(),
+  pageId: zod.string(),
+  slotType: zod.enum([
+    "meal",
+    "school_pickup",
+    "errand",
+    "dog_walking",
+    "shopping",
+    "visit",
+    "other",
+  ]),
+  customLabel: zod.string().nullish(),
+  slotDate: zod.string(),
+  slotTime: zod.string().nullish(),
+  notes: zod.string().nullish(),
+  isClaimed: zod.boolean(),
+  claimedByName: zod.string().nullish(),
+  claimedNote: zod.string().nullish(),
+  createdAt: zod.string(),
+});

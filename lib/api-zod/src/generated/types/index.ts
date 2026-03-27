@@ -6,4 +6,14 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from "./claimSlotRequest";
+export * from "./conflictError";
+export * from "./getSupportPageParams";
 export * from "./healthStatus";
+export * from "./notFoundError";
+export * from "./pinRequiredError";
+export * from "./slotResponse";
+export * from "./slotType";
+export * from "./supportPageWithSlots";
+export * from "./supportPageWithSlotsPrivacy";
+export * from "./supportPageWithSlotsStatus";

@@ -5,18 +5,30 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import type {
+  MutationFunction,
   QueryFunction,
   QueryKey,
+  UseMutationOptions,
+  UseMutationResult,
   UseQueryOptions,
   UseQueryResult,
 } from "@tanstack/react-query";
 
-import type { HealthStatus } from "./api.schemas";
+import type {
+  ClaimSlotRequest,
+  ConflictError,
+  GetSupportPageParams,
+  HealthStatus,
+  NotFoundError,
+  PinRequiredError,
+  SlotResponse,
+  SupportPageWithSlots,
+} from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
-import type { ErrorType } from "../custom-fetch";
+import type { ErrorType, BodyType } from "../custom-fetch";
 
 type AwaitedInput<T> = PromiseLike<T> | T;
 
@@ -99,3 +111,203 @@ export function useHealthCheck<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * Returns page details and all slots. For PIN-protected pages, requires the PIN to be passed as a query parameter.
+ * @summary Get a support page by slug
+ */
+export const getGetSupportPageUrl = (
+  slug: string,
+  params?: GetSupportPageParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/pages/${slug}?${stringifiedParams}`
+    : `/api/pages/${slug}`;
+};
+
+export const getSupportPage = async (
+  slug: string,
+  params?: GetSupportPageParams,
+  options?: RequestInit,
+): Promise<SupportPageWithSlots> => {
+  return customFetch<SupportPageWithSlots>(getGetSupportPageUrl(slug, params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetSupportPageQueryKey = (
+  slug: string,
+  params?: GetSupportPageParams,
+) => {
+  return [`/api/pages/${slug}`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetSupportPageQueryOptions = <
+  TData = Awaited<ReturnType<typeof getSupportPage>>,
+  TError = ErrorType<PinRequiredError | NotFoundError>,
+>(
+  slug: string,
+  params?: GetSupportPageParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getSupportPage>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetSupportPageQueryKey(slug, params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getSupportPage>>> = ({
+    signal,
+  }) => getSupportPage(slug, params, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!slug,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getSupportPage>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetSupportPageQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getSupportPage>>
+>;
+export type GetSupportPageQueryError = ErrorType<
+  PinRequiredError | NotFoundError
+>;
+
+/**
+ * @summary Get a support page by slug
+ */
+
+export function useGetSupportPage<
+  TData = Awaited<ReturnType<typeof getSupportPage>>,
+  TError = ErrorType<PinRequiredError | NotFoundError>,
+>(
+  slug: string,
+  params?: GetSupportPageParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getSupportPage>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetSupportPageQueryOptions(slug, params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Claim an open slot. Returns 409 if already claimed.
+ * @summary Claim a slot
+ */
+export const getClaimSlotUrl = (slotId: string) => {
+  return `/api/slots/${slotId}/claim`;
+};
+
+export const claimSlot = async (
+  slotId: string,
+  claimSlotRequest: ClaimSlotRequest,
+  options?: RequestInit,
+): Promise<SlotResponse> => {
+  return customFetch<SlotResponse>(getClaimSlotUrl(slotId), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(claimSlotRequest),
+  });
+};
+
+export const getClaimSlotMutationOptions = <
+  TError = ErrorType<NotFoundError | ConflictError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof claimSlot>>,
+    TError,
+    { slotId: string; data: BodyType<ClaimSlotRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof claimSlot>>,
+  TError,
+  { slotId: string; data: BodyType<ClaimSlotRequest> },
+  TContext
+> => {
+  const mutationKey = ["claimSlot"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof claimSlot>>,
+    { slotId: string; data: BodyType<ClaimSlotRequest> }
+  > = (props) => {
+    const { slotId, data } = props ?? {};
+
+    return claimSlot(slotId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ClaimSlotMutationResult = NonNullable<
+  Awaited<ReturnType<typeof claimSlot>>
+>;
+export type ClaimSlotMutationBody = BodyType<ClaimSlotRequest>;
+export type ClaimSlotMutationError = ErrorType<NotFoundError | ConflictError>;
+
+/**
+ * @summary Claim a slot
+ */
+export const useClaimSlot = <
+  TError = ErrorType<NotFoundError | ConflictError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof claimSlot>>,
+    TError,
+    { slotId: string; data: BodyType<ClaimSlotRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof claimSlot>>,
+  TError,
+  { slotId: string; data: BodyType<ClaimSlotRequest> },
+  TContext
+> => {
+  return useMutation(getClaimSlotMutationOptions(options));
+};

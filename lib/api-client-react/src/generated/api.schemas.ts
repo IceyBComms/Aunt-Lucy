@@ -8,3 +8,81 @@
 export interface HealthStatus {
   status: string;
 }
+
+export type SlotType = (typeof SlotType)[keyof typeof SlotType];
+
+export const SlotType = {
+  meal: "meal",
+  school_pickup: "school_pickup",
+  errand: "errand",
+  dog_walking: "dog_walking",
+  shopping: "shopping",
+  visit: "visit",
+  other: "other",
+} as const;
+
+export interface SlotResponse {
+  id: string;
+  pageId: string;
+  slotType: SlotType;
+  customLabel?: string | null;
+  slotDate: string;
+  slotTime?: string | null;
+  notes?: string | null;
+  isClaimed: boolean;
+  claimedByName?: string | null;
+  claimedNote?: string | null;
+  createdAt: string;
+}
+
+export type SupportPageWithSlotsStatus =
+  (typeof SupportPageWithSlotsStatus)[keyof typeof SupportPageWithSlotsStatus];
+
+export const SupportPageWithSlotsStatus = {
+  draft: "draft",
+  pending_approval: "pending_approval",
+  active: "active",
+  closed: "closed",
+} as const;
+
+export type SupportPageWithSlotsPrivacy =
+  (typeof SupportPageWithSlotsPrivacy)[keyof typeof SupportPageWithSlotsPrivacy];
+
+export const SupportPageWithSlotsPrivacy = {
+  open: "open",
+  pin_protected: "pin_protected",
+} as const;
+
+export interface SupportPageWithSlots {
+  id: string;
+  slug: string;
+  recipientName: string;
+  situationDescription?: string | null;
+  location?: string | null;
+  status: SupportPageWithSlotsStatus;
+  privacy: SupportPageWithSlotsPrivacy;
+  slots: SlotResponse[];
+}
+
+export interface ClaimSlotRequest {
+  firstName: string;
+  contact: string;
+  note?: string | null;
+}
+
+export interface PinRequiredError {
+  error: string;
+  pinRequired: boolean;
+}
+
+export interface NotFoundError {
+  error: string;
+}
+
+export interface ConflictError {
+  error: string;
+}
+
+export type GetSupportPageParams = {
+  pin?: string;
+};
