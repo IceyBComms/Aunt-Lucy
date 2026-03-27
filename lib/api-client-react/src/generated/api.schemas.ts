@@ -68,6 +68,8 @@ export interface ClaimSlotRequest {
   firstName: string;
   contact: string;
   note?: string | null;
+  /** Required when claiming a slot on a PIN-protected page. */
+  pin?: string | null;
 }
 
 export interface PinRequiredError {

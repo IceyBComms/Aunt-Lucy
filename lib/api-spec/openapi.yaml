@@ -206,6 +206,10 @@ components:
         note:
           type: string
           nullable: true
+        pin:
+          type: string
+          nullable: true
+          description: Required when claiming a slot on a PIN-protected page.
       required:
         - firstName
         - contact

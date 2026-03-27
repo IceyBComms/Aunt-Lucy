@@ -1,15 +1,16 @@
 import { Router, type IRouter } from "express";
-import { db, slotsTable } from "@workspace/db";
+import { db, slotsTable, supportPagesTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 
 const router: IRouter = Router();
 
 router.post("/slots/:slotId/claim", async (req, res) => {
   const { slotId } = req.params;
-  const { firstName, contact, note } = req.body as {
+  const { firstName, contact, note, pin } = req.body as {
     firstName: string;
     contact: string;
     note?: string;
+    pin?: string;
   };
 
   if (!firstName || !contact) {
@@ -17,19 +18,31 @@ router.post("/slots/:slotId/claim", async (req, res) => {
     return;
   }
 
-  // Verify slot exists before attempting claim
-  const slot = await db.query.slotsTable.findFirst({
-    where: eq(slotsTable.id, slotId),
-  });
+  // Load slot together with its parent page to enforce PIN protection
+  const [result] = await db
+    .select({ slot: slotsTable, page: supportPagesTable })
+    .from(slotsTable)
+    .innerJoin(supportPagesTable, eq(slotsTable.pageId, supportPagesTable.id))
+    .where(eq(slotsTable.id, slotId))
+    .limit(1);
 
-  if (!slot) {
+  if (!result) {
     res.status(404).json({ error: "This slot doesn't exist." });
     return;
   }
 
+  const { slot, page } = result;
+
+  // PIN-protected pages require the PIN when claiming
+  if (page.privacy === "pin_protected") {
+    if (!pin || pin !== page.pin) {
+      res.status(401).json({ error: "A valid PIN is required to claim a slot on this page." });
+      return;
+    }
+  }
+
   // Atomic conditional update: only update if is_claimed = false.
-  // This prevents race conditions where two helpers claim simultaneously.
-  // If the update returns 0 rows, the slot was already taken.
+  // Prevents race conditions where two helpers claim simultaneously.
   const updated = await db
     .update(slotsTable)
     .set({
@@ -38,7 +51,7 @@ router.post("/slots/:slotId/claim", async (req, res) => {
       claimedByContact: contact.trim(),
       claimedNote: note?.trim() ?? null,
     })
-    .where(and(eq(slotsTable.id, slotId), eq(slotsTable.isClaimed, false)))
+    .where(and(eq(slotsTable.id, slot.id), eq(slotsTable.isClaimed, false)))
     .returning();
 
   if (updated.length === 0) {

@@ -67,7 +67,7 @@ export function useSupportPageFlow(slug: string) {
 
   const claimSlot = useCallback(async (slotId: string, data: ClaimSlotRequest, recipientName: string) => {
     try {
-      await claimMutation.mutateAsync({ slotId, data });
+      await claimMutation.mutateAsync({ slotId, data: { ...data, pin: pin ?? undefined } });
       toast({
         title: "You've got this.",
         description: `${recipientName} will be so grateful.`,
@@ -77,7 +77,7 @@ export function useSupportPageFlow(slug: string) {
     } catch {
       return false;
     }
-  }, [claimMutation, toast]);
+  }, [claimMutation, toast, pin]);
 
   return {
     ...query,

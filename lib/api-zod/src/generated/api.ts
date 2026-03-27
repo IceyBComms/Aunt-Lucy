@@ -72,6 +72,10 @@ export const ClaimSlotBody = zod.object({
   firstName: zod.string(),
   contact: zod.string(),
   note: zod.string().nullish(),
+  pin: zod
+    .string()
+    .nullish()
+    .describe("Required when claiming a slot on a PIN-protected page."),
 });
 
 export const ClaimSlotResponse = zod.object({
