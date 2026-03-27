@@ -16,6 +16,7 @@ export default function SupportPage() {
   const { data: page, isLoading, isError, needsPin, submitPin, claimSlot, isClaiming } = useSupportPageFlow(slug);
 
   const [pinInput, setPinInput] = useState("");
+  const [pinSubmitted, setPinSubmitted] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<SlotResponse | null>(null);
 
   const handleClaimSubmit = async (formData: ClaimSlotRequest) => {
@@ -53,7 +54,10 @@ export default function SupportPage() {
           <form 
             onSubmit={(e) => {
               e.preventDefault();
-              if (pinInput.trim()) submitPin(pinInput.trim());
+              if (pinInput.trim()) {
+                setPinSubmitted(true);
+                submitPin(pinInput.trim());
+              }
             }}
             className="space-y-4"
           >
@@ -61,10 +65,15 @@ export default function SupportPage() {
               type="password" 
               placeholder="Enter PIN" 
               value={pinInput}
-              onChange={(e) => setPinInput(e.target.value)}
-              className="text-center text-2xl tracking-widest py-4 h-auto"
+              onChange={(e) => { setPinInput(e.target.value); setPinSubmitted(false); }}
+              className={`text-center text-2xl tracking-widest py-4 h-auto${pinSubmitted && isError ? " border-destructive focus-visible:ring-destructive/20" : ""}`}
               maxLength={8}
             />
+            {pinSubmitted && isError && (
+              <p className="text-sm text-destructive text-center">
+                That PIN isn't right. Please check with the person who shared this link.
+              </p>
+            )}
             <Button type="submit" size="lg" className="w-full text-lg">
               View Page
             </Button>
