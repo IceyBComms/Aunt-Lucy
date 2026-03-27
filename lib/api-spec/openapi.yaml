@@ -91,6 +91,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SlotResponse"
+        "401":
+          description: PIN required or incorrect (for PIN-protected pages)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PinRequiredError"
         "409":
           description: Slot already claimed
           content:

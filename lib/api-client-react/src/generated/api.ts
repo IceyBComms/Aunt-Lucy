@@ -246,7 +246,7 @@ export const claimSlot = async (
 };
 
 export const getClaimSlotMutationOptions = <
-  TError = ErrorType<NotFoundError | ConflictError>,
+  TError = ErrorType<PinRequiredError | NotFoundError | ConflictError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -287,13 +287,15 @@ export type ClaimSlotMutationResult = NonNullable<
   Awaited<ReturnType<typeof claimSlot>>
 >;
 export type ClaimSlotMutationBody = BodyType<ClaimSlotRequest>;
-export type ClaimSlotMutationError = ErrorType<NotFoundError | ConflictError>;
+export type ClaimSlotMutationError = ErrorType<
+  PinRequiredError | NotFoundError | ConflictError
+>;
 
 /**
  * @summary Claim a slot
  */
 export const useClaimSlot = <
-  TError = ErrorType<NotFoundError | ConflictError>,
+  TError = ErrorType<PinRequiredError | NotFoundError | ConflictError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
