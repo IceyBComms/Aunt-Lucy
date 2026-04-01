@@ -4,6 +4,7 @@ import { slotsTable } from "./slots";
 import { organisersTable } from "./organisers";
 import { magicLinkTokensTable } from "./magicLinkTokens";
 import { sessionsTable } from "./sessions";
+import { trustedHelperInvitesTable } from "./trustedHelperInvites";
 
 export const supportPagesRelations = relations(supportPagesTable, ({ many, one }) => ({
   slots: many(slotsTable),
@@ -13,10 +14,18 @@ export const supportPagesRelations = relations(supportPagesTable, ({ many, one }
   }),
 }));
 
-export const slotsRelations = relations(slotsTable, ({ one }) => ({
+export const slotsRelations = relations(slotsTable, ({ one, many }) => ({
   page: one(supportPagesTable, {
     fields: [slotsTable.pageId],
     references: [supportPagesTable.id],
+  }),
+  trustedHelperInvites: many(trustedHelperInvitesTable),
+}));
+
+export const trustedHelperInvitesRelations = relations(trustedHelperInvitesTable, ({ one }) => ({
+  slot: one(slotsTable, {
+    fields: [trustedHelperInvitesTable.slotId],
+    references: [slotsTable.id],
   }),
 }));
 

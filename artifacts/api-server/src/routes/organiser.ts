@@ -5,9 +5,6 @@ import { requireAuth, type AuthRequest } from "../middleware/requireAuth";
 
 const router: IRouter = Router();
 
-// All organiser routes require auth
-router.use(requireAuth as any);
-
 const ADJECTIVES = [
   "warm", "bright", "calm", "kind", "gentle", "hopeful",
   "tender", "caring", "open", "close", "soft", "steady",
@@ -32,12 +29,11 @@ async function uniqueSlug(): Promise<string> {
     });
     if (!existing) return slug;
   }
-  // Fallback: use UUID fragment
   return crypto.randomUUID().slice(0, 8);
 }
 
 // POST /api/organiser/pages — create a new support page (draft)
-router.post("/organiser/pages", async (req, res) => {
+router.post("/organiser/pages", requireAuth as any, async (req, res) => {
   const authReq = req as AuthRequest;
   const { recipientName, situationDescription, location, privacy, pin } = req.body as {
     recipientName?: string;
@@ -90,7 +86,7 @@ router.post("/organiser/pages", async (req, res) => {
 });
 
 // POST /api/organiser/pages/:pageId/slots — add a slot
-router.post("/organiser/pages/:pageId/slots", async (req, res) => {
+router.post("/organiser/pages/:pageId/slots", requireAuth as any, async (req, res) => {
   const authReq = req as AuthRequest;
   const { pageId } = req.params;
 
@@ -106,15 +102,16 @@ router.post("/organiser/pages/:pageId/slots", async (req, res) => {
     return;
   }
 
-  const { slotType, customLabel, slotDate, slotTime, notes } = req.body as {
+  const { slotType, customLabel, slotDate, slotTime, notes, trustedHelpersOnly } = req.body as {
     slotType?: string;
     customLabel?: string;
     slotDate?: string;
     slotTime?: string | null;
     notes?: string;
+    trustedHelpersOnly?: boolean;
   };
 
-  const validTypes = ["meal", "school_pickup", "errand", "dog_walking", "shopping", "visit", "other"];
+  const validTypes = ["meal", "school_pickup", "child_care", "errand", "dog_walking", "shopping", "visit", "other"];
   if (!slotType || !validTypes.includes(slotType)) {
     res.status(400).json({ error: "A valid slot type is required." });
     return;
@@ -123,6 +120,9 @@ router.post("/organiser/pages/:pageId/slots", async (req, res) => {
     res.status(400).json({ error: "A valid date (YYYY-MM-DD) is required." });
     return;
   }
+
+  const sensitiveTypes = ["school_pickup", "child_care"];
+  const isTrustedOnly = sensitiveTypes.includes(slotType) || trustedHelpersOnly === true;
 
   const [slot] = await db
     .insert(slotsTable)
@@ -133,6 +133,7 @@ router.post("/organiser/pages/:pageId/slots", async (req, res) => {
       slotDate,
       slotTime: slotTime || null,
       notes: typeof notes === "string" ? notes.trim() || null : null,
+      trustedHelpersOnly: isTrustedOnly,
     })
     .returning();
 
@@ -144,17 +145,17 @@ router.post("/organiser/pages/:pageId/slots", async (req, res) => {
     slotDate: slot.slotDate,
     slotTime: slot.slotTime,
     notes: slot.notes,
+    trustedHelpersOnly: slot.trustedHelpersOnly,
     isClaimed: slot.isClaimed,
     createdAt: slot.createdAt.toISOString(),
   });
 });
 
 // DELETE /api/organiser/slots/:slotId — remove a slot
-router.delete("/organiser/slots/:slotId", async (req, res) => {
+router.delete("/organiser/slots/:slotId", requireAuth as any, async (req, res) => {
   const authReq = req as AuthRequest;
   const { slotId } = req.params;
 
-  // Verify ownership via join
   const slot = await db.query.slotsTable.findFirst({
     where: eq(slotsTable.id, slotId),
     with: { page: true },
@@ -169,8 +170,8 @@ router.delete("/organiser/slots/:slotId", async (req, res) => {
   res.json({ ok: true });
 });
 
-// POST /api/organiser/pages/:pageId/publish — publish the page
-router.post("/organiser/pages/:pageId/publish", async (req, res) => {
+// POST /api/organiser/pages/:pageId/publish
+router.post("/organiser/pages/:pageId/publish", requireAuth as any, async (req, res) => {
   const authReq = req as AuthRequest;
   const { pageId } = req.params;
 
@@ -196,7 +197,7 @@ router.post("/organiser/pages/:pageId/publish", async (req, res) => {
 });
 
 // GET /api/organiser/pages — list organiser's pages
-router.get("/organiser/pages", async (req, res) => {
+router.get("/organiser/pages", requireAuth as any, async (req, res) => {
   const authReq = req as AuthRequest;
 
   const pages = await db.query.supportPagesTable.findMany({
@@ -221,7 +222,7 @@ router.get("/organiser/pages", async (req, res) => {
 });
 
 // GET /api/organiser/pages/:pageId — get a specific page with slots
-router.get("/organiser/pages/:pageId", async (req, res) => {
+router.get("/organiser/pages/:pageId", requireAuth as any, async (req, res) => {
   const authReq = req as AuthRequest;
   const { pageId } = req.params;
 
@@ -254,6 +255,7 @@ router.get("/organiser/pages/:pageId", async (req, res) => {
       slotDate: s.slotDate,
       slotTime: s.slotTime,
       notes: s.notes,
+      trustedHelpersOnly: s.trustedHelpersOnly,
       isClaimed: s.isClaimed,
       claimedByName: s.claimedByName,
       claimedNote: s.claimedNote,

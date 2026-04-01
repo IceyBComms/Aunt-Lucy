@@ -13,6 +13,7 @@ import OrganiseCreatePage from "@/pages/OrganiseCreatePage";
 import OrganiseAddSlots from "@/pages/OrganiseAddSlots";
 import OrganisePublish from "@/pages/OrganisePublish";
 import OrganiseDashboard from "@/pages/OrganiseDashboard";
+import InviteClaim from "@/pages/InviteClaim";
 
 const queryClient = new QueryClient();
 
@@ -30,6 +31,9 @@ function Router() {
       <Route path="/organise/create/:pageId/slots" component={OrganiseAddSlots} />
       <Route path="/organise/create/:pageId/publish" component={OrganisePublish} />
       <Route path="/organise/dashboard" component={OrganiseDashboard} />
+
+      {/* Trusted helper invite claim */}
+      <Route path="/invite/:token" component={InviteClaim} />
 
       <Route component={NotFound} />
     </Switch>

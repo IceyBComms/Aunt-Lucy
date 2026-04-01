@@ -4,6 +4,7 @@ import pagesRouter from "./pages";
 import slotsRouter from "./slots";
 import authRouter from "./auth";
 import organiserRouter from "./organiser";
+import invitesRouter from "./invites";
 
 const router: IRouter = Router();
 
@@ -12,5 +13,6 @@ router.use(pagesRouter);
 router.use(slotsRouter);
 router.use(authRouter);
 router.use(organiserRouter);
+router.use(invitesRouter);
 
 export default router;

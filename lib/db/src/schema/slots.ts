@@ -6,6 +6,7 @@ import { supportPagesTable } from "./supportPages";
 export const slotTypeEnum = pgEnum("slot_type", [
   "meal",
   "school_pickup",
+  "child_care",
   "errand",
   "dog_walking",
   "shopping",
@@ -25,6 +26,7 @@ export const slotsTable = pgTable("slots", {
   slotDate: date("slot_date").notNull(),
   slotTime: time("slot_time"),
   notes: text("notes"),
+  trustedHelpersOnly: boolean("trusted_helpers_only").notNull().default(false),
   isClaimed: boolean("is_claimed").notNull().default(false),
   claimedByName: text("claimed_by_name"),
   claimedByContact: text("claimed_by_contact"),

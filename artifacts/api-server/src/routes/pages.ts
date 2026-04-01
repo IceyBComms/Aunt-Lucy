@@ -41,10 +41,12 @@ router.get("/pages/:slug", async (req, res) => {
     customLabel: slot.customLabel,
     slotDate: slot.slotDate,
     slotTime: slot.slotTime,
-    notes: slot.notes,
+    // Hide task instructions for invitation-only slots on the public page
+    notes: slot.trustedHelpersOnly ? null : slot.notes,
     isClaimed: slot.isClaimed,
     claimedByName: slot.claimedByName ?? null,
     claimedNote: slot.claimedNote ?? null,
+    invitationOnly: slot.trustedHelpersOnly,
     createdAt: slot.createdAt.toISOString(),
   }));
 
