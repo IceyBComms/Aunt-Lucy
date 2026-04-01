@@ -211,18 +211,20 @@ export async function sendMagicLink({ to, magicLink }: MagicLinkParams): Promise
 
   const text = `Hi there,\n\nHere's your Aunt Lucy sign-in link:\n${magicLink}\n\nIt's valid for one hour. If you didn't request this, you can safely ignore this email.\n\nWarmly,\nThe Aunt Lucy Team`;
 
-  try {
-    await resend.emails.send({
-      from: FROM_ADDRESS,
-      to,
-      subject: "Your Aunt Lucy sign-in link",
-      html,
-      text,
-    });
-    logger.info("Magic link email sent");
-  } catch (err) {
-    logger.error({ err }, "Failed to send magic link email");
+  const { error } = await resend.emails.send({
+    from: FROM_ADDRESS,
+    to,
+    subject: "Your Aunt Lucy sign-in link",
+    html,
+    text,
+  });
+
+  if (error) {
+    logger.error({ error }, "Failed to send magic link email");
+    throw new Error(`Resend error: ${error.message}`);
   }
+
+  logger.info("Magic link email sent");
 }
 
 // ─── Pilot Application Notification ──────────────────────────────────────────
@@ -314,18 +316,19 @@ export async function sendPilotApplicationNotification(params: PilotApplicationP
     params.usageDescription,
   ].filter((l) => l !== null).join("\n");
 
-  try {
-    await resend.emails.send({
-      from: FROM_ADDRESS,
-      to: adminEmail,
-      replyTo: params.email,
-      subject: `New pilot application — ${params.fullName}, ${params.orgName}`,
-      html,
-      text,
-    });
+  const { error } = await resend.emails.send({
+    from: FROM_ADDRESS,
+    to: adminEmail,
+    replyTo: params.email,
+    subject: `New pilot application — ${params.fullName}, ${params.orgName}`,
+    html,
+    text,
+  });
+
+  if (error) {
+    logger.error({ error }, "Failed to send pilot application notification");
+  } else {
     logger.info({ to: adminEmail }, "Pilot application notification sent");
-  } catch (err) {
-    logger.error({ err }, "Failed to send pilot application notification");
   }
 }
 
@@ -342,17 +345,18 @@ export async function sendClaimConfirmation(params: ClaimEmailParams): Promise<v
     return;
   }
 
-  try {
-    const subject = `Thanks for helping ${params.recipientName} — here's what you've signed up for`;
-    await resend.emails.send({
-      from: FROM_ADDRESS,
-      to: params.helperContact,
-      subject,
-      html: buildHtml(params),
-      text: buildPlainText(params),
-    });
+  const subject = `Thanks for helping ${params.recipientName} — here's what you've signed up for`;
+  const { error } = await resend.emails.send({
+    from: FROM_ADDRESS,
+    to: params.helperContact,
+    subject,
+    html: buildHtml(params),
+    text: buildPlainText(params),
+  });
+
+  if (error) {
+    logger.error({ error, to: params.helperContact }, "Failed to send claim confirmation email");
+  } else {
     logger.info({ to: params.helperContact }, "Claim confirmation email sent");
-  } catch (err) {
-    logger.error({ err, to: params.helperContact }, "Failed to send claim confirmation email");
   }
 }
