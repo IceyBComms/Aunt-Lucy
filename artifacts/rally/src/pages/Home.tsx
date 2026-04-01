@@ -184,6 +184,41 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Pilot programme */}
+      <section className="bg-card border-t border-border/50 py-20 px-6">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.45 }}
+          className="max-w-3xl mx-auto flex flex-col sm:flex-row items-center gap-10"
+        >
+          <div className="flex-1 text-left">
+            <p className="text-sm font-medium text-primary uppercase tracking-wide mb-2">
+              Pilot programme
+            </p>
+            <h2 className="font-serif text-3xl font-bold text-foreground mb-4">
+              Are you a healthcare or community organisation?
+            </h2>
+            <p className="text-muted-foreground leading-relaxed">
+              We're partnering with a small group of organisations for our pilot
+              — hospitals, schools, social workers, community groups. If your
+              team coordinates support for people in crisis, we'd love to talk.
+            </p>
+          </div>
+          <div className="shrink-0">
+            <Button
+              size="lg"
+              variant="outline"
+              className="font-serif text-base border-primary/40 text-primary hover:bg-primary/5"
+              onClick={() => setLocation("/pilot")}
+            >
+              Apply to join the pilot
+            </Button>
+          </div>
+        </motion.div>
+      </section>
+
       {/* Bottom CTA */}
       <section className="bg-primary py-20 px-6 text-center">
         <motion.div
