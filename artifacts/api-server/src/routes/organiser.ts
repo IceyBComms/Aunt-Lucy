@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { db, supportPagesTable, slotsTable } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import { db, supportPagesTable, slotsTable, pilotApplicationsTable } from "@workspace/db";
+import { eq, and, desc } from "drizzle-orm";
 import { requireAuth, type AuthRequest } from "../middleware/requireAuth";
 
 const router: IRouter = Router();
@@ -261,6 +261,29 @@ router.get("/organiser/pages/:pageId", requireAuth as any, async (req, res) => {
       claimedNote: s.claimedNote,
     })),
   });
+});
+
+// GET /api/organiser/pilot-applications — list all pilot applications
+router.get("/organiser/pilot-applications", requireAuth as any, async (_req, res) => {
+  const applications = await db
+    .select()
+    .from(pilotApplicationsTable)
+    .orderBy(desc(pilotApplicationsTable.createdAt));
+
+  res.json(
+    applications.map((a) => ({
+      id: a.id,
+      fullName: a.fullName,
+      role: a.role,
+      email: a.email,
+      phone: a.phone,
+      orgName: a.orgName,
+      orgType: a.orgType,
+      usageDescription: a.usageDescription,
+      hearAboutUs: a.hearAboutUs,
+      createdAt: a.createdAt.toISOString(),
+    })),
+  );
 });
 
 export default router;

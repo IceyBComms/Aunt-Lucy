@@ -225,6 +225,110 @@ export async function sendMagicLink({ to, magicLink }: MagicLinkParams): Promise
   }
 }
 
+// ─── Pilot Application Notification ──────────────────────────────────────────
+
+const ORG_TYPE_LABELS: Record<string, string> = {
+  healthcare: "Healthcare or hospital",
+  school: "School or early childhood",
+  community: "Community or welfare organisation",
+  faith: "Faith community or church",
+  social_work: "Social work or counselling",
+  other: "Other",
+};
+
+interface PilotApplicationParams {
+  fullName: string;
+  role: string;
+  email: string;
+  phone: string | null;
+  orgName: string;
+  orgType: string;
+  usageDescription: string;
+  hearAboutUs: string | null;
+}
+
+export async function sendPilotApplicationNotification(params: PilotApplicationParams): Promise<void> {
+  const adminEmail = process.env.ADMIN_EMAIL;
+  if (!resend || !adminEmail) {
+    logger.warn("RESEND_API_KEY or ADMIN_EMAIL not set — skipping pilot notification");
+    return;
+  }
+
+  const orgLabel = ORG_TYPE_LABELS[params.orgType] ?? params.orgType;
+  const phoneRow = params.phone
+    ? `<tr><td style="padding:6px 0;color:#5a5a5a;font-size:14px;"><strong>Phone:</strong> ${escapeHtml(params.phone)}</td></tr>`
+    : "";
+  const hearRow = params.hearAboutUs
+    ? `<tr><td style="padding:6px 0;color:#5a5a5a;font-size:14px;"><strong>How they heard:</strong> ${escapeHtml(params.hearAboutUs)}</td></tr>`
+    : "";
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background-color:#FAF7F2;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#FAF7F2;">
+    <tr><td align="center" style="padding:40px 16px;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
+        <tr><td style="background-color:#2D6A4F;padding:24px 32px;">
+          <h1 style="margin:0;color:#ffffff;font-size:20px;font-weight:600;">Aunt Lucy · New pilot application</h1>
+        </td></tr>
+        <tr><td style="padding:32px;">
+          <p style="margin:0 0 20px;color:#333;font-size:16px;line-height:1.6;">
+            A new organisation has applied to join the pilot:
+          </p>
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#F3F6F2;border-radius:8px;padding:20px;margin:0 0 24px;">
+            <tr><td style="padding:6px 0;color:#5a5a5a;font-size:14px;"><strong>Name:</strong> ${escapeHtml(params.fullName)}</td></tr>
+            <tr><td style="padding:6px 0;color:#5a5a5a;font-size:14px;"><strong>Role:</strong> ${escapeHtml(params.role)}</td></tr>
+            <tr><td style="padding:6px 0;color:#5a5a5a;font-size:14px;"><strong>Email:</strong> <a href="mailto:${escapeHtml(params.email)}" style="color:#2D6A4F;">${escapeHtml(params.email)}</a></td></tr>
+            ${phoneRow}
+            <tr><td style="padding:12px 0 6px;color:#5a5a5a;font-size:14px;border-top:1px solid #e0e0e0;margin-top:8px;"><strong>Organisation:</strong> ${escapeHtml(params.orgName)}</td></tr>
+            <tr><td style="padding:6px 0;color:#5a5a5a;font-size:14px;"><strong>Type:</strong> ${escapeHtml(orgLabel)}</td></tr>
+            ${hearRow}
+          </table>
+          <p style="margin:0 0 8px;color:#333;font-size:15px;font-weight:600;">How they plan to use Aunt Lucy:</p>
+          <p style="margin:0 0 24px;color:#555;font-size:14px;line-height:1.7;background:#F3F6F2;border-radius:8px;padding:16px;">${escapeHtml(params.usageDescription)}</p>
+          <p style="margin:0;color:#2D6A4F;font-size:14px;">Reply directly to this email to follow up with ${escapeHtml(params.fullName)}.</p>
+        </td></tr>
+        <tr><td style="padding:16px 32px;background-color:#FAF7F2;text-align:center;">
+          <p style="margin:0;color:#999;font-size:12px;">Aunt Lucy pilot programme · auntlucy.com.au</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+
+  const text = [
+    `New pilot application — Aunt Lucy`,
+    ``,
+    `Name: ${params.fullName}`,
+    `Role: ${params.role}`,
+    `Email: ${params.email}`,
+    params.phone ? `Phone: ${params.phone}` : null,
+    ``,
+    `Organisation: ${params.orgName}`,
+    `Type: ${orgLabel}`,
+    params.hearAboutUs ? `How they heard: ${params.hearAboutUs}` : null,
+    ``,
+    `How they plan to use Aunt Lucy:`,
+    params.usageDescription,
+  ].filter((l) => l !== null).join("\n");
+
+  try {
+    await resend.emails.send({
+      from: FROM_ADDRESS,
+      to: adminEmail,
+      replyTo: params.email,
+      subject: `New pilot application — ${params.fullName}, ${params.orgName}`,
+      html,
+      text,
+    });
+    logger.info({ to: adminEmail }, "Pilot application notification sent");
+  } catch (err) {
+    logger.error({ err }, "Failed to send pilot application notification");
+  }
+}
+
 // ─── Claim Confirmation Email ─────────────────────────────────────────────────
 
 export async function sendClaimConfirmation(params: ClaimEmailParams): Promise<void> {

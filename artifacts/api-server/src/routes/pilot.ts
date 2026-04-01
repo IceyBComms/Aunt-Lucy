@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db, pilotApplicationsTable } from "@workspace/db";
+import { sendPilotApplicationNotification } from "../lib/email";
 
 const router: IRouter = Router();
 
@@ -68,6 +69,21 @@ router.post("/pilot", async (req, res) => {
         ? hearAboutUs.trim()
         : null,
   });
+
+  // Fire-and-forget notification — don't block the response
+  sendPilotApplicationNotification({
+    fullName: fullNameTrimmed,
+    role: roleTrimmed,
+    email: emailTrimmed,
+    phone: typeof phone === "string" && phone.trim() ? phone.trim() : null,
+    orgName: orgNameTrimmed,
+    orgType: orgType as string,
+    usageDescription: usageTrimmed,
+    hearAboutUs:
+      typeof hearAboutUs === "string" && hearAboutUs.trim()
+        ? hearAboutUs.trim()
+        : null,
+  }).catch(() => {});
 
   res.status(201).json({ ok: true });
 });

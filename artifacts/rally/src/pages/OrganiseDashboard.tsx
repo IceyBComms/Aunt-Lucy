@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
-import { Plus, ExternalLink, LogOut, MapPin, Users, Check } from "lucide-react";
+import { Plus, ExternalLink, LogOut, MapPin, Users, Check, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
@@ -81,6 +81,15 @@ export default function OrganiseDashboard() {
       </div>
 
       <div className="max-w-lg mx-auto px-5 py-8">
+        {/* Pilot applications shortcut */}
+        <button
+          onClick={() => setLocation("/organise/pilot-applications")}
+          className="w-full flex items-center gap-3 bg-primary/6 hover:bg-primary/10 border border-primary/20 rounded-2xl px-4 py-3 mb-6 text-left transition-colors"
+        >
+          <Building2 className="w-5 h-5 text-primary shrink-0" />
+          <span className="text-sm font-medium text-primary">View pilot applications</span>
+        </button>
+
         <div className="flex items-center justify-between mb-6">
           <h2 className="font-serif text-xl font-semibold text-foreground">Support pages</h2>
           <Button

@@ -15,6 +15,8 @@ import OrganisePublish from "@/pages/OrganisePublish";
 import OrganiseDashboard from "@/pages/OrganiseDashboard";
 import InviteClaim from "@/pages/InviteClaim";
 import PilotApply from "@/pages/PilotApply";
+import OrganisePilotApplications from "@/pages/OrganisePilotApplications";
+import PrivacyPolicy from "@/pages/PrivacyPolicy";
 
 const queryClient = new QueryClient();
 
@@ -38,6 +40,10 @@ function Router() {
 
       {/* Pilot application */}
       <Route path="/pilot" component={PilotApply} />
+      <Route path="/organise/pilot-applications" component={OrganisePilotApplications} />
+
+      {/* Privacy policy */}
+      <Route path="/privacy" component={PrivacyPolicy} />
 
       <Route component={NotFound} />
     </Switch>

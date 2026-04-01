@@ -256,7 +256,15 @@ export default function Home() {
             <span className="font-serif font-semibold text-foreground">Aunt Lucy</span>
             <span>· auntlucy.com.au</span>
           </div>
-          <p>© {new Date().getFullYear()} Aunt Lucy. Made with care in Australia.</p>
+          <div className="flex items-center gap-4">
+            <p>© {new Date().getFullYear()} Aunt Lucy. Made with care in Australia.</p>
+            <button
+              onClick={() => setLocation("/privacy")}
+              className="underline underline-offset-2 hover:text-foreground transition-colors"
+            >
+              Privacy policy
+            </button>
+          </div>
         </div>
       </footer>
     </div>
