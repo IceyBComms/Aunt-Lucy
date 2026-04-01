@@ -160,6 +160,73 @@ function escapeHtml(str: string): string {
     .replace(/"/g, "&quot;");
 }
 
+// ─── Magic Link Email ─────────────────────────────────────────────────────────
+
+interface MagicLinkParams {
+  to: string;
+  magicLink: string;
+}
+
+export async function sendMagicLink({ to, magicLink }: MagicLinkParams): Promise<void> {
+  if (!resend) {
+    logger.warn("RESEND_API_KEY not set — skipping magic link email");
+    return;
+  }
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background-color:#FAF7F2;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#FAF7F2;">
+    <tr><td align="center" style="padding:40px 16px;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
+        <tr><td style="background-color:#2D6A4F;padding:28px 32px;">
+          <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:600;">Aunt Lucy</h1>
+        </td></tr>
+        <tr><td style="padding:32px;">
+          <p style="margin:0 0 20px;color:#333;font-size:16px;line-height:1.6;">Hi there,</p>
+          <p style="margin:0 0 24px;color:#333;font-size:16px;line-height:1.6;">
+            Here's your sign-in link. Click the button below to access your Aunt Lucy account — it's valid for one hour.
+          </p>
+          <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 24px;">
+            <tr><td style="border-radius:8px;background-color:#E76F51;">
+              <a href="${magicLink}" style="display:inline-block;padding:14px 28px;color:#ffffff;font-size:16px;font-weight:600;text-decoration:none;border-radius:8px;">Sign in to Aunt Lucy</a>
+            </td></tr>
+          </table>
+          <p style="margin:0 0 8px;color:#888;font-size:13px;line-height:1.6;">
+            If you didn't request this, you can safely ignore this email.
+          </p>
+          <p style="margin:24px 0 0;color:#2D6A4F;font-size:15px;line-height:1.6;">
+            Warmly,<br>The Aunt Lucy Team
+          </p>
+        </td></tr>
+        <tr><td style="padding:20px 32px;background-color:#FAF7F2;text-align:center;">
+          <p style="margin:0;color:#999;font-size:12px;">Can't click the button? Copy this link: ${magicLink}</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+
+  const text = `Hi there,\n\nHere's your Aunt Lucy sign-in link:\n${magicLink}\n\nIt's valid for one hour. If you didn't request this, you can safely ignore this email.\n\nWarmly,\nThe Aunt Lucy Team`;
+
+  try {
+    await resend.emails.send({
+      from: FROM_ADDRESS,
+      to,
+      subject: "Your Aunt Lucy sign-in link",
+      html,
+      text,
+    });
+    logger.info("Magic link email sent");
+  } catch (err) {
+    logger.error({ err }, "Failed to send magic link email");
+  }
+}
+
+// ─── Claim Confirmation Email ─────────────────────────────────────────────────
+
 export async function sendClaimConfirmation(params: ClaimEmailParams): Promise<void> {
   if (!resend) {
     logger.warn("RESEND_API_KEY not set — skipping claim confirmation email");
