@@ -13,10 +13,12 @@ function generateToken(): string {
 }
 
 function getAppBaseUrl(): string {
-  // Replit provides REPLIT_DEV_DOMAIN for the dev preview
+  // APP_URL is set in production (e.g. https://auntlucy.com.au) — always prefer it.
+  // Only fall back to REPLIT_DEV_DOMAIN for local development where APP_URL is absent.
+  if (process.env.APP_URL) return process.env.APP_URL;
   const replitDomain = process.env.REPLIT_DEV_DOMAIN;
   if (replitDomain) return `https://${replitDomain}`;
-  return process.env.APP_URL ?? "http://localhost:21112";
+  return "http://localhost:21112";
 }
 
 // POST /api/auth/magic-link
