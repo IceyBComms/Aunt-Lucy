@@ -5,7 +5,7 @@ const resend = process.env.RESEND_API_KEY
   ? new Resend(process.env.RESEND_API_KEY)
   : null;
 
-const FROM_ADDRESS = "Aunt Lucy <noreply@auntlucy.com.au>";
+const FROM_ADDRESS = "Aunt Lucy <noreply@send.auntlucy.com.au>";
 
 const SLOT_TYPE_LABELS: Record<string, string> = {
   meal: "Dropping off a meal",

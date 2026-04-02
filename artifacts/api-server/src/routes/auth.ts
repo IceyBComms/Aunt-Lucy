@@ -54,7 +54,15 @@ router.post("/auth/magic-link", async (req, res) => {
 
   const magicLink = `${getAppBaseUrl()}/organise/verify?token=${token}`;
 
-  await sendMagicLink({ to: emailTrimmed, magicLink });
+  try {
+    await sendMagicLink({ to: emailTrimmed, magicLink });
+  } catch (err) {
+    logger.error({ err, email: emailTrimmed }, "Failed to send magic link — email delivery error");
+    res.status(503).json({
+      error: "We're having trouble sending emails right now. Please try again in a few minutes.",
+    });
+    return;
+  }
 
   logger.info({ email: emailTrimmed }, "Magic link sent");
 
