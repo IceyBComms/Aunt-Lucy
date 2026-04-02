@@ -100,8 +100,8 @@ export default function Home() {
           className="text-lg text-muted-foreground leading-relaxed max-w-xl mb-10"
         >
           Aunt Lucy helps you coordinate practical support — meals, pickups,
-          errands — for someone going through a hard time. One page, one link,
-          no fuss.
+          errands — for yourself or someone going through a hard time. One page,
+          one link, no fuss.
         </motion.p>
 
         <motion.div variants={fadeUp} className="flex flex-col sm:flex-row gap-3 items-center">
@@ -229,11 +229,11 @@ export default function Home() {
           className="max-w-xl mx-auto"
         >
           <h2 className="font-serif text-4xl font-bold text-primary-foreground mb-4">
-            Someone needs you right now
+            Ready to set up a support page?
           </h2>
           <p className="text-primary-foreground/75 text-lg mb-10 leading-relaxed">
-            Set up a support page in a few minutes and let the people who care
-            do what they do best.
+            Whether it's for yourself or someone you care about — set up a page
+            in a few minutes and let the people who want to help, help.
           </p>
           <Button
             size="lg"

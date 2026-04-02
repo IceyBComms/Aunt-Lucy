@@ -67,24 +67,24 @@ export default function OrganiseCreatePage() {
             About the support page
           </h1>
           <p className="text-muted-foreground leading-relaxed">
-            Tell helpers a little about who they're supporting and what's happening.
+            Tell helpers a little about the situation — whether you're setting this up for yourself or someone you care about.
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="space-y-1.5">
             <Label htmlFor="recipientName" className="text-foreground/80 pl-1">
-              Who needs support?
+              Who is the support page for?
             </Label>
             <Input
               id="recipientName"
-              placeholder="e.g. Sarah"
+              placeholder="e.g. Sarah, or your own name"
               value={form.recipientName}
               onChange={(e) => set("recipientName", e.target.value)}
               required
               autoFocus
             />
-            <p className="text-xs text-muted-foreground pl-1">First name only is fine — this appears on the public page.</p>
+            <p className="text-xs text-muted-foreground pl-1">First name only is fine — this appears on the public page. It can be your own name.</p>
           </div>
 
           <div className="space-y-1.5">
@@ -94,7 +94,7 @@ export default function OrganiseCreatePage() {
             </Label>
             <Textarea
               id="situationDescription"
-              placeholder="e.g. Sarah is recovering from surgery and could use some help with meals and the kids for the next few weeks."
+              placeholder="e.g. I'm recovering from surgery and could use some help with meals and the school run for the next few weeks."
               rows={3}
               value={form.situationDescription}
               onChange={(e) => set("situationDescription", e.target.value)}
