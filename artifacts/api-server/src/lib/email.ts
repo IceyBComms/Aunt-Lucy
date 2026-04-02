@@ -360,3 +360,103 @@ export async function sendClaimConfirmation(params: ClaimEmailParams): Promise<v
     logger.info({ to: params.helperContact }, "Claim confirmation email sent");
   }
 }
+
+// ─── Trusted Helper Invite Email ──────────────────────────────────────────────
+
+interface InviteEmailParams {
+  to: string;
+  helperName: string;
+  recipientName: string;
+  slotTypeLabel: string;
+  slotDate: string;
+  slotTime: string | null;
+  inviteUrl: string;
+}
+
+export async function sendInviteEmail(params: InviteEmailParams): Promise<void> {
+  if (!resend) {
+    logger.warn("RESEND_API_KEY not set — skipping invite email");
+    return;
+  }
+
+  const dateFormatted = formatDate(params.slotDate);
+  const timeFormatted = params.slotTime ? formatTime(params.slotTime) : null;
+  const dateTimeLine = timeFormatted
+    ? `${dateFormatted} at ${timeFormatted}`
+    : dateFormatted;
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background-color:#FAF7F2;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#FAF7F2;">
+    <tr><td align="center" style="padding:40px 16px;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
+        <tr><td style="background-color:#2D6A4F;padding:28px 32px;">
+          <p style="margin:0;color:rgba(255,255,255,0.7);font-size:13px;font-weight:500;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:4px;">Personal invitation</p>
+          <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;">Hi ${escapeHtml(params.helperName)},</h1>
+        </td></tr>
+        <tr><td style="padding:32px;">
+          <p style="margin:0 0 20px;color:#333;font-size:16px;line-height:1.6;">
+            You've been personally invited to help <strong>${escapeHtml(params.recipientName)}</strong>. Here's the slot they're hoping you can cover:
+          </p>
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#F3F6F2;border-radius:8px;padding:20px;margin:0 0 24px;">
+            <tr><td style="padding:8px 0;color:#5a5a5a;font-size:14px;"><strong>What:</strong> ${escapeHtml(params.slotTypeLabel)}</td></tr>
+            <tr><td style="padding:8px 0;color:#5a5a5a;font-size:14px;"><strong>When:</strong> ${escapeHtml(dateTimeLine)}</td></tr>
+          </table>
+          <p style="margin:0 0 24px;color:#333;font-size:16px;line-height:1.6;">
+            Tap the button below to see the full details and confirm you're in.
+          </p>
+          <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 24px;">
+            <tr><td style="border-radius:8px;background-color:#E76F51;">
+              <a href="${params.inviteUrl}" style="display:inline-block;padding:14px 28px;color:#ffffff;font-size:16px;font-weight:600;text-decoration:none;border-radius:8px;">View invitation &amp; confirm</a>
+            </td></tr>
+          </table>
+          <p style="margin:0 0 8px;color:#888;font-size:13px;line-height:1.6;">
+            If you didn't expect this or can't help, you can safely ignore this email.
+          </p>
+          <p style="margin:24px 0 0;color:#2D6A4F;font-size:15px;line-height:1.6;">
+            Warmly,<br>The Aunt Lucy Team
+          </p>
+        </td></tr>
+        <tr><td style="padding:20px 32px;background-color:#FAF7F2;text-align:center;">
+          <p style="margin:0;color:#999;font-size:12px;">Can't click the button? Copy this link: ${escapeHtml(params.inviteUrl)}</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+
+  const text = [
+    `Hi ${params.helperName},`,
+    ``,
+    `You've been personally invited to help ${params.recipientName}.`,
+    ``,
+    `What: ${params.slotTypeLabel}`,
+    `When: ${dateTimeLine}`,
+    ``,
+    `View your invitation and confirm here:`,
+    params.inviteUrl,
+    ``,
+    `If you can't help, you can safely ignore this email.`,
+    ``,
+    `Warmly,`,
+    `The Aunt Lucy Team`,
+  ].join("\n");
+
+  const { error } = await resend.emails.send({
+    from: FROM_ADDRESS,
+    to: params.to,
+    subject: `You're invited to help ${params.recipientName} — ${params.slotTypeLabel} on ${dateFormatted}`,
+    html,
+    text,
+  });
+
+  if (error) {
+    logger.error({ error, to: params.to }, "Failed to send invite email");
+    throw new Error(`Resend error: ${error.message}`);
+  }
+
+  logger.info({ to: params.to }, "Invite email sent");
+}

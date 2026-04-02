@@ -9,9 +9,11 @@ export const trustedHelperInvitesTable = pgTable("trusted_helper_invites", {
     .notNull()
     .references(() => slotsTable.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
-  mobile: text("mobile").notNull(),
+  mobile: text("mobile"),
+  email: text("email"),
   inviteToken: text("invite_token").notNull().unique(),
   smsSentAt: timestamp("sms_sent_at"),
+  emailSentAt: timestamp("email_sent_at"),
   claimedAt: timestamp("claimed_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });

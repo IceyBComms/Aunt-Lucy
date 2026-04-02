@@ -4,6 +4,7 @@ import { db, slotsTable, trustedHelperInvitesTable, supportPagesTable } from "@w
 import { eq, and } from "drizzle-orm";
 import { requireAuth, type AuthRequest } from "../middleware/requireAuth";
 import { sendInviteSms } from "../lib/sms";
+import { sendInviteEmail } from "../lib/email";
 import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
@@ -25,8 +26,12 @@ const SLOT_TYPE_LABELS: Record<string, string> = {
   other: "Help",
 };
 
+function isEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
 // POST /api/organiser/pages/:pageId/slots/:slotId/invites
-// Add a trusted helper and send SMS invite
+// Add a trusted helper and send SMS or email invite
 router.post(
   "/organiser/pages/:pageId/slots/:slotId/invites",
   requireAuth as any,
@@ -54,58 +59,82 @@ router.post(
       return;
     }
 
-    const { name, mobile } = req.body as { name?: string; mobile?: string };
+    const { name, contact } = req.body as { name?: string; contact?: string };
     const nameTrimmed = typeof name === "string" ? name.trim() : "";
-    const mobileTrimmed = typeof mobile === "string" ? mobile.trim() : "";
+    const contactTrimmed = typeof contact === "string" ? contact.trim() : "";
 
     if (!nameTrimmed) {
       res.status(400).json({ error: "Helper name is required." });
       return;
     }
-    if (!mobileTrimmed) {
-      res.status(400).json({ error: "Mobile number is required." });
+    if (!contactTrimmed) {
+      res.status(400).json({ error: "Mobile number or email address is required." });
       return;
     }
 
+    const contactIsEmail = isEmail(contactTrimmed);
     const inviteToken = crypto.randomBytes(24).toString("hex");
     const inviteUrl = `${getAppBaseUrl()}/invite/${inviteToken}`;
+    const slotTypeLabel =
+      slot.customLabel || SLOT_TYPE_LABELS[slot.slotType] || slot.slotType;
 
     const [invite] = await db
       .insert(trustedHelperInvitesTable)
       .values({
         slotId,
         name: nameTrimmed,
-        mobile: mobileTrimmed,
+        mobile: contactIsEmail ? null : contactTrimmed,
+        email: contactIsEmail ? contactTrimmed : null,
         inviteToken,
       })
       .returning();
 
-    // Send SMS
-    await sendInviteSms({
-      to: mobileTrimmed,
-      recipientName: page.recipientName,
-      slotTypeLabel:
-        slot.customLabel ||
-        SLOT_TYPE_LABELS[slot.slotType] ||
-        slot.slotType,
-      slotDate: slot.slotDate,
-      slotTime: slot.slotTime,
-      helperName: nameTrimmed,
-      inviteUrl,
-    });
+    if (contactIsEmail) {
+      // Send email invite
+      try {
+        await sendInviteEmail({
+          to: contactTrimmed,
+          helperName: nameTrimmed,
+          recipientName: page.recipientName,
+          slotTypeLabel,
+          slotDate: slot.slotDate,
+          slotTime: slot.slotTime,
+          inviteUrl,
+        });
+        await db
+          .update(trustedHelperInvitesTable)
+          .set({ emailSentAt: new Date() })
+          .where(eq(trustedHelperInvitesTable.id, invite.id));
+      } catch (err) {
+        logger.error({ err, to: contactTrimmed }, "Failed to send invite email");
+      }
+    } else {
+      // Send SMS invite
+      await sendInviteSms({
+        to: contactTrimmed,
+        recipientName: page.recipientName,
+        slotTypeLabel,
+        slotDate: slot.slotDate,
+        slotTime: slot.slotTime,
+        helperName: nameTrimmed,
+        inviteUrl,
+      });
+      await db
+        .update(trustedHelperInvitesTable)
+        .set({ smsSentAt: new Date() })
+        .where(eq(trustedHelperInvitesTable.id, invite.id));
+    }
 
-    await db
-      .update(trustedHelperInvitesTable)
-      .set({ smsSentAt: new Date() })
-      .where(eq(trustedHelperInvitesTable.id, invite.id));
-
-    logger.info({ slotId, name: nameTrimmed }, "Trusted helper invite created");
+    logger.info(
+      { slotId, name: nameTrimmed, via: contactIsEmail ? "email" : "sms" },
+      "Trusted helper invite created",
+    );
 
     res.status(201).json({
       id: invite.id,
       name: invite.name,
-      mobile: invite.mobile,
-      smsSent: true,
+      contact: contactTrimmed,
+      via: contactIsEmail ? "email" : "sms",
     });
   },
 );
@@ -213,7 +242,7 @@ router.post("/invite/:token/claim", async (req, res) => {
     .set({
       isClaimed: true,
       claimedByName: invite.name,
-      claimedByContact: invite.mobile,
+      claimedByContact: invite.mobile ?? invite.email ?? invite.name,
     })
     .where(eq(slotsTable.id, invite.slotId));
 

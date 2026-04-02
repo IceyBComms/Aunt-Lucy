@@ -35,7 +35,7 @@ const SENSITIVE_TYPES = new Set(["school_pickup", "child_care"]);
 interface TrustedHelper {
   id: string;
   name: string;
-  mobile: string;
+  contact: string;
 }
 
 interface SlotDraft {
@@ -74,15 +74,15 @@ function TrustedHelperInput({
   onAdd: (h: TrustedHelper) => void;
 }) {
   const [name, setName] = useState("");
-  const [mobile, setMobile] = useState("");
+  const [contact, setContact] = useState("");
 
   function handleAdd() {
     const n = name.trim();
-    const m = mobile.trim();
-    if (!n || !m) return;
-    onAdd({ id: crypto.randomUUID(), name: n, mobile: m });
+    const c = contact.trim();
+    if (!n || !c) return;
+    onAdd({ id: crypto.randomUUID(), name: n, contact: c });
     setName("");
-    setMobile("");
+    setContact("");
   }
 
   return (
@@ -94,17 +94,16 @@ function TrustedHelperInput({
           onChange={(e) => setName(e.target.value)}
         />
         <Input
-          placeholder="+61412 345 678"
-          type="tel"
-          value={mobile}
-          onChange={(e) => setMobile(e.target.value)}
+          placeholder="Mobile or email"
+          value={contact}
+          onChange={(e) => setContact(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && handleAdd()}
         />
       </div>
       <button
         type="button"
         onClick={handleAdd}
-        disabled={!name.trim() || !mobile.trim()}
+        disabled={!name.trim() || !contact.trim()}
         className="flex items-center justify-center gap-1.5 py-2 px-3 text-sm text-primary border border-primary/30 rounded-xl hover:bg-primary/5 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
       >
         <UserPlus className="w-3.5 h-3.5" />
@@ -291,7 +290,7 @@ function SlotForm({
             <AlertTriangle className="w-4 h-4 text-amber-700 mt-0.5 flex-shrink-0" />
             <p className="text-xs text-amber-800 leading-relaxed">
               This slot requires a personal invitation. Add each helper's name and
-              mobile number — they'll receive a direct SMS invite when you save.
+              mobile number or email — they'll receive a direct invite when you save.
             </p>
           </div>
 
@@ -309,7 +308,7 @@ function SlotForm({
                     <p className="text-sm font-medium text-foreground truncate">
                       {h.name}
                     </p>
-                    <p className="text-xs text-muted-foreground">{h.mobile}</p>
+                    <p className="text-xs text-muted-foreground">{h.contact}</p>
                   </div>
                   <button
                     type="button"
@@ -435,7 +434,7 @@ export default function OrganiseAddSlots() {
                   method: "POST",
                   body: JSON.stringify({
                     name: helper.name,
-                    mobile: helper.mobile,
+                    contact: helper.contact,
                   }),
                   token: token!,
                 },
