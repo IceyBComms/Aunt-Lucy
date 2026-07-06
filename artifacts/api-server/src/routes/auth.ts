@@ -5,20 +5,12 @@ import { eq, and, gt } from "drizzle-orm";
 import { sendMagicLink } from "../lib/email";
 import { logger } from "../lib/logger";
 import { requireAuth, type AuthRequest } from "../middleware/requireAuth";
+import { getAppBaseUrl } from "../lib/appUrl";
 
 const router: IRouter = Router();
 
 function generateToken(): string {
   return crypto.randomBytes(32).toString("hex");
-}
-
-function getAppBaseUrl(): string {
-  // APP_URL is set in production (e.g. https://auntlucy.com.au) — always prefer it.
-  // Only fall back to REPLIT_DEV_DOMAIN for local development where APP_URL is absent.
-  if (process.env.APP_URL) return process.env.APP_URL;
-  const replitDomain = process.env.REPLIT_DEV_DOMAIN;
-  if (replitDomain) return `https://${replitDomain}`;
-  return "http://localhost:21112";
 }
 
 // POST /api/auth/magic-link

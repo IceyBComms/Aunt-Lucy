@@ -6,14 +6,9 @@ import { requireAuth, type AuthRequest } from "../middleware/requireAuth";
 import { sendInviteSms } from "../lib/sms";
 import { sendInviteEmail } from "../lib/email";
 import { logger } from "../lib/logger";
+import { getAppBaseUrl } from "../lib/appUrl";
 
 const router: IRouter = Router();
-
-function getAppBaseUrl(): string {
-  const replitDomain = process.env.REPLIT_DEV_DOMAIN;
-  if (replitDomain) return `https://${replitDomain}`;
-  return process.env.APP_URL ?? "http://localhost:21112";
-}
 
 const SLOT_TYPE_LABELS: Record<string, string> = {
   meal: "Meal",
