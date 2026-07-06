@@ -6,14 +6,9 @@ import { requireAuth, type AuthRequest } from "../middleware/requireAuth";
 import { sendInviteSms } from "../lib/sms";
 import { sendInviteEmail } from "../lib/email";
 import { logger } from "../lib/logger";
+import { getAppBaseUrl } from "../lib/appUrl";
 
 const router: IRouter = Router();
-
-function getAppBaseUrl(): string {
-  const replitDomain = process.env.REPLIT_DEV_DOMAIN;
-  if (replitDomain) return `https://${replitDomain}`;
-  return process.env.APP_URL ?? "http://localhost:21112";
-}
 
 const SLOT_TYPE_LABELS: Record<string, string> = {
   meal: "Meal",
@@ -36,7 +31,7 @@ router.post(
   "/organiser/pages/:pageId/slots/:slotId/invites",
   requireAuth as any,
   async (req, res) => {
-    const authReq = req as AuthRequest;
+    const authReq = req as unknown as AuthRequest;
     const { pageId, slotId } = req.params;
 
     // Verify organiser owns this page
@@ -144,7 +139,7 @@ router.delete(
   "/organiser/invites/:inviteId",
   requireAuth as any,
   async (req, res) => {
-    const authReq = req as AuthRequest;
+    const authReq = req as unknown as AuthRequest;
     const { inviteId } = req.params;
 
     const invite = await db.query.trustedHelperInvitesTable.findFirst({

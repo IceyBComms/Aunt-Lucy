@@ -1,24 +1,33 @@
 import { Router, type IRouter } from "express";
+import crypto from "crypto";
 import { db, supportPagesTable, slotsTable, pilotApplicationsTable } from "@workspace/db";
 import { eq, and, desc } from "drizzle-orm";
 import { requireAuth, type AuthRequest } from "../middleware/requireAuth";
+import { hashPin } from "../lib/pin";
+import { isAdminEmail } from "../lib/admin";
 
 const router: IRouter = Router();
 
-const ADJECTIVES = [
-  "warm", "bright", "calm", "kind", "gentle", "hopeful",
-  "tender", "caring", "open", "close", "soft", "steady",
-];
-const NOUNS = [
-  "circle", "village", "hearth", "table", "morning",
-  "haven", "garden", "stream", "grove", "light",
-];
+// Support page URLs are public and unauthenticated, so the slug must be an
+// unguessable random token (privacy requirement) rather than a readable name.
+// 12 characters from a 62-character alphabet is ~71 bits of entropy.
+const SLUG_ALPHABET =
+  "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+const SLUG_LENGTH = 12;
 
 function generateSlug(): string {
-  const adj = ADJECTIVES[Math.floor(Math.random() * ADJECTIVES.length)];
-  const noun = NOUNS[Math.floor(Math.random() * NOUNS.length)];
-  const num = Math.floor(Math.random() * 900) + 100;
-  return `${adj}-${noun}-${num}`;
+  // Rejection-sample bytes to avoid modulo bias (256 is not a multiple of 62).
+  const maxUnbiased = 256 - (256 % SLUG_ALPHABET.length); // 248
+  const chars: string[] = [];
+  while (chars.length < SLUG_LENGTH) {
+    const buf = crypto.randomBytes(SLUG_LENGTH);
+    for (let i = 0; i < buf.length && chars.length < SLUG_LENGTH; i++) {
+      if (buf[i] < maxUnbiased) {
+        chars.push(SLUG_ALPHABET[buf[i] % SLUG_ALPHABET.length]);
+      }
+    }
+  }
+  return chars.join("");
 }
 
 async function uniqueSlug(): Promise<string> {
@@ -29,12 +38,14 @@ async function uniqueSlug(): Promise<string> {
     });
     if (!existing) return slug;
   }
-  return crypto.randomUUID().slice(0, 8);
+  // With ~71 bits of entropy, 10 collisions is effectively impossible; fall
+  // back to another fresh token rather than a weaker one.
+  return generateSlug();
 }
 
 // POST /api/organiser/pages — create a new support page (draft)
 router.post("/organiser/pages", requireAuth as any, async (req, res) => {
-  const authReq = req as AuthRequest;
+  const authReq = req as unknown as AuthRequest;
   const { recipientName, situationDescription, location, privacy, pin } = req.body as {
     recipientName?: string;
     situationDescription?: string;
@@ -49,12 +60,14 @@ router.post("/organiser/pages", requireAuth as any, async (req, res) => {
     return;
   }
 
+  let hashedPin: string | null = null;
   if (privacy === "pin_protected") {
     const pinTrimmed = typeof pin === "string" ? pin.trim() : "";
     if (!pinTrimmed || !/^\d{4,8}$/.test(pinTrimmed)) {
       res.status(400).json({ error: "A 4–8 digit PIN is required for PIN-protected pages." });
       return;
     }
+    hashedPin = await hashPin(pinTrimmed);
   }
 
   const slug = await uniqueSlug();
@@ -68,7 +81,7 @@ router.post("/organiser/pages", requireAuth as any, async (req, res) => {
       situationDescription: typeof situationDescription === "string" ? situationDescription.trim() || null : null,
       location: typeof location === "string" ? location.trim() || null : null,
       privacy: (privacy === "pin_protected" ? "pin_protected" : "open") as "open" | "pin_protected",
-      pin: privacy === "pin_protected" ? (pin as string).trim() : null,
+      pin: hashedPin,
       status: "draft",
     })
     .returning();
@@ -87,7 +100,7 @@ router.post("/organiser/pages", requireAuth as any, async (req, res) => {
 
 // POST /api/organiser/pages/:pageId/slots — add a slot
 router.post("/organiser/pages/:pageId/slots", requireAuth as any, async (req, res) => {
-  const authReq = req as AuthRequest;
+  const authReq = req as unknown as AuthRequest;
   const { pageId } = req.params;
 
   const page = await db.query.supportPagesTable.findFirst({
@@ -153,7 +166,7 @@ router.post("/organiser/pages/:pageId/slots", requireAuth as any, async (req, re
 
 // DELETE /api/organiser/slots/:slotId — remove a slot
 router.delete("/organiser/slots/:slotId", requireAuth as any, async (req, res) => {
-  const authReq = req as AuthRequest;
+  const authReq = req as unknown as AuthRequest;
   const { slotId } = req.params;
 
   const slot = await db.query.slotsTable.findFirst({
@@ -172,7 +185,7 @@ router.delete("/organiser/slots/:slotId", requireAuth as any, async (req, res) =
 
 // POST /api/organiser/pages/:pageId/publish
 router.post("/organiser/pages/:pageId/publish", requireAuth as any, async (req, res) => {
-  const authReq = req as AuthRequest;
+  const authReq = req as unknown as AuthRequest;
   const { pageId } = req.params;
 
   const page = await db.query.supportPagesTable.findFirst({
@@ -198,7 +211,7 @@ router.post("/organiser/pages/:pageId/publish", requireAuth as any, async (req, 
 
 // GET /api/organiser/pages — list organiser's pages
 router.get("/organiser/pages", requireAuth as any, async (req, res) => {
-  const authReq = req as AuthRequest;
+  const authReq = req as unknown as AuthRequest;
 
   const pages = await db.query.supportPagesTable.findMany({
     where: eq(supportPagesTable.organiserId, authReq.organiserId),
@@ -223,7 +236,7 @@ router.get("/organiser/pages", requireAuth as any, async (req, res) => {
 
 // GET /api/organiser/pages/:pageId — get a specific page with slots
 router.get("/organiser/pages/:pageId", requireAuth as any, async (req, res) => {
-  const authReq = req as AuthRequest;
+  const authReq = req as unknown as AuthRequest;
   const { pageId } = req.params;
 
   const page = await db.query.supportPagesTable.findFirst({
@@ -263,8 +276,14 @@ router.get("/organiser/pages/:pageId", requireAuth as any, async (req, res) => {
   });
 });
 
-// GET /api/organiser/pilot-applications — list all pilot applications
-router.get("/organiser/pilot-applications", requireAuth as any, async (_req, res) => {
+// GET /api/organiser/pilot-applications — list all pilot applications (admin only)
+router.get("/organiser/pilot-applications", requireAuth as any, async (req, res) => {
+  const authReq = req as unknown as AuthRequest;
+  if (!isAdminEmail(authReq.organiserEmail)) {
+    res.status(403).json({ error: "You don't have access to this." });
+    return;
+  }
+
   const applications = await db
     .select()
     .from(pilotApplicationsTable)

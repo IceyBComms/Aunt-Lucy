@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { db, supportPagesTable, slotsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
+import { verifyPin } from "../lib/pin";
 
 const router: IRouter = Router();
 
@@ -23,7 +24,7 @@ router.get("/pages/:slug", async (req, res) => {
   }
 
   if (page.privacy === "pin_protected") {
-    if (!pin || pin !== page.pin) {
+    if (!pin || !(await verifyPin(pin, page.pin))) {
       res.status(401).json({ error: "A PIN is required to view this page.", pinRequired: true });
       return;
     }
