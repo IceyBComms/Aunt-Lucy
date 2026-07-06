@@ -4,6 +4,7 @@ import { db, supportPagesTable, slotsTable, pilotApplicationsTable } from "@work
 import { eq, and, desc } from "drizzle-orm";
 import { requireAuth, type AuthRequest } from "../middleware/requireAuth";
 import { hashPin } from "../lib/pin";
+import { isAdminEmail } from "../lib/admin";
 
 const router: IRouter = Router();
 
@@ -275,8 +276,14 @@ router.get("/organiser/pages/:pageId", requireAuth as any, async (req, res) => {
   });
 });
 
-// GET /api/organiser/pilot-applications — list all pilot applications
-router.get("/organiser/pilot-applications", requireAuth as any, async (_req, res) => {
+// GET /api/organiser/pilot-applications — list all pilot applications (admin only)
+router.get("/organiser/pilot-applications", requireAuth as any, async (req, res) => {
+  const authReq = req as unknown as AuthRequest;
+  if (!isAdminEmail(authReq.organiserEmail)) {
+    res.status(403).json({ error: "You don't have access to this." });
+    return;
+  }
+
   const applications = await db
     .select()
     .from(pilotApplicationsTable)

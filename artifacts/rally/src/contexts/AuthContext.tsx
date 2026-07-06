@@ -13,6 +13,7 @@ const TOKEN_KEY = "aunt_lucy_session";
 interface Organiser {
   id: string;
   email: string;
+  isAdmin: boolean;
 }
 
 interface AuthContextValue {

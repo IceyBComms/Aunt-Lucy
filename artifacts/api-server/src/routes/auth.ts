@@ -6,6 +6,7 @@ import { sendMagicLink } from "../lib/email";
 import { logger } from "../lib/logger";
 import { requireAuth, type AuthRequest } from "../middleware/requireAuth";
 import { getAppBaseUrl } from "../lib/appUrl";
+import { isAdminEmail } from "../lib/admin";
 
 const router: IRouter = Router();
 
@@ -110,7 +111,11 @@ router.get("/auth/verify", async (req, res) => {
 // GET /api/auth/me
 router.get("/auth/me", requireAuth as any, (req, res) => {
   const authReq = req as unknown as AuthRequest;
-  res.json({ id: authReq.organiserId, email: authReq.organiserEmail });
+  res.json({
+    id: authReq.organiserId,
+    email: authReq.organiserEmail,
+    isAdmin: isAdminEmail(authReq.organiserEmail),
+  });
 });
 
 // POST /api/auth/logout

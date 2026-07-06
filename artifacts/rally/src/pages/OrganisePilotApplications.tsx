@@ -41,6 +41,10 @@ export default function OrganisePilotApplications() {
       setLocation("/organise");
       return;
     }
+    if (!organiser.isAdmin) {
+      setLocation("/organise/dashboard");
+      return;
+    }
     apiFetch<PilotApplication[]>("/organiser/pilot-applications", { token: token! })
       .then(setApplications)
       .catch(() => {})
