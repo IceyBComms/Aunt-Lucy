@@ -34,7 +34,7 @@ async function uniqueSlug(): Promise<string> {
 
 // POST /api/organiser/pages — create a new support page (draft)
 router.post("/organiser/pages", requireAuth as any, async (req, res) => {
-  const authReq = req as AuthRequest;
+  const authReq = req as unknown as AuthRequest;
   const { recipientName, situationDescription, location, privacy, pin } = req.body as {
     recipientName?: string;
     situationDescription?: string;
@@ -87,7 +87,7 @@ router.post("/organiser/pages", requireAuth as any, async (req, res) => {
 
 // POST /api/organiser/pages/:pageId/slots — add a slot
 router.post("/organiser/pages/:pageId/slots", requireAuth as any, async (req, res) => {
-  const authReq = req as AuthRequest;
+  const authReq = req as unknown as AuthRequest;
   const { pageId } = req.params;
 
   const page = await db.query.supportPagesTable.findFirst({
@@ -153,7 +153,7 @@ router.post("/organiser/pages/:pageId/slots", requireAuth as any, async (req, re
 
 // DELETE /api/organiser/slots/:slotId — remove a slot
 router.delete("/organiser/slots/:slotId", requireAuth as any, async (req, res) => {
-  const authReq = req as AuthRequest;
+  const authReq = req as unknown as AuthRequest;
   const { slotId } = req.params;
 
   const slot = await db.query.slotsTable.findFirst({
@@ -172,7 +172,7 @@ router.delete("/organiser/slots/:slotId", requireAuth as any, async (req, res) =
 
 // POST /api/organiser/pages/:pageId/publish
 router.post("/organiser/pages/:pageId/publish", requireAuth as any, async (req, res) => {
-  const authReq = req as AuthRequest;
+  const authReq = req as unknown as AuthRequest;
   const { pageId } = req.params;
 
   const page = await db.query.supportPagesTable.findFirst({
@@ -198,7 +198,7 @@ router.post("/organiser/pages/:pageId/publish", requireAuth as any, async (req, 
 
 // GET /api/organiser/pages — list organiser's pages
 router.get("/organiser/pages", requireAuth as any, async (req, res) => {
-  const authReq = req as AuthRequest;
+  const authReq = req as unknown as AuthRequest;
 
   const pages = await db.query.supportPagesTable.findMany({
     where: eq(supportPagesTable.organiserId, authReq.organiserId),
@@ -223,7 +223,7 @@ router.get("/organiser/pages", requireAuth as any, async (req, res) => {
 
 // GET /api/organiser/pages/:pageId — get a specific page with slots
 router.get("/organiser/pages/:pageId", requireAuth as any, async (req, res) => {
-  const authReq = req as AuthRequest;
+  const authReq = req as unknown as AuthRequest;
   const { pageId } = req.params;
 
   const page = await db.query.supportPagesTable.findFirst({

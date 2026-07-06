@@ -29,4 +29,4 @@ timeoutMs = 20000
 
 [userenv.shared]
 ADMIN_EMAIL = "kate@icebreakercommunications.com"
-APP_URL = "https://www.auntlucy.com.au"
+APP_URL = "https://auntlucy.com.au"

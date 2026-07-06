@@ -31,7 +31,7 @@ router.post(
   "/organiser/pages/:pageId/slots/:slotId/invites",
   requireAuth as any,
   async (req, res) => {
-    const authReq = req as AuthRequest;
+    const authReq = req as unknown as AuthRequest;
     const { pageId, slotId } = req.params;
 
     // Verify organiser owns this page
@@ -139,7 +139,7 @@ router.delete(
   "/organiser/invites/:inviteId",
   requireAuth as any,
   async (req, res) => {
-    const authReq = req as AuthRequest;
+    const authReq = req as unknown as AuthRequest;
     const { inviteId } = req.params;
 
     const invite = await db.query.trustedHelperInvitesTable.findFirst({

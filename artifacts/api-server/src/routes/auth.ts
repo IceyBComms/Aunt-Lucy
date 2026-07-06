@@ -109,7 +109,7 @@ router.get("/auth/verify", async (req, res) => {
 
 // GET /api/auth/me
 router.get("/auth/me", requireAuth as any, (req, res) => {
-  const authReq = req as AuthRequest;
+  const authReq = req as unknown as AuthRequest;
   res.json({ id: authReq.organiserId, email: authReq.organiserEmail });
 });
 
