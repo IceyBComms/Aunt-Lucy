@@ -3,6 +3,7 @@ import crypto from "crypto";
 import { db, supportPagesTable, slotsTable, pilotApplicationsTable } from "@workspace/db";
 import { eq, and, desc } from "drizzle-orm";
 import { requireAuth, type AuthRequest } from "../middleware/requireAuth";
+import { hashPin } from "../lib/pin";
 
 const router: IRouter = Router();
 
@@ -58,12 +59,14 @@ router.post("/organiser/pages", requireAuth as any, async (req, res) => {
     return;
   }
 
+  let hashedPin: string | null = null;
   if (privacy === "pin_protected") {
     const pinTrimmed = typeof pin === "string" ? pin.trim() : "";
     if (!pinTrimmed || !/^\d{4,8}$/.test(pinTrimmed)) {
       res.status(400).json({ error: "A 4–8 digit PIN is required for PIN-protected pages." });
       return;
     }
+    hashedPin = await hashPin(pinTrimmed);
   }
 
   const slug = await uniqueSlug();
@@ -77,7 +80,7 @@ router.post("/organiser/pages", requireAuth as any, async (req, res) => {
       situationDescription: typeof situationDescription === "string" ? situationDescription.trim() || null : null,
       location: typeof location === "string" ? location.trim() || null : null,
       privacy: (privacy === "pin_protected" ? "pin_protected" : "open") as "open" | "pin_protected",
-      pin: privacy === "pin_protected" ? (pin as string).trim() : null,
+      pin: hashedPin,
       status: "draft",
     })
     .returning();

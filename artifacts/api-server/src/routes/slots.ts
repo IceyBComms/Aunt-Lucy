@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { db, slotsTable, supportPagesTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { sendClaimConfirmation } from "../lib/email";
+import { verifyPin } from "../lib/pin";
 
 const router: IRouter = Router();
 
@@ -49,7 +50,7 @@ router.post("/slots/:slotId/claim", async (req, res) => {
 
   // PIN-protected pages require the PIN when claiming
   if (page.privacy === "pin_protected") {
-    if (!pin || pin !== page.pin) {
+    if (!pin || !(await verifyPin(pin, page.pin))) {
       res.status(401).json({ error: "A valid PIN is required to claim a slot on this page." });
       return;
     }
