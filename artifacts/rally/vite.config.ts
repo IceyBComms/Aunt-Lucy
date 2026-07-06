@@ -62,6 +62,19 @@ export default defineConfig({
     port,
     host: "0.0.0.0",
     allowedHosts: true,
+    // Local dev only: proxy /api to the API server so the frontend's relative
+    // /api calls reach it. Enabled only when API_PROXY_TARGET is set, so hosted
+    // environments (which serve both under one origin) are unaffected.
+    ...(process.env.API_PROXY_TARGET
+      ? {
+          proxy: {
+            "/api": {
+              target: process.env.API_PROXY_TARGET,
+              changeOrigin: true,
+            },
+          },
+        }
+      : {}),
     fs: {
       strict: true,
       deny: ["**/.*"],
