@@ -1,6 +1,6 @@
 import { db, supportPagesTable, slotsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
-import bcrypt from "bcrypt";
+import bcrypt from "bcryptjs";
 
 async function seedPage(slug: string, seeder: () => Promise<void>): Promise<void> {
   const existing = await db.query.supportPagesTable.findFirst({

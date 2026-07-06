@@ -1,6 +1,6 @@
 import { db, supportPagesTable } from "@workspace/db";
 import { isNotNull, eq } from "drizzle-orm";
-import bcrypt from "bcrypt";
+import bcrypt from "bcryptjs";
 
 const BCRYPT_COST = 10;
 
