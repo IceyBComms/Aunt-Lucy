@@ -1,9 +1,15 @@
 import { Resend } from "resend";
 import { logger } from "./logger";
 
-const resend = process.env.RESEND_API_KEY
-  ? new Resend(process.env.RESEND_API_KEY)
-  : null;
+// A RESEND_API_KEY containing "placeholder" means local development: don't send
+// real email. Magic links are logged to the console instead (see sendMagicLink).
+const isPlaceholderResendKey =
+  !!process.env.RESEND_API_KEY && process.env.RESEND_API_KEY.includes("placeholder");
+
+const resend =
+  process.env.RESEND_API_KEY && !isPlaceholderResendKey
+    ? new Resend(process.env.RESEND_API_KEY)
+    : null;
 
 const FROM_ADDRESS = "Aunt Lucy <noreply@send.auntlucy.com.au>";
 
@@ -168,6 +174,14 @@ interface MagicLinkParams {
 }
 
 export async function sendMagicLink({ to, magicLink }: MagicLinkParams): Promise<void> {
+  // Local development: print the magic link to the terminal instead of emailing it.
+  if (isPlaceholderResendKey) {
+    console.log(
+      `\n🔗 Magic link for ${to} (local dev — email sending disabled):\n   ${magicLink}\n`,
+    );
+    return;
+  }
+
   if (!resend) {
     logger.warn("RESEND_API_KEY not set — skipping magic link email");
     return;
