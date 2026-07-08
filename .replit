@@ -30,3 +30,6 @@ timeoutMs = 20000
 [userenv.shared]
 ADMIN_EMAIL = "kate@icebreakercommunications.com"
 APP_URL = "https://auntlucy.com.au"
+
+[nix]
+channel = "stable-25_05"
