@@ -1,3 +1,6 @@
+// Imported first so the env diagnostic is logged before @workspace/db (imported
+// transitively via ./app) can throw on a missing DATABASE_URL.
+import "./lib/startupDiagnostics";
 import app from "./app";
 import { logger } from "./lib/logger";
 
