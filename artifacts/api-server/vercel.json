@@ -2,7 +2,7 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
   "installCommand": "pnpm install --no-frozen-lockfile",
-  "buildCommand": "BASE_PATH=/ PORT=3000 pnpm --filter @workspace/rally build",
-  "outputDirectory": "artifacts/rally/dist/public",
+  "buildCommand": "BASE_PATH=/ PORT=3000 pnpm --filter @workspace/rally build && rm -rf frontend-dist && cp -r ../rally/dist/public frontend-dist",
+  "outputDirectory": "frontend-dist",
   "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
 }
