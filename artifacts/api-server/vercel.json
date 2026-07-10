@@ -4,5 +4,11 @@
   "installCommand": "pnpm install --no-frozen-lockfile",
   "buildCommand": "BASE_PATH=/ PORT=3000 pnpm --filter @workspace/rally build && rm -rf frontend-dist && cp -r ../rally/dist/public frontend-dist",
   "outputDirectory": "frontend-dist",
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://workspaceapi-server-production-7a93.up.railway.app/api/:path*"
+    },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
 }
