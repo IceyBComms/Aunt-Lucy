@@ -386,3 +386,35 @@ The language should never make recipients feel needy, helpless or exposed.
 Helpers should always feel like they're doing something meaningful, not completing a task.
 
 The gifting moment should feel considered and personal — like something a thoughtful friend designed, not something HR generated.
+
+---
+
+### GST
+
+Aunt Lucy is registered for GST in Australia (ABN required on all invoices and receipts).
+
+**GST handling by context:**
+
+**Consumer purchases (baby shower / individual gifting)**
+Display prices GST-inclusive. Example: "$79" means $71.82 + $7.18 GST. No separate GST line needed at browse/marketing stage. GST must be itemised on the receipt/confirmation email.
+
+**Corporate/HR purchases**
+Display prices excluding GST with "plus GST" noted clearly. Example: "$79 + GST". GST must be itemised on the invoice. HR buyers will claim it back — they expect ex-GST pricing.
+
+**Annual subscription (HR)**
+Invoice billing. All invoices must include:
+- Aunt Lucy's ABN
+- GST amount as a separate line item
+- Total inc. GST
+- Invoice number and date
+
+**Receipts and confirmations**
+All automated purchase confirmation emails (consumer and corporate) must itemise:
+- Price ex-GST
+- GST amount (10%)
+- Total inc. GST
+
+**Checkout and payment**
+When Stripe or equivalent payment processing is integrated, ensure GST is calculated and recorded correctly against each transaction. Do not hardcode tax rates — use a TAX_RATE environment variable set to 0.10 so it can be updated if legislation changes.
+
+**Nothing should go live with pricing that does not correctly handle GST.**
