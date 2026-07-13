@@ -243,3 +243,178 @@ The person being supported should feel loved, not needy.
 ---
 
 *This file is the source of truth for every Claude Code session on Aunt Lucy. If anything here conflicts with code comments or other documentation, this file takes precedence. Update it when strategic decisions change.*
+
+---
+
+## Strategic update — July 2026
+
+### Commercial focus locked in
+
+The platform is built generically but marketed exclusively to the **post-birth moment** for the first six months. All marketing, copy and product decisions should reflect this focus unless explicitly told otherwise.
+
+Two revenue tracks run in parallel:
+
+**Track 1 — Consumer gifting**
+Friends or family buy an Aunt Lucy page as a baby shower gift. Price point ~$79 AUD. Builds brand virally and slowly.
+
+**Track 2 — Corporate gifting (HR)**
+HR managers buy Aunt Lucy pages as a parental leave gift for employees going on leave. Price points:
+- Individual gift: $79 AUD per employee
+- Team package: $59 AUD per employee, minimum 5, maximum 20
+- Annual subscription: requires a call (20+ employees)
+
+Corporate gifting is the priority revenue channel because it involves a single decision-maker with a budget and a clear problem to solve.
+
+---
+
+### The gifting flow (Flow A — celebratory)
+
+This is the primary commercial flow. It works as follows:
+
+1. **Buyer purchases** — friend at baby shower or HR manager buys a gift page
+2. **Buyer optionally personalises** — adds recipient name, a message, chooses delivery date
+3. **Team signs (corporate track)** — HR shares a signing link with colleagues who add messages before delivery day
+4. **Recipient receives the gift** — a beautiful digital unwrapping experience (see below)
+5. **Recipient activates when ready** — they control everything; nothing goes live until they do
+6. **Organiser runs the page** — could be the recipient or a trusted person they nominate
+
+**Key privacy principle:** The recipient always holds the key. Nothing is visible to helpers until the recipient activates.
+
+A crisis/emergency flow (Flow B) also exists conceptually but is **not being built yet**. It will be free when it launches. Do not reference it in any consumer or HR-facing copy.
+
+---
+
+### The gift experience feature (priority build)
+
+This is the hero feature that makes Aunt Lucy feel like a gift rather than a transaction. It consists of four components:
+
+**1. The signing page** (`/gift/[giftId]/sign`)
+- HR shares this link with colleagues before delivery day
+- Colleagues add name + short message (max 150 chars) + optional emoji/avatar
+- No account or login required for signers
+- Closes automatically on the delivery date
+- Shows a running count of messages added ("12 people have signed so far")
+
+**2. The gift experience page** (`/gift/[giftId]`)
+- The "unwrapping" moment — the hero experience
+- Full screen, mobile-first, scrollable
+- Sequence: recipient's name → organisation message → colleagues' messages revealed as they scroll → warm explanation of what Aunt Lucy is → activation button at the bottom
+- Unique unguessable token URL (same pattern as support page slugs)
+- Tone: warm, unhurried, human — like a beautiful digital card, not a SaaS onboarding flow
+- Activation button language: "Activate whenever you're ready — your village will be waiting"
+
+**3. Reminder email**
+- Sent via Resend if recipient hasn't activated by their due date (or 14 days after purchase if no due date provided)
+- Subject: "Whenever you're ready, your village is waiting"
+- Warm, brief, zero pressure
+- Single send only — no repeated nudging
+- Contains their gift experience page link
+
+**4. Database additions required**
+
+New `gifts` table:
+- `gift_id` (unguessable token)
+- `recipient_name`
+- `recipient_email`
+- `due_date` (optional)
+- `organisation_message`
+- `delivery_date`
+- `activated_at` (null until recipient activates)
+- `purchased_by` (organiser/HR email)
+
+New `gift_messages` table:
+- `gift_id` (foreign key)
+- `signer_name`
+- `message`
+- `created_at`
+
+**Build priority order:**
+1. Database schema
+2. Gift experience page
+3. Signing page
+4. Reminder email
+
+---
+
+### Future feature — digital contributions (do not build yet)
+
+The platform will eventually allow helpers who are remote or unable to help physically to contribute digitally — UberEats credit, supermarket gift cards, or a cash contribution toward a support fund.
+
+**Do not build any UI or payment logic for this yet.**
+
+However, please ensure all data models and database schema decisions do not preclude adding a contributions layer later. Specifically:
+- The helper/slot model should allow for a "digital contribution" slot type in future
+- The gifts table should allow for a `contributions_enabled` boolean field to be added later
+- No payment intermediary logic should be baked into the current architecture in a way that would conflict with Stripe integration later
+
+---
+
+### Homepage architecture
+
+**auntlucy.com.au** — Consumer homepage. Baby shower gift framing. Emotional, warm, gifting focus. Primary CTA: "Gift an Aunt Lucy page"
+
+**auntlucy.com.au/for-employers** — HR landing page. Business case, stats, pricing, invoice billing. Primary CTA: "Gift it to your team" or "Book a chat" for annual subscription tier.
+
+**auntlucy.com.au/gift/[giftId]** — Gift experience page. Recipients land here from their gift email.
+
+**auntlucy.com.au/gift/[giftId]/sign** — Signing page. Colleagues land here from HR's shared link.
+
+**auntlucy.com.au/activate** — Where recipients go after the gift experience page to set up their support page.
+
+A quiet "For employers" link lives in the nav or footer of the consumer homepage — present but not competing.
+
+---
+
+### What Aunt Lucy is not
+
+- Not a care provider
+- Not a clinical tool
+- Not a replacement for professional mental health support
+- Not a meal delivery service
+- Not a babysitting agency
+
+It is a coordination platform for existing trusted networks.
+
+---
+
+### Tone and brand principles
+
+Warm, practical, human. Never clinical. Never corporate. Never transactional.
+
+The language should never make recipients feel needy, helpless or exposed.
+
+Helpers should always feel like they're doing something meaningful, not completing a task.
+
+The gifting moment should feel considered and personal — like something a thoughtful friend designed, not something HR generated.
+
+---
+
+### GST
+
+Aunt Lucy is registered for GST in Australia (ABN required on all invoices and receipts).
+
+**GST handling by context:**
+
+**Consumer purchases (baby shower / individual gifting)**
+Display prices GST-inclusive. Example: "$79" means $71.82 + $7.18 GST. No separate GST line needed at browse/marketing stage. GST must be itemised on the receipt/confirmation email.
+
+**Corporate/HR purchases**
+Display prices excluding GST with "plus GST" noted clearly. Example: "$79 + GST". GST must be itemised on the invoice. HR buyers will claim it back — they expect ex-GST pricing.
+
+**Annual subscription (HR)**
+Invoice billing. All invoices must include:
+- Aunt Lucy's ABN
+- GST amount as a separate line item
+- Total inc. GST
+- Invoice number and date
+
+**Receipts and confirmations**
+All automated purchase confirmation emails (consumer and corporate) must itemise:
+- Price ex-GST
+- GST amount (10%)
+- Total inc. GST
+
+**Checkout and payment**
+When Stripe or equivalent payment processing is integrated, ensure GST is calculated and recorded correctly against each transaction. Do not hardcode tax rates — use a TAX_RATE environment variable set to 0.10 so it can be updated if legislation changes.
+
+**Nothing should go live with pricing that does not correctly handle GST.**
