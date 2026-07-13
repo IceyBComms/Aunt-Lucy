@@ -5,4 +5,7 @@ export * from "./magicLinkTokens";
 export * from "./sessions";
 export * from "./trustedHelperInvites";
 export * from "./pilotApplications";
+export * from "./gifts";
+export * from "./giftMessages";
+export * from "./giftSignings";
 export * from "./relations";
