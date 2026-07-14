@@ -14,6 +14,8 @@ import OrganiseAddSlots from "@/pages/OrganiseAddSlots";
 import OrganisePublish from "@/pages/OrganisePublish";
 import OrganiseDashboard from "@/pages/OrganiseDashboard";
 import InviteClaim from "@/pages/InviteClaim";
+import GiftExperience from "@/pages/GiftExperience";
+import GiftSigning from "@/pages/GiftSigning";
 import PilotApply from "@/pages/PilotApply";
 import OrganisePilotApplications from "@/pages/OrganisePilotApplications";
 import PrivacyPolicy from "@/pages/PrivacyPolicy";
@@ -37,6 +39,10 @@ function Router() {
 
       {/* Trusted helper invite claim */}
       <Route path="/invite/:token" component={InviteClaim} />
+
+      {/* Gift experience + colleague signing */}
+      <Route path="/gift/:giftId/sign" component={GiftSigning} />
+      <Route path="/gift/:giftId" component={GiftExperience} />
 
       {/* Pilot application */}
       <Route path="/pilot" component={PilotApply} />

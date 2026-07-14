@@ -118,7 +118,7 @@ export default function GiftSigning() {
             {/* Live preview */}
             <div className="px-6 pt-[1.6rem] pb-[0.4rem]">
               <p className="mb-3 text-center text-[0.78rem] uppercase tracking-[0.14em] text-[#8b7e74]">
-                Your note, as she'll see it
+                Your note, as it'll appear
               </p>
               <div
                 className="min-h-[6.2rem] rounded-[1.1rem] border px-[1.3rem] pt-[1.25rem] pb-[1.15rem] shadow-[0_10px_30px_-18px_rgba(74,58,42,0.4)]"
