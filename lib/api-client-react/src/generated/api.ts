@@ -20,6 +20,7 @@ import type {
   ClaimSlotRequest,
   ConflictError,
   GetSupportPageParams,
+  GiftExperience,
   HealthStatus,
   NotFoundError,
   PinRequiredError,
@@ -313,3 +314,82 @@ export const useClaimSlot = <
 > => {
   return useMutation(getClaimSlotMutationOptions(options));
 };
+
+/**
+ * Returns the recipient-facing gift experience — recipient name, the organisation's message, who it was gifted by, the occasion, and all colleague signings. The gift is shown even before it has been delivered.
+ * @summary Get a gift experience by redemption token
+ */
+export const getGetGiftUrl = (redemptionToken: string) => {
+  return `/api/gifts/${redemptionToken}`;
+};
+
+export const getGift = async (
+  redemptionToken: string,
+  options?: RequestInit,
+): Promise<GiftExperience> => {
+  return customFetch<GiftExperience>(getGetGiftUrl(redemptionToken), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetGiftQueryKey = (redemptionToken: string) => {
+  return [`/api/gifts/${redemptionToken}`] as const;
+};
+
+export const getGetGiftQueryOptions = <
+  TData = Awaited<ReturnType<typeof getGift>>,
+  TError = ErrorType<NotFoundError>,
+>(
+  redemptionToken: string,
+  options?: {
+    query?: UseQueryOptions<Awaited<ReturnType<typeof getGift>>, TError, TData>;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetGiftQueryKey(redemptionToken);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getGift>>> = ({
+    signal,
+  }) => getGift(redemptionToken, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!redemptionToken,
+    ...queryOptions,
+  } as UseQueryOptions<Awaited<ReturnType<typeof getGift>>, TError, TData> & {
+    queryKey: QueryKey;
+  };
+};
+
+export type GetGiftQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getGift>>
+>;
+export type GetGiftQueryError = ErrorType<NotFoundError>;
+
+/**
+ * @summary Get a gift experience by redemption token
+ */
+
+export function useGetGift<
+  TData = Awaited<ReturnType<typeof getGift>>,
+  TError = ErrorType<NotFoundError>,
+>(
+  redemptionToken: string,
+  options?: {
+    query?: UseQueryOptions<Awaited<ReturnType<typeof getGift>>, TError, TData>;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetGiftQueryOptions(redemptionToken, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}

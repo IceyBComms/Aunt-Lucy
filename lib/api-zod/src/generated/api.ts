@@ -99,3 +99,37 @@ export const ClaimSlotResponse = zod.object({
   claimedNote: zod.string().nullish(),
   createdAt: zod.string(),
 });
+
+/**
+ * Returns the recipient-facing gift experience — recipient name, the organisation's message, who it was gifted by, the occasion, and all colleague signings. The gift is shown even before it has been delivered.
+ * @summary Get a gift experience by redemption token
+ */
+export const GetGiftParams = zod.object({
+  redemptionToken: zod.coerce.string(),
+});
+
+export const GetGiftResponse = zod.object({
+  recipientName: zod.string(),
+  organisationMessage: zod
+    .string()
+    .nullish()
+    .describe("The organisation's \/ gifter's message (from gifted_by_note)."),
+  giftedBy: zod
+    .string()
+    .describe("Who the gift is from (the purchaser's name)."),
+  occasion: zod
+    .enum([
+      "new_baby",
+      "illness_recovery",
+      "bereavement",
+      "ongoing_support",
+      "other",
+    ])
+    .nullish(),
+  signings: zod.array(
+    zod.object({
+      signerName: zod.string(),
+      message: zod.string(),
+    }),
+  ),
+});
