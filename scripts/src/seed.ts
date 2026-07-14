@@ -1,4 +1,10 @@
-import { db, supportPagesTable, slotsTable } from "@workspace/db";
+import {
+  db,
+  supportPagesTable,
+  slotsTable,
+  giftsTable,
+  giftSigningsTable,
+} from "@workspace/db";
 import { eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 
@@ -156,6 +162,57 @@ async function seed() {
 
     console.log(`Seeded /s/pin-test-page (PIN: 1234, ID: ${pinPage.id})`);
   });
+
+  const GIFT_TOKEN = "test-gift-token";
+  const existingGift = await db.query.giftsTable.findFirst({
+    where: eq(giftsTable.redemptionToken, GIFT_TOKEN),
+  });
+  if (existingGift) {
+    console.log(`Gift /${GIFT_TOKEN} already exists, skipping.`);
+  } else {
+    const [gift] = await db
+      .insert(giftsTable)
+      .values({
+        redemptionToken: GIFT_TOKEN,
+        purchaserName: "Brightpath Studio",
+        purchaserEmail: "people@brightpath.example",
+        recipientName: "Sarah",
+        recipientEmail: "sarah@example.com",
+        occasion: "new_baby",
+        giftedByNote: [
+          "Sarah — before you head off, we wanted to say something properly.",
+          "These next few months are going to be big, beautiful and, let's be honest, a little bit chaotic. We couldn't be happier for you and Dan.",
+          "So we've sorted something practical. Whenever you're ready, this becomes your own private page where we can drop off meals, run the odd errand, or just lend a hand around the house — no asking required, no fuss.",
+          "Go and soak up every newborn cuddle. We've got your back over here.",
+        ].join("\n\n"),
+        amountCents: 7900,
+        currency: "AUD",
+        status: "delivered",
+        deliveredAt: today,
+      })
+      .returning();
+
+    const notes = [
+      { signerName: "Priya", message: "So thrilled for you! Can't wait to meet the little one. I'm on standby for as many lasagnes as you can eat." },
+      { signerName: "Tom", message: "Enjoy every cuddle. The studio won't be the same without your very particular coffee order. See you when you're ready. x" },
+      { signerName: "Meg", message: "Sending you so much love. I've done the newborn thing twice — ring me at 3am, I'll be up too. Genuinely, anytime." },
+      { signerName: "Hannah", message: "Congratulations Sarah! Put your feet up and let us do the running around. School runs, shopping, whatever — just say." },
+      { signerName: "Dev", message: "The best is yet to come. So happy for you and Dan. We'll keep your desk plant alive, promise." },
+      { signerName: "James", message: "Wishing you rest, cuddles and the occasional full night's sleep. We're all cheering you on from Fitzroy." },
+    ];
+
+    await db.insert(giftSigningsTable).values(
+      notes.map((note, i) => ({
+        giftId: gift.id,
+        signerName: note.signerName,
+        message: note.message,
+        // Space the timestamps so they return in a stable, intended order.
+        createdAt: new Date(today.getTime() + i * 1000),
+      })),
+    );
+
+    console.log(`Seeded /gift/${GIFT_TOKEN} (ID: ${gift.id}, ${notes.length} signings)`);
+  }
 
   process.exit(0);
 }

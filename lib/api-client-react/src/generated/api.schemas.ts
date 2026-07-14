@@ -72,6 +72,31 @@ export interface ClaimSlotRequest {
   pin?: string | null;
 }
 
+export type GiftOccasion = (typeof GiftOccasion)[keyof typeof GiftOccasion];
+
+export const GiftOccasion = {
+  new_baby: "new_baby",
+  illness_recovery: "illness_recovery",
+  bereavement: "bereavement",
+  ongoing_support: "ongoing_support",
+  other: "other",
+} as const;
+
+export interface GiftSigningPublic {
+  signerName: string;
+  message: string;
+}
+
+export interface GiftExperience {
+  recipientName: string;
+  /** The organisation's / gifter's message (from gifted_by_note). */
+  organisationMessage?: string | null;
+  /** Who the gift is from (the purchaser's name). */
+  giftedBy: string;
+  occasion?: GiftOccasion | null;
+  signings: GiftSigningPublic[];
+}
+
 export interface PinRequiredError {
   error: string;
   pinRequired: boolean;

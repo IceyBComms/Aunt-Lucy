@@ -14,6 +14,8 @@ tags:
     description: Support page operations
   - name: slots
     description: Slot operations
+  - name: gifts
+    description: Gift experience operations
 paths:
   /healthz:
     get:
@@ -105,6 +107,35 @@ paths:
                 $ref: "#/components/schemas/ConflictError"
         "404":
           description: Slot not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotFoundError"
+
+  /gifts/{redemptionToken}:
+    get:
+      operationId: getGift
+      tags: [gifts]
+      summary: Get a gift experience by redemption token
+      description: >-
+        Returns the recipient-facing gift experience — recipient name, the
+        organisation's message, who it was gifted by, the occasion, and all
+        colleague signings. The gift is shown even before it has been delivered.
+      parameters:
+        - name: redemptionToken
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Gift found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GiftExperience"
+        "404":
+          description: Gift not found
           content:
             application/json:
               schema:
@@ -219,6 +250,51 @@ components:
       required:
         - firstName
         - contact
+
+    GiftOccasion:
+      type: string
+      enum:
+        - new_baby
+        - illness_recovery
+        - bereavement
+        - ongoing_support
+        - other
+
+    GiftSigningPublic:
+      type: object
+      properties:
+        signerName:
+          type: string
+        message:
+          type: string
+      required:
+        - signerName
+        - message
+
+    GiftExperience:
+      type: object
+      properties:
+        recipientName:
+          type: string
+        organisationMessage:
+          type: string
+          nullable: true
+          description: The organisation's / gifter's message (from gifted_by_note).
+        giftedBy:
+          type: string
+          description: Who the gift is from (the purchaser's name).
+        occasion:
+          oneOf:
+            - $ref: "#/components/schemas/GiftOccasion"
+          nullable: true
+        signings:
+          type: array
+          items:
+            $ref: "#/components/schemas/GiftSigningPublic"
+      required:
+        - recipientName
+        - giftedBy
+        - signings
 
     PinRequiredError:
       type: object

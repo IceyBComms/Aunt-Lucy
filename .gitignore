@@ -54,3 +54,9 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# Rally app: index.html is the only committed HTML entry point. Ignore any
+# other stray HTML (e.g. scratchpad mockups accidentally dropped into the app
+# folder) so they can never be committed or served as part of the source.
+/artifacts/rally/*.html
+!/artifacts/rally/index.html
