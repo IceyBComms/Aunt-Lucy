@@ -1,6 +1,7 @@
 import { useLocation } from "wouter";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
+import { PostmarkMark } from "@/components/PostmarkMark";
 import {
   Heart,
   CalendarCheck,
@@ -58,9 +59,7 @@ export default function Home() {
       <nav className="w-full px-6 py-5">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 bg-primary/10 rounded-xl flex items-center justify-center">
-              <Heart className="w-5 h-5 text-primary fill-primary/20" />
-            </div>
+            <PostmarkMark className="w-10 h-10" />
             <span className="font-serif font-bold text-foreground text-lg">Aunt Lucy</span>
           </div>
           <button
