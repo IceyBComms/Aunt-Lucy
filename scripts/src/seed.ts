@@ -1,4 +1,10 @@
-import { db, supportPagesTable, slotsTable } from "@workspace/db";
+import {
+  db,
+  supportPagesTable,
+  slotsTable,
+  giftsTable,
+  giftSigningsTable,
+} from "@workspace/db";
 import { eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 
@@ -8,6 +14,20 @@ async function seedPage(slug: string, seeder: () => Promise<void>): Promise<void
   });
   if (existing) {
     console.log(`Page /${slug} already exists, skipping.`);
+    return;
+  }
+  await seeder();
+}
+
+async function seedGift(
+  redemptionToken: string,
+  seeder: () => Promise<void>,
+): Promise<void> {
+  const existing = await db.query.giftsTable.findFirst({
+    where: eq(giftsTable.redemptionToken, redemptionToken),
+  });
+  if (existing) {
+    console.log(`Gift /gift/${redemptionToken} already exists, skipping.`);
     return;
   }
   await seeder();
@@ -155,6 +175,48 @@ async function seed() {
     ]);
 
     console.log(`Seeded /s/pin-test-page (PIN: 1234, ID: ${pinPage.id})`);
+  });
+
+  await seedGift("demo-gift-sarah", async () => {
+    const [gift] = await db
+      .insert(giftsTable)
+      .values({
+        redemptionToken: "demo-gift-sarah",
+        purchaserName: "Brightpath Studio",
+        purchaserEmail: "people@brightpath.example",
+        recipientName: "Sarah",
+        occasion: "new_baby",
+        giftedByNote:
+          "The whole team at Brightpath Studio put this together, just for you.",
+        amountCents: 7900,
+        currency: "AUD",
+        status: "delivered",
+        deliveredAt: new Date(),
+      })
+      .returning();
+
+    await db.insert(giftSigningsTable).values([
+      {
+        giftId: gift.id,
+        signerName: "Priya",
+        message:
+          "So thrilled for you! Can't wait to meet the little one. I'm on standby for as many lasagnes as you can eat.",
+      },
+      {
+        giftId: gift.id,
+        signerName: "Tom",
+        message:
+          "Enjoy every cuddle. The studio won't be the same without your very particular coffee order. See you when you're ready. x",
+      },
+      {
+        giftId: gift.id,
+        signerName: "Meg",
+        message:
+          "Sending you so much love. I've done the newborn thing twice — ring me at 3am, I'll be up too. Genuinely, anytime.",
+      },
+    ]);
+
+    console.log(`Seeded /gift/demo-gift-sarah (ID: ${gift.id})`);
   });
 
   process.exit(0);

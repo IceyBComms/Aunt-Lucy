@@ -6,6 +6,7 @@ import authRouter from "./auth";
 import organiserRouter from "./organiser";
 import invitesRouter from "./invites";
 import pilotRouter from "./pilot";
+import giftsRouter from "./gifts";
 
 const router: IRouter = Router();
 
@@ -16,5 +17,6 @@ router.use(authRouter);
 router.use(organiserRouter);
 router.use(invitesRouter);
 router.use(pilotRouter);
+router.use(giftsRouter);
 
 export default router;

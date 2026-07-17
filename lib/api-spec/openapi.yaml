@@ -14,6 +14,8 @@ tags:
     description: Support page operations
   - name: slots
     description: Slot operations
+  - name: gifts
+    description: Gift experience operations
 paths:
   /healthz:
     get:
@@ -105,6 +107,32 @@ paths:
                 $ref: "#/components/schemas/ConflictError"
         "404":
           description: Slot not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotFoundError"
+
+  /gifts/{token}:
+    get:
+      operationId: getGiftExperience
+      tags: [gifts]
+      summary: Get a gift experience by its redemption token
+      description: Returns the gift experience payload (recipient, gifter, note and colleague signings) for the unguessable redemption token. Returns 404 when the token does not match a gift.
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Gift found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GiftExperienceResponse"
+        "404":
+          description: Gift not found
           content:
             application/json:
               schema:
@@ -246,3 +274,65 @@ components:
           type: string
       required:
         - error
+
+    GiftOccasion:
+      type: string
+      enum:
+        - new_baby
+        - illness_recovery
+        - bereavement
+        - ongoing_support
+        - other
+
+    GiftStatus:
+      type: string
+      enum:
+        - pending
+        - paid
+        - delivered
+        - redeemed
+        - refunded
+        - failed
+        - cancelled
+
+    GiftSigningResponse:
+      type: object
+      properties:
+        signerName:
+          type: string
+        message:
+          type: string
+        createdAt:
+          type: string
+      required:
+        - signerName
+        - message
+        - createdAt
+
+    GiftExperienceResponse:
+      type: object
+      properties:
+        recipientName:
+          type: string
+        purchaserName:
+          type: string
+        giftedByNote:
+          type: string
+          nullable: true
+        occasion:
+          $ref: "#/components/schemas/GiftOccasion"
+          nullable: true
+        status:
+          $ref: "#/components/schemas/GiftStatus"
+        redeemedAt:
+          type: string
+          nullable: true
+        signings:
+          type: array
+          items:
+            $ref: "#/components/schemas/GiftSigningResponse"
+      required:
+        - recipientName
+        - purchaserName
+        - status
+        - signings

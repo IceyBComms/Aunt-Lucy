@@ -99,3 +99,43 @@ export const ClaimSlotResponse = zod.object({
   claimedNote: zod.string().nullish(),
   createdAt: zod.string(),
 });
+
+/**
+ * Returns the gift experience payload (recipient, gifter, note and colleague signings) for the unguessable redemption token. Returns 404 when the token does not match a gift.
+ * @summary Get a gift experience by its redemption token
+ */
+export const GetGiftExperienceParams = zod.object({
+  token: zod.coerce.string(),
+});
+
+export const GetGiftExperienceResponse = zod.object({
+  recipientName: zod.string(),
+  purchaserName: zod.string(),
+  giftedByNote: zod.string().nullish(),
+  occasion: zod
+    .enum([
+      "new_baby",
+      "illness_recovery",
+      "bereavement",
+      "ongoing_support",
+      "other",
+    ])
+    .nullish(),
+  status: zod.enum([
+    "pending",
+    "paid",
+    "delivered",
+    "redeemed",
+    "refunded",
+    "failed",
+    "cancelled",
+  ]),
+  redeemedAt: zod.string().nullish(),
+  signings: zod.array(
+    zod.object({
+      signerName: zod.string(),
+      message: zod.string(),
+      createdAt: zod.string(),
+    }),
+  ),
+});

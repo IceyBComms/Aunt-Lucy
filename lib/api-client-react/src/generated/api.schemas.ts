@@ -85,6 +85,44 @@ export interface ConflictError {
   error: string;
 }
 
+export type GiftOccasion = (typeof GiftOccasion)[keyof typeof GiftOccasion];
+
+export const GiftOccasion = {
+  new_baby: "new_baby",
+  illness_recovery: "illness_recovery",
+  bereavement: "bereavement",
+  ongoing_support: "ongoing_support",
+  other: "other",
+} as const;
+
+export type GiftStatus = (typeof GiftStatus)[keyof typeof GiftStatus];
+
+export const GiftStatus = {
+  pending: "pending",
+  paid: "paid",
+  delivered: "delivered",
+  redeemed: "redeemed",
+  refunded: "refunded",
+  failed: "failed",
+  cancelled: "cancelled",
+} as const;
+
+export interface GiftSigningResponse {
+  signerName: string;
+  message: string;
+  createdAt: string;
+}
+
+export interface GiftExperienceResponse {
+  recipientName: string;
+  purchaserName: string;
+  giftedByNote?: string | null;
+  occasion?: GiftOccasion | null;
+  status: GiftStatus;
+  redeemedAt?: string | null;
+  signings: GiftSigningResponse[];
+}
+
 export type GetSupportPageParams = {
   pin?: string;
 };
