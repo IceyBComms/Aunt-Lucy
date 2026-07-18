@@ -60,3 +60,8 @@ Thumbs.db
 # folder) so they can never be committed or served as part of the source.
 /artifacts/rally/*.html
 !/artifacts/rally/index.html
+
+# Claude Code: launch.json defines how to start the dev server and is shared
+# project config, so it is committed. settings.local.json is per-machine (a
+# personal tool allowlist containing absolute paths) — never commit it.
+.claude/settings.local.json
