@@ -31,6 +31,13 @@ app.use(
   }),
 );
 app.use(cors());
+
+// Stripe verifies its webhooks against the byte-exact request body, so this one
+// path is parsed as a raw Buffer. It must be registered before express.json():
+// body-parser marks the request as parsed, and json() then skips it. Every other
+// route is unaffected.
+app.use("/api/stripe/webhook", express.raw({ type: "application/json" }));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

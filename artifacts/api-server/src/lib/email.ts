@@ -1,5 +1,6 @@
 import { Resend } from "resend";
 import { logger } from "./logger";
+import { formatMoney, gstRateLabel, type GstBreakdown } from "./gst";
 
 // A RESEND_API_KEY containing "placeholder" means local development: don't send
 // real email. Magic links are logged to the console instead (see sendMagicLink).
@@ -473,4 +474,398 @@ export async function sendInviteEmail(params: InviteEmailParams): Promise<void> 
   }
 
   logger.info({ to: params.to }, "Invite email sent");
+}
+
+// ─── Gift Fulfilment Emails ───────────────────────────────────────────────────
+//
+// Copy for the three emails below is fixed by content/EMAIL_TEMPLATES.md and is
+// reproduced verbatim. Change the template file first, then this — not the
+// other way around.
+
+/**
+ * Formats a date for Australian readers, e.g. "Friday, 1 August 2026".
+ *
+ * Pinned to Australia/Sydney: the server runs in UTC, so an unpinned late-
+ * evening date would print as the previous day for the person reading it.
+ */
+function formatAuDate(date: Date): string {
+  return date.toLocaleDateString("en-AU", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: "Australia/Sydney",
+  });
+}
+
+/**
+ * The shared chrome for the fulfilment emails: preheader, branded header, white
+ * card, footer. `contentHtml` is the body of the card and is assumed to be
+ * already escaped by the caller.
+ */
+function renderGiftLayout(params: {
+  preheader: string;
+  contentHtml: string;
+  footerHtml?: string;
+}): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background-color:#FAF7F2;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+  <div style="display:none;font-size:1px;color:#FAF7F2;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">${escapeHtml(params.preheader)}</div>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#FAF7F2;">
+    <tr><td align="center" style="padding:40px 16px;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
+        <tr><td style="background-color:#2D6A4F;padding:28px 32px;">
+          <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:600;">Aunt Lucy</h1>
+        </td></tr>
+        <tr><td style="padding:32px;">
+${params.contentHtml}
+        </td></tr>
+        <tr><td style="padding:20px 32px;background-color:#FAF7F2;text-align:center;">
+          <p style="margin:0;color:#999;font-size:12px;">${params.footerHtml ?? "auntlucy.com.au"}</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+}
+
+/** The orange call-to-action button used by the recipient-facing emails. */
+function renderButton(url: string, label: string): string {
+  return `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 auto 24px;">
+            <tr><td style="border-radius:8px;background-color:#E76F51;">
+              <a href="${escapeHtml(url)}" style="display:inline-block;padding:14px 32px;color:#ffffff;font-size:16px;font-weight:600;text-decoration:none;border-radius:8px;">${escapeHtml(label)}</a>
+            </td></tr>
+          </table>`;
+}
+
+// ─── 1. Buyer confirmation + tax receipt ─────────────────────────────────────
+
+export interface BuyerConfirmationParams {
+  to: string;
+  buyerFirstName: string;
+  recipientFirstName: string;
+  /** "it's on its way to them now" / "we'll send it on {date}" / self-delivery. */
+  deliveryLine: string;
+  /** Set only when the buyer is passing the link on themselves. */
+  selfDeliveryLink: string | null;
+  giftReference: string;
+  purchaseDate: Date;
+  tierName: string;
+  breakdown: GstBreakdown;
+  currency: string;
+}
+
+/**
+ * Supplier identity on the tax receipt. Defaulted rather than required: a
+ * missing env var must not produce a receipt with a blank ABN, and these are
+ * public business details, not secrets.
+ */
+function supplierName(): string {
+  return process.env.BUSINESS_LEGAL_NAME || "Icebreaker Communications";
+}
+
+function supplierAbn(): string {
+  return process.env.BUSINESS_ABN || "34 327 702 731";
+}
+
+function renderReceiptText(params: BuyerConfirmationParams): string {
+  const { breakdown, currency } = params;
+  const dateLine = formatAuDate(params.purchaseDate);
+  const header = breakdown.isTaxable ? "TAX INVOICE" : "RECEIPT";
+
+  const lines = [
+    "──────────────────────────────",
+    header,
+    supplierName(),
+    `ABN ${supplierAbn()}`,
+    `Receipt #${params.giftReference}  ·  ${dateLine}`,
+    "",
+  ];
+
+  if (breakdown.isTaxable) {
+    lines.push(
+      `${params.tierName} × 1`,
+      `Subtotal (ex GST):   $${formatMoney(breakdown.exGstCents)} ${currency}`,
+      `GST (${gstRateLabel()}):           $${formatMoney(breakdown.gstCents)} ${currency}`,
+      `Total (inc GST):     $${formatMoney(breakdown.totalCents)} ${currency}`,
+    );
+  } else {
+    // A $0 sale isn't a taxable supply: no GST lines, no "Tax Invoice" header.
+    lines.push(
+      "Aunt Lucy VIP — complimentary",
+      `Total: $0.00 ${currency} (no GST applies)`,
+    );
+  }
+
+  lines.push("──────────────────────────────");
+  return lines.join("\n");
+}
+
+export interface RenderedEmail {
+  subject: string;
+  html: string;
+  text: string;
+}
+
+/**
+ * Builds the buyer's confirmation. Split out from sending so the exact bytes
+ * that go to Resend can be rendered for review without emailing anyone.
+ */
+export function buildBuyerConfirmationEmail(
+  params: BuyerConfirmationParams,
+): RenderedEmail {
+  const subject = `You've just given ${params.recipientFirstName} people who show up`;
+
+  const selfDeliveryHtml = params.selfDeliveryLink
+    ? `<p style="margin:0 0 20px;color:#333;font-size:16px;line-height:1.6;">
+            Here's their link, for whenever the moment's right:<br>
+            <a href="${escapeHtml(params.selfDeliveryLink)}" style="color:#2D6A4F;word-break:break-all;">${escapeHtml(params.selfDeliveryLink)}</a>
+          </p>`
+    : "";
+
+  const contentHtml = `          <p style="margin:0 0 20px;color:#333;font-size:16px;line-height:1.6;">
+            Hi ${escapeHtml(params.buyerFirstName)},
+          </p>
+          <p style="margin:0 0 20px;color:#333;font-size:16px;line-height:1.6;">
+            You've just given ${escapeHtml(params.recipientFirstName)} something really practical: people who show up.
+          </p>
+          <p style="margin:0 0 12px;color:#333;font-size:16px;line-height:1.6;">Here's what happens next:</p>
+          <ul style="margin:0 0 20px;padding-left:20px;color:#333;font-size:16px;line-height:1.7;">
+            <li style="margin-bottom:8px;">${escapeHtml(buildFirstBullet(params))}</li>
+            <li style="margin-bottom:8px;">They can take a look and activate it whenever they're ready. No pressure, no deadline.</li>
+            <li>From there, Aunt Lucy quietly handles the asking, so no one ever feels put on the spot.</li>
+          </ul>
+          ${selfDeliveryHtml}
+          <p style="margin:0 0 24px;color:#333;font-size:16px;line-height:1.6;">
+            Thank you for being the kind of person who shows up.
+          </p>
+          <p style="margin:0 0 28px;color:#2D6A4F;font-size:15px;line-height:1.6;">
+            — The Aunt Lucy team
+          </p>
+          <pre style="margin:0;padding:20px;background-color:#F3F6F2;border-radius:8px;color:#5a5a5a;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px;line-height:1.6;white-space:pre-wrap;">${escapeHtml(renderReceiptText(params))}</pre>`;
+
+  const text = [
+    `Hi ${params.buyerFirstName},`,
+    ``,
+    `You've just given ${params.recipientFirstName} something really practical: people who show up.`,
+    ``,
+    `Here's what happens next:`,
+    ``,
+    `• ${buildFirstBullet(params)}`,
+    `• They can take a look and activate it whenever they're ready. No pressure, no deadline.`,
+    `• From there, Aunt Lucy quietly handles the asking, so no one ever feels put on the spot.`,
+    ...(params.selfDeliveryLink
+      ? [``, `Here's their link, for whenever the moment's right:`, params.selfDeliveryLink]
+      : []),
+    ``,
+    `Thank you for being the kind of person who shows up.`,
+    ``,
+    `— The Aunt Lucy team`,
+    ``,
+    renderReceiptText(params),
+  ].join("\n");
+
+  return {
+    subject,
+    html: renderGiftLayout({
+      preheader: "Your receipt's below — and here's what happens next.",
+      contentHtml,
+      footerHtml: `Receipt #${escapeHtml(params.giftReference)} · ${escapeHtml(supplierName())} · ABN ${escapeHtml(supplierAbn())}`,
+    }),
+    text,
+  };
+}
+
+export async function sendBuyerConfirmation(
+  params: BuyerConfirmationParams,
+): Promise<void> {
+  if (!resend) {
+    logger.warn("RESEND_API_KEY not set — skipping buyer confirmation email");
+    return;
+  }
+
+  const { error } = await resend.emails.send({
+    from: FROM_ADDRESS,
+    to: params.to,
+    ...buildBuyerConfirmationEmail(params),
+  });
+
+  if (error) {
+    logger.error({ error, to: params.to }, "Failed to send buyer confirmation email");
+    throw new Error(`Resend error: ${error.message}`);
+  }
+
+  logger.info({ to: params.to }, "Buyer confirmation email sent");
+}
+
+// ─── 2. Recipient activation (the keepsake) ──────────────────────────────────
+
+export interface GiftDeliveryParams {
+  to: string;
+  recipientFirstName: string;
+  buyerFirstName: string;
+  giftLink: string;
+}
+
+export function buildGiftDeliveryEmail(params: GiftDeliveryParams): RenderedEmail {
+  const contentHtml = `          <p style="margin:0 0 20px;color:#333;font-size:16px;line-height:1.6;">
+            Hi ${escapeHtml(params.recipientFirstName)},
+          </p>
+          <p style="margin:0 0 20px;color:#333;font-size:18px;line-height:1.6;">
+            Someone who loves you has set up Aunt Lucy for you.
+          </p>
+          <p style="margin:0 0 20px;color:#333;font-size:16px;line-height:1.6;">
+            ${escapeHtml(params.buyerFirstName)} wanted to do something genuinely useful. They've set up a page so the people who care about you can help with the everyday stuff — meals, the school run, a friendly face — without you having to ask or organise a thing.
+          </p>
+          <p style="margin:0 0 24px;color:#333;font-size:16px;line-height:1.6;">
+            All you need to do is take a look when you're ready.
+          </p>
+          ${renderButton(params.giftLink, "Take a look")}
+          <p style="margin:0 0 24px;color:#333;font-size:16px;line-height:1.6;">
+            No rush. It'll be here when you need it.
+          </p>
+          <p style="margin:0;color:#2D6A4F;font-size:15px;line-height:1.6;">
+            — Aunt Lucy
+          </p>`;
+
+  const text = [
+    `Hi ${params.recipientFirstName},`,
+    ``,
+    `Someone who loves you has set up Aunt Lucy for you.`,
+    ``,
+    `${params.buyerFirstName} wanted to do something genuinely useful. They've set up a page so the people who care about you can help with the everyday stuff — meals, the school run, a friendly face — without you having to ask or organise a thing.`,
+    ``,
+    `All you need to do is take a look when you're ready.`,
+    ``,
+    params.giftLink,
+    ``,
+    `No rush. It'll be here when you need it.`,
+    ``,
+    `— Aunt Lucy`,
+  ].join("\n");
+
+  return {
+    subject: "Someone's got you",
+    html: renderGiftLayout({
+      preheader: "No rush — it'll be here when you need it.",
+      contentHtml,
+      footerHtml: `Can't click the button? Copy this link: ${escapeHtml(params.giftLink)}`,
+    }),
+    text,
+  };
+}
+
+export async function sendGiftDelivery(params: GiftDeliveryParams): Promise<void> {
+  if (!resend) {
+    logger.warn("RESEND_API_KEY not set — skipping gift delivery email");
+    return;
+  }
+
+  const { error } = await resend.emails.send({
+    from: FROM_ADDRESS,
+    to: params.to,
+    ...buildGiftDeliveryEmail(params),
+  });
+
+  if (error) {
+    logger.error({ error, to: params.to }, "Failed to send gift delivery email");
+    throw new Error(`Resend error: ${error.message}`);
+  }
+
+  logger.info({ to: params.to }, "Gift delivery email sent");
+}
+
+// ─── 3. Gentle activation nudge ──────────────────────────────────────────────
+
+export type ActivationReminderParams = GiftDeliveryParams;
+
+export function buildActivationReminderEmail(
+  params: ActivationReminderParams,
+): RenderedEmail {
+  const contentHtml = `          <p style="margin:0 0 20px;color:#333;font-size:16px;line-height:1.6;">
+            Hi ${escapeHtml(params.recipientFirstName)},
+          </p>
+          <p style="margin:0 0 24px;color:#333;font-size:16px;line-height:1.6;">
+            Just a gentle nudge — ${escapeHtml(params.buyerFirstName)} set up a little Aunt Lucy page to take a few things off your plate. There's nothing you need to do except take a look when it suits.
+          </p>
+          ${renderButton(params.giftLink, "Take a look")}
+          <p style="margin:0 0 24px;color:#333;font-size:16px;line-height:1.6;">
+            And if now isn't the time, that's completely okay. It'll keep.
+          </p>
+          <p style="margin:0;color:#2D6A4F;font-size:15px;line-height:1.6;">
+            — Aunt Lucy
+          </p>`;
+
+  const text = [
+    `Hi ${params.recipientFirstName},`,
+    ``,
+    `Just a gentle nudge — ${params.buyerFirstName} set up a little Aunt Lucy page to take a few things off your plate. There's nothing you need to do except take a look when it suits.`,
+    ``,
+    params.giftLink,
+    ``,
+    `And if now isn't the time, that's completely okay. It'll keep.`,
+    ``,
+    `— Aunt Lucy`,
+  ].join("\n");
+
+  return {
+    subject: "Still here whenever you're ready",
+    html: renderGiftLayout({
+      preheader: "Nothing to do — just a little nudge.",
+      contentHtml,
+      footerHtml: `Can't click the button? Copy this link: ${escapeHtml(params.giftLink)}`,
+    }),
+    text,
+  };
+}
+
+export async function sendActivationReminder(
+  params: ActivationReminderParams,
+): Promise<void> {
+  if (!resend) {
+    logger.warn("RESEND_API_KEY not set — skipping activation reminder email");
+    return;
+  }
+
+  const { error } = await resend.emails.send({
+    from: FROM_ADDRESS,
+    to: params.to,
+    ...buildActivationReminderEmail(params),
+  });
+
+  if (error) {
+    logger.error({ error, to: params.to }, "Failed to send activation reminder email");
+    throw new Error(`Resend error: ${error.message}`);
+  }
+
+  logger.info({ to: params.to }, "Activation reminder email sent");
+}
+
+/**
+ * The deliveryLine merge field from EMAIL_TEMPLATES.md: "it's on its way to
+ * them now" or "we'll send it on {deliveryDate}".
+ *
+ * Only used when we have a recipient address to send to. When the buyer is
+ * delivering the link themselves the whole bullet is replaced instead — see
+ * buildFirstBullet — because promising them a message we won't send would be a
+ * lie in the one email that has to be trustworthy.
+ */
+export function buildDeliveryLine(params: {
+  deliverAt: Date;
+  now: Date;
+}): string {
+  if (params.deliverAt <= params.now) {
+    return "it's on its way to them now";
+  }
+  return `we'll send it on ${formatAuDate(params.deliverAt)}`;
+}
+
+function buildFirstBullet(params: BuyerConfirmationParams): string {
+  if (params.selfDeliveryLink) {
+    return `You'll pass the link on to ${params.recipientFirstName} yourself — it's just below.`;
+  }
+  return `${params.recipientFirstName} will get a gentle message letting them know you've set this up — ${params.deliveryLine}.`;
 }

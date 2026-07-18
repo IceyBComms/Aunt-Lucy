@@ -10,6 +10,12 @@ export const giftMessageTypeEnum = pgEnum("gift_message_type", [
   "gifted_by",
   "welcome",
   "custom",
+  // The keepsake email that carries the gift to the recipient. Queued at
+  // payment time and sent at deliver_at, so a future-dated gift and an
+  // immediate one follow the exact same path through the dispatcher.
+  "gift_delivery",
+  // The single gentle nudge sent at remind_at if the gift is still unredeemed.
+  "activation_reminder",
 ]);
 
 export const giftMessageStatusEnum = pgEnum("gift_message_status", [

@@ -51,6 +51,10 @@ export const giftsTable = pgTable("gifts", {
   // Provider-agnostic: e.g. "stripe" plus the provider's session/intent id.
   paymentProvider: text("payment_provider"),
   paymentReference: text("payment_reference"),
+  // When the buyer asked for the gift to reach the recipient. Set at purchase
+  // (defaults to "now"), so it is the *intent*; delivered_at below is the
+  // record of what actually happened. Null is treated as "as soon as paid".
+  deliverAt: timestamp("deliver_at"),
   // The gift experience page (a read-only keepsake) was sent to the recipient.
   deliveredAt: timestamp("delivered_at"),
   // When the activation reminder email fires. The app defaults this to the due
