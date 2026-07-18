@@ -4,6 +4,7 @@ import { db, giftsTable, stripeWebhookEventsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import { fulfilPaidGift } from "../lib/giftFulfilment";
+import { isUnfulfillableTier } from "../lib/giftPricing";
 
 const router: IRouter = Router();
 
@@ -174,6 +175,19 @@ async function handleCheckoutCompleted(
   // never priced. Both are treated as $0 and still deliver: a VIP gift is a
   // real gift.
   const amountCents = session.amount_total ?? 0;
+
+  // ── Multi-gift guard ──
+  // A pack was paid for but this flow can only deliver one gift. Fulfilling
+  // would silently short-change the buyer by 4 or 9 gifts, so stop before any
+  // email goes out and leave the gift `pending`: the money is Stripe's record,
+  // and a human can refund or fulfil by hand. See isUnfulfillableTier().
+  if (isUnfulfillableTier(amountCents)) {
+    logger.error(
+      { giftId, sessionId: session.id, amountCents },
+      "NEEDS MANUAL ACTION: multi-gift pack paid for but multi-gift fulfilment does not exist — nothing sent, gift left pending",
+    );
+    return;
+  }
 
   await fulfilPaidGift({
     gift,
