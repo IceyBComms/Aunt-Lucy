@@ -2,6 +2,7 @@ import { useRoute } from "wouter";
 import { motion } from "framer-motion";
 import { Heart, ChevronDown, ArrowRight, Lock, Loader2 } from "lucide-react";
 import { useGetGift, getGetGiftQueryKey } from "@workspace/api-client-react";
+import { PostmarkMark } from "@/components/PostmarkMark";
 
 // Warm tints cycled through the colleague notes, matching the mockup.
 const NOTE_TINTS = ["#fdf4ee", "#f4f6f0", "#fbf1e8", "#f5f2ea", "#fdf3f0", "#f2f5f1"];
@@ -41,9 +42,7 @@ export default function GiftExperience() {
   if (isError || !data) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-[#faf7f2] p-6 text-center">
-        <div className="mb-6 grid h-20 w-20 place-items-center rounded-full bg-[#f3eadd] text-[#8b7e74]">
-          <Heart className="h-10 w-10 opacity-50" />
-        </div>
+        <PostmarkMark className="mb-6 h-20 w-20 opacity-70" />
         <h1 className="mb-3 font-serif text-3xl font-semibold text-[#2c2c2c]">
           This gift link isn't valid
         </h1>
@@ -72,19 +71,8 @@ export default function GiftExperience() {
           initial="initial"
           animate="animate"
         >
-          <motion.div
-            variants={fadeUp}
-            className="relative grid h-[74px] w-[74px] place-items-center rounded-full"
-            style={{
-              background:
-                "radial-gradient(120% 120% at 30% 25%, #e76f51 0%, #d15b3e 78%)",
-              boxShadow:
-                "inset 0 2px 4px rgba(255,255,255,0.35), inset 0 -6px 12px rgba(120,40,20,0.4), 0 8px 20px -8px rgba(209,91,62,0.6)",
-            }}
-            aria-hidden="true"
-          >
-            <div className="absolute inset-[7px] rounded-full border-[1.5px] border-dashed border-white/50" />
-            <Heart className="relative h-[30px] w-[30px] text-white" fill="currentColor" />
+          <motion.div variants={fadeUp} aria-hidden="true">
+            <PostmarkMark className="h-[84px] w-[84px]" />
           </motion.div>
 
           <motion.p
