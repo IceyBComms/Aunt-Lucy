@@ -619,12 +619,7 @@ export function buildBuyerConfirmationEmail(
 ): RenderedEmail {
   const subject = `You've just given ${params.recipientFirstName} people who show up`;
 
-  const selfDeliveryHtml = params.selfDeliveryLink
-    ? `<p style="margin:0 0 20px;color:#333;font-size:16px;line-height:1.6;">
-            Here's their link, for whenever the moment's right:<br>
-            <a href="${escapeHtml(params.selfDeliveryLink)}" style="color:#2D6A4F;word-break:break-all;">${escapeHtml(params.selfDeliveryLink)}</a>
-          </p>`
-    : "";
+  const firstBullet = buildFirstBullet(params);
 
   const contentHtml = `          <p style="margin:0 0 20px;color:#333;font-size:16px;line-height:1.6;">
             Hi ${escapeHtml(params.buyerFirstName)},
@@ -634,11 +629,10 @@ export function buildBuyerConfirmationEmail(
           </p>
           <p style="margin:0 0 12px;color:#333;font-size:16px;line-height:1.6;">Here's what happens next:</p>
           <ul style="margin:0 0 20px;padding-left:20px;color:#333;font-size:16px;line-height:1.7;">
-            <li style="margin-bottom:8px;">${escapeHtml(buildFirstBullet(params))}</li>
+            <li style="margin-bottom:8px;">${firstBullet.html}</li>
             <li style="margin-bottom:8px;">They can take a look and activate it whenever they're ready. No pressure, no deadline.</li>
             <li>From there, Aunt Lucy quietly handles the asking, so no one ever feels put on the spot.</li>
           </ul>
-          ${selfDeliveryHtml}
           <p style="margin:0 0 24px;color:#333;font-size:16px;line-height:1.6;">
             Thank you for being the kind of person who shows up.
           </p>
@@ -654,12 +648,9 @@ export function buildBuyerConfirmationEmail(
     ``,
     `Here's what happens next:`,
     ``,
-    `• ${buildFirstBullet(params)}`,
+    `• ${firstBullet.text}`,
     `• They can take a look and activate it whenever they're ready. No pressure, no deadline.`,
     `• From there, Aunt Lucy quietly handles the asking, so no one ever feels put on the spot.`,
-    ...(params.selfDeliveryLink
-      ? [``, `Here's their link, for whenever the moment's right:`, params.selfDeliveryLink]
-      : []),
     ``,
     `Thank you for being the kind of person who shows up.`,
     ``,
@@ -863,9 +854,27 @@ export function buildDeliveryLine(params: {
   return `we'll send it on ${formatAuDate(params.deliverAt)}`;
 }
 
-function buildFirstBullet(params: BuyerConfirmationParams): string {
+/**
+ * The first "what happens next" bullet, in both renderings.
+ *
+ * When the buyer is delivering the link themselves the link sits inside the
+ * bullet, so the HTML needs a real anchor where the plain text needs the bare
+ * URL — hence two renderings rather than one escaped string.
+ */
+function buildFirstBullet(params: BuyerConfirmationParams): {
+  text: string;
+  html: string;
+} {
   if (params.selfDeliveryLink) {
-    return `You'll pass the link on to ${params.recipientFirstName} yourself — it's just below.`;
+    const lead = `You'll be sharing this with ${params.recipientFirstName} yourself — here's the link: `;
+    return {
+      text: `${lead}${params.selfDeliveryLink}`,
+      html:
+        escapeHtml(lead) +
+        `<a href="${escapeHtml(params.selfDeliveryLink)}" style="color:#2D6A4F;word-break:break-all;">${escapeHtml(params.selfDeliveryLink)}</a>`,
+    };
   }
-  return `${params.recipientFirstName} will get a gentle message letting them know you've set this up — ${params.deliveryLine}.`;
+
+  const bullet = `${params.recipientFirstName} will get a gentle message letting them know you've set this up — ${params.deliveryLine}.`;
+  return { text: bullet, html: escapeHtml(bullet) };
 }
