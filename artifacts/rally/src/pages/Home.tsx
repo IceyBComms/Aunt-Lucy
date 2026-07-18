@@ -95,6 +95,32 @@ export default function Home() {
           Free for helpers · No app needed · 8 weeks of support from launch
         </motion.div>
 
+        <motion.div
+          variants={fadeUp}
+          className="max-w-xl mb-12 text-left sm:text-center"
+        >
+          <p className="text-sm font-medium text-primary uppercase tracking-wide mb-4">
+            Who is Aunt Lucy?
+          </p>
+          <p className="font-serif text-xl text-foreground leading-relaxed mb-4">
+            You know an Aunt Lucy. She's the one who quietly sorted everything
+            when your family needed it most.
+          </p>
+          <p className="text-muted-foreground leading-relaxed mb-4">
+            She brings the food nobody asked for but everyone needed. She takes
+            the older kids for an afternoon without being asked. She handles the
+            awkward "please no visitors today" conversation so nobody else has
+            to.
+          </p>
+          <p className="text-muted-foreground leading-relaxed">
+            Not everyone is lucky enough to have an Aunt Lucy. But everyone
+            deserves one.{" "}
+            <span className="text-foreground font-medium">
+              That's what this is.
+            </span>
+          </p>
+        </motion.div>
+
         <motion.h1
           variants={fadeUp}
           className="font-serif text-5xl sm:text-6xl font-bold text-foreground leading-[1.1] mb-6 max-w-2xl"
@@ -107,9 +133,8 @@ export default function Home() {
           variants={fadeUp}
           className="text-lg text-muted-foreground leading-relaxed max-w-xl mb-10"
         >
-          The gift that sets up a support network before baby arrives — meals,
-          errands, school pickups and visits, ready to go the moment they need
-          it.
+          Think of it as giving them their own Aunt Lucy — someone who gets
+          everyone organised so the new parents don't have to.
         </motion.p>
 
         <motion.div variants={fadeUp} className="flex flex-col items-center gap-4">
@@ -120,7 +145,7 @@ export default function Home() {
             className="text-base px-8 py-6 h-auto font-serif shadow-lg shadow-accent/20 hover:shadow-accent/30 transition-shadow"
           >
             {/* Placeholder — $59 Stripe checkout link added later */}
-            <a href="#">Gift an Aunt Lucy page — $59</a>
+            <a href="#">Gift an Aunt Lucy page</a>
           </Button>
           <p className="text-sm text-muted-foreground max-w-md leading-relaxed">
             Two minutes to buy · They set it up before baby arrives · One button
@@ -306,6 +331,12 @@ export default function Home() {
 
       {/* Footer */}
       <footer className="border-t border-border/50 py-8 px-6">
+        <p className="max-w-2xl mx-auto text-center text-sm text-muted-foreground leading-relaxed mb-8">
+          Aunt Lucy was named for every warm, capable, quietly brilliant woman
+          who has ever shown up with a casserole, taken the kids for an
+          afternoon, and made everything feel manageable again. This is for them.
+          And for everyone who needs one.
+        </p>
         <div className="max-w-4xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
           <div className="flex items-center gap-2">
             <Heart className="w-4 h-4 text-primary fill-primary/20" />
