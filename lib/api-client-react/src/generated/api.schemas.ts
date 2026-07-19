@@ -82,6 +82,52 @@ export const GiftOccasion = {
   other: "other",
 } as const;
 
+export type GiftTierId = (typeof GiftTierId)[keyof typeof GiftTierId];
+
+export const GiftTierId = {
+  consumer_personal: "consumer_personal",
+  workplace_individual: "workplace_individual",
+  workplace_5pack: "workplace_5pack",
+  workplace_10pack: "workplace_10pack",
+} as const;
+
+export interface GiftTier {
+  id: GiftTierId;
+  /** The buyer-facing name of the tier. */
+  label: string;
+  /** One line explaining who the tier is for. */
+  blurb: string;
+  /** GST-inclusive price in cents. */
+  amountCents: number;
+  /** How many separate gift pages the tier buys. */
+  gifts: number;
+  /** False for the pack tiers, which are shown as coming soon until multi-gift fulfilment exists. A display-only tier has no payment link and cannot be purchased. */
+  sellable: boolean;
+}
+
+export interface CreateGiftRequest {
+  tierId: GiftTierId;
+  purchaserName: string;
+  /** Where the receipt and the tax invoice are sent. */
+  purchaserEmail: string;
+  /** True when the buyer is setting the page up for themselves. The recipient fields are then ignored and the buyer's own name and email are used. */
+  forSelf: boolean;
+  /** Required unless forSelf is true. */
+  recipientName?: string | null;
+  /** Where the gift is delivered. Null when the buyer chose to pass the link on themselves — fulfilment then sends the link to the buyer instead and nothing reaches the recipient automatically. */
+  recipientEmail?: string | null;
+  occasion?: GiftOccasion | null;
+  /** The optional "from" note shown on the delivered gift. */
+  giftedByNote?: string | null;
+  /** When the gift should reach the recipient. Null means as soon as the payment clears. */
+  deliverAt?: string | null;
+}
+
+export interface CreateGiftResponse {
+  /** The Stripe payment link with client_reference_id already appended. Redirect to it unchanged. */
+  checkoutUrl: string;
+}
+
 export interface GiftSigningPublic {
   signerName: string;
   message: string;
@@ -100,6 +146,10 @@ export interface GiftExperience {
 export interface PinRequiredError {
   error: string;
   pinRequired: boolean;
+}
+
+export interface ValidationError {
+  error: string;
 }
 
 export interface NotFoundError {

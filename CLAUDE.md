@@ -395,11 +395,22 @@ Aunt Lucy is registered for GST in Australia (ABN required on all invoices and r
 
 **GST handling by context:**
 
+**All prices are GST-inclusive, in every context — consumer and corporate alike.**
+The Stripe payment links charge the inclusive amount, and `lib/gst.ts` derives the
+ex-GST and GST components from that single figure. Quoting an ex-GST price anywhere
+would advertise one number and charge another.
+
 **Consumer purchases (baby shower / individual gifting)**
-Display prices GST-inclusive. Example: "$79" means $71.82 + $7.18 GST. No separate GST line needed at browse/marketing stage. GST must be itemised on the receipt/confirmation email.
+Display prices GST-inclusive. Example: "$59" means $53.64 + $5.36 GST. No separate GST line needed at browse/marketing stage. GST must be itemised on the receipt/confirmation email.
 
 **Corporate/HR purchases**
-Display prices excluding GST with "plus GST" noted clearly. Example: "$79 + GST". GST must be itemised on the invoice. HR buyers will claim it back — they expect ex-GST pricing.
+Display prices GST-inclusive too, noted as "GST included". Example: "$79" means $71.82 + $7.18 GST. GST must be itemised on the tax invoice, alongside the ABN — that is how HR claims it back. Do NOT display "$79 + GST": the payment link charges $79 total, so an ex-GST display would quote $86.90 and charge $79.
+
+> Changed July 2026 (Item 2). This section previously required corporate prices to
+> display ex-GST with "plus GST" noted. That contradicted the Stripe payment links,
+> which charge the GST-inclusive amount, and contradicted `lib/gst.ts`, which treats
+> every stored `amountCents` as GST-inclusive. Inclusive display everywhere is the
+> ruling; HR still gets the GST itemised on the tax invoice.
 
 **Annual subscription (HR)**
 Invoice billing. All invoices must include:

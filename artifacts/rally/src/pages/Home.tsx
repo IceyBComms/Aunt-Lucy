@@ -1,4 +1,4 @@
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { PostmarkMark } from "@/components/PostmarkMark";
@@ -119,8 +119,7 @@ export default function Home() {
             variant="accent"
             className="text-base px-8 py-6 h-auto font-serif shadow-lg shadow-accent/20 hover:shadow-accent/30 transition-shadow"
           >
-            {/* Placeholder — $59 Stripe checkout link added later */}
-            <a href="#">Gift an Aunt Lucy page — $59</a>
+            <Link href="/buy">Gift Aunt Lucy — $59</Link>
           </Button>
           <p className="text-sm text-muted-foreground max-w-md leading-relaxed">
             Two minutes to buy · They set it up before baby arrives · One button
@@ -254,15 +253,16 @@ export default function Home() {
               One price. Eight weeks of real support.
             </h2>
             <p className="text-muted-foreground leading-relaxed mb-4">
-              $59 — one Aunt Lucy gift page. Valid for 12 months from purchase.
-              Eight weeks of coordinated support from the moment they launch.
+              $59, GST included — one Aunt Lucy gift page. Valid for 12 months
+              from purchase. Eight weeks of coordinated support from the moment
+              they launch.
             </p>
-            <a
-              href="#"
+            <Link
+              href="/buy"
               className="text-sm text-primary underline underline-offset-2 hover:text-primary/80 transition-colors"
             >
               Buying for a team or workplace? See employer pricing.
-            </a>
+            </Link>
           </div>
           <div className="shrink-0">
             <Button
@@ -271,8 +271,7 @@ export default function Home() {
               variant="outline"
               className="font-serif text-base border-primary/40 text-primary hover:bg-primary/5"
             >
-              {/* Placeholder — $59 Stripe checkout link added later */}
-              <a href="#">Gift an Aunt Lucy page — $59</a>
+              <Link href="/buy">Gift Aunt Lucy — $59</Link>
             </Button>
           </div>
         </motion.div>
@@ -295,8 +294,7 @@ export default function Home() {
             size="lg"
             className="bg-white text-primary hover:bg-white/90 text-base px-8 py-6 h-auto font-serif shadow-xl"
           >
-            {/* Placeholder — $59 Stripe checkout link added later */}
-            <a href="#">Give them Aunt Lucy — $59</a>
+            <Link href="/buy">Gift Aunt Lucy — $59</Link>
           </Button>
           <p className="text-primary-foreground/50 text-sm mt-4">
             Two minutes to buy · Free for helpers · No app needed

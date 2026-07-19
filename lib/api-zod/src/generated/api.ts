@@ -101,6 +101,80 @@ export const ClaimSlotResponse = zod.object({
 });
 
 /**
+ * Returns every tier shown on the purchase page, including the ones that cannot be bought yet. Prices are GST-inclusive cents and come from the server so the buyer-facing price can never drift from what Stripe charges. A tier with sellable=false is display-only — it carries no payment link and POST /gifts refuses it.
+ * @summary List the gift tiers
+ */
+export const ListGiftTiersResponseItem = zod.object({
+  id: zod.enum([
+    "consumer_personal",
+    "workplace_individual",
+    "workplace_5pack",
+    "workplace_10pack",
+  ]),
+  label: zod.string().describe("The buyer-facing name of the tier."),
+  blurb: zod.string().describe("One line explaining who the tier is for."),
+  amountCents: zod.number().describe("GST-inclusive price in cents."),
+  gifts: zod.number().describe("How many separate gift pages the tier buys."),
+  sellable: zod
+    .boolean()
+    .describe(
+      "False for the pack tiers, which are shown as coming soon until multi-gift fulfilment exists. A display-only tier has no payment link and cannot be purchased.",
+    ),
+});
+export const ListGiftTiersResponse = zod.array(ListGiftTiersResponseItem);
+
+/**
+ * Creates the gift in `pending` status and returns the Stripe checkout URL to send the buyer to. The URL already carries `client_reference_id` set to the new gift's id — that is the handshake the Stripe webhook uses to match the payment back to this gift, so the caller must redirect to the returned URL unchanged. Nothing is charged and nothing is emailed until the payment completes.
+ * @summary Start a gift purchase
+ */
+export const CreateGiftBody = zod.object({
+  tierId: zod.enum([
+    "consumer_personal",
+    "workplace_individual",
+    "workplace_5pack",
+    "workplace_10pack",
+  ]),
+  purchaserName: zod.string(),
+  purchaserEmail: zod
+    .string()
+    .describe("Where the receipt and the tax invoice are sent."),
+  forSelf: zod
+    .boolean()
+    .describe(
+      "True when the buyer is setting the page up for themselves. The recipient fields are then ignored and the buyer's own name and email are used.",
+    ),
+  recipientName: zod
+    .string()
+    .nullish()
+    .describe("Required unless forSelf is true."),
+  recipientEmail: zod
+    .string()
+    .nullish()
+    .describe(
+      "Where the gift is delivered. Null when the buyer chose to pass the link on themselves — fulfilment then sends the link to the buyer instead and nothing reaches the recipient automatically.",
+    ),
+  occasion: zod
+    .enum([
+      "new_baby",
+      "illness_recovery",
+      "bereavement",
+      "ongoing_support",
+      "other",
+    ])
+    .nullish(),
+  giftedByNote: zod
+    .string()
+    .nullish()
+    .describe('The optional \"from\" note shown on the delivered gift.'),
+  deliverAt: zod
+    .date()
+    .nullish()
+    .describe(
+      "When the gift should reach the recipient. Null means as soon as the payment clears.",
+    ),
+});
+
+/**
  * Returns the recipient-facing gift experience — recipient name, the organisation's message, who it was gifted by, the occasion, and all colleague signings. The gift is shown even before it has been delivered.
  * @summary Get a gift experience by redemption token
  */
