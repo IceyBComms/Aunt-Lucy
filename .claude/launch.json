@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "rally",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@workspace/rally", "dev:local"],
+      "port": 5173
+    }
+  ]
+}

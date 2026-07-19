@@ -8,4 +8,5 @@ export * from "./pilotApplications";
 export * from "./gifts";
 export * from "./giftMessages";
 export * from "./giftSignings";
+export * from "./stripeWebhookEvents";
 export * from "./relations";
