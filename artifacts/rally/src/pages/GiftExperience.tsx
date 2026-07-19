@@ -1,8 +1,9 @@
 import { useRoute } from "wouter";
 import { motion } from "framer-motion";
-import { Heart, ChevronDown, ArrowRight, Lock, Loader2 } from "lucide-react";
+import { Heart, ChevronDown, Loader2 } from "lucide-react";
 import { useGetGift, getGetGiftQueryKey } from "@workspace/api-client-react";
 import { PostmarkMark } from "@/components/PostmarkMark";
+import { GiftActivation } from "@/components/GiftActivation";
 
 // Warm tints cycled through the colleague notes, matching the mockup.
 const NOTE_TINTS = ["#fdf4ee", "#f4f6f0", "#fbf1e8", "#f5f2ea", "#fdf3f0", "#f2f5f1"];
@@ -60,6 +61,10 @@ export default function GiftExperience() {
     .map((p) => p.trim())
     .filter(Boolean);
   const noteCount = signings.length;
+  // A self-setup page (someone buying Aunt Lucy for themselves) has no giver,
+  // so there is no "gifted by" keepsake to show. Guard every reference to it —
+  // "you put this together, just for you" would read as nonsense otherwise.
+  const giftedByName = giftedBy?.trim() || null;
 
   return (
     <div className="min-h-screen w-full bg-[#faf7f2]">
@@ -89,13 +94,15 @@ export default function GiftExperience() {
             {recipientName}
           </motion.h1>
 
-          <motion.p
-            variants={fadeUp}
-            className="max-w-[24ch] text-[1.02rem] text-[#52493f]"
-          >
-            <strong className="font-semibold text-[#2d6a4f]">{giftedBy}</strong>{" "}
-            put this together, just for you.
-          </motion.p>
+          {giftedByName && (
+            <motion.p
+              variants={fadeUp}
+              className="max-w-[24ch] text-[1.02rem] text-[#52493f]"
+            >
+              <strong className="font-semibold text-[#2d6a4f]">{giftedByName}</strong>{" "}
+              put this together, just for you.
+            </motion.p>
+          )}
 
           <motion.div
             variants={fadeUp}
@@ -121,9 +128,11 @@ export default function GiftExperience() {
               transition={{ duration: 0.5 }}
               className="relative rounded-[1.4rem] border border-[#e7ddd0] bg-white px-[1.6rem] pt-[1.9rem] pb-[1.7rem] shadow-[0_10px_30px_-18px_rgba(74,58,42,0.4)]"
             >
-              <span className="absolute -top-[0.85rem] left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-[#2d6a4f] px-[0.95rem] py-[0.4rem] text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-white shadow-[0_6px_16px_-8px_rgba(45,106,79,0.7)]">
-                Gifted by {giftedBy}
-              </span>
+              {giftedByName && (
+                <span className="absolute -top-[0.85rem] left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-[#2d6a4f] px-[0.95rem] py-[0.4rem] text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-white shadow-[0_6px_16px_-8px_rgba(45,106,79,0.7)]">
+                  Gifted by {giftedByName}
+                </span>
+              )}
 
               {paragraphs.map((para, i) =>
                 i === 0 ? (
@@ -140,16 +149,18 @@ export default function GiftExperience() {
                 ),
               )}
 
-              <div className="mt-[1.3rem] flex items-center gap-3 border-t border-[#e7ddd0] pt-[1.1rem]">
-                <div className="grid h-10 w-10 flex-none place-items-center rounded-xl bg-[#f3eadd] font-serif text-[1.1rem] font-bold text-[#2d6a4f]">
-                  {giftedBy.trim().charAt(0).toUpperCase()}
-                </div>
-                <div className="leading-tight">
-                  <div className="font-serif font-semibold text-[#2c2c2c]">
-                    {giftedBy}
+              {giftedByName && (
+                <div className="mt-[1.3rem] flex items-center gap-3 border-t border-[#e7ddd0] pt-[1.1rem]">
+                  <div className="grid h-10 w-10 flex-none place-items-center rounded-xl bg-[#f3eadd] font-serif text-[1.1rem] font-bold text-[#2d6a4f]">
+                    {giftedByName.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="leading-tight">
+                    <div className="font-serif font-semibold text-[#2c2c2c]">
+                      {giftedByName}
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
             </motion.article>
           </section>
         )}
@@ -200,30 +211,10 @@ export default function GiftExperience() {
           </>
         )}
 
-        {/* ACTIVATION */}
-        <section className="mx-[1.25rem] mt-8 rounded-t-[1.6rem] border border-b-0 border-[#e7ddd0] bg-gradient-to-b from-[#faf7f2] to-[#f3eadd] px-[1.6rem] pt-[2.3rem] pb-[2.5rem] text-center">
-          <p className="text-[0.72rem] font-semibold uppercase tracking-[0.22em] text-[#d15b3e]">
-            Whenever you're ready
-          </p>
-          <h2 className="mt-2 mb-[0.7rem] font-serif text-[1.75rem] font-semibold text-[#2c2c2c]">
-            Ready when you are.
-          </h2>
-          <p className="mx-auto mb-[1.6rem] max-w-[26ch] text-[1rem] text-[#52493f]">
-            Takes a couple of minutes. You choose what help you'd like, and we'll
-            take it from there.
-          </p>
-          <button
-            type="button"
-            className="inline-flex items-center gap-[0.55rem] rounded-full bg-[#2d6a4f] px-[2.1rem] py-4 font-serif text-[1.12rem] font-semibold text-white shadow-[0_14px_30px_-12px_rgba(45,106,79,0.7)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-[#245842] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#2d6a4f]/35"
-          >
-            Set up my page
-            <ArrowRight className="h-5 w-5" />
-          </button>
-          <p className="mt-[1.1rem] flex items-center justify-center gap-1.5 text-[0.85rem] text-[#8b7e74]">
-            <Lock className="h-[15px] w-[15px] text-[#2d6a4f]" />
-            Private and free · no account needed
-          </p>
-        </section>
+        {/* REVIEW + ACTIVATION — the recipient steers the page, then makes it
+            live. Carries its own "already activated" state, so re-opening this
+            link after activation is safe and shows the live page instead. */}
+        <GiftActivation token={token} />
 
         <div className="flex items-center justify-center gap-[0.45rem] bg-[#f3eadd] px-6 pt-[1.4rem] pb-8 text-[0.8rem] text-[#8b7e74]">
           <Heart className="h-[15px] w-[15px] text-[#e76f51]" fill="currentColor" />

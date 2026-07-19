@@ -17,6 +17,7 @@ const FROM_ADDRESS = "Aunt Lucy <noreply@auntlucy.com.au>";
 const SLOT_TYPE_LABELS: Record<string, string> = {
   meal: "Dropping off a meal",
   school_pickup: "School pickup",
+  child_care: "Looking after the kids",
   errand: "Running an errand",
   dog_walking: "Dog walking",
   shopping: "Shopping",
@@ -28,7 +29,11 @@ function isEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
-function formatDate(dateStr: string): string {
+// A slot with no date is a flexible offer rather than an appointment, so it
+// gets words instead of a date. Callers pair this with formatTime only when a
+// real date exists — "Whenever suits you at 3:00 PM" would be nonsense.
+function formatDate(dateStr: string | null): string {
+  if (!dateStr) return "Whenever suits you";
   const date = new Date(dateStr + "T00:00:00");
   return date.toLocaleDateString("en-AU", {
     weekday: "long",
@@ -55,7 +60,7 @@ interface ClaimEmailParams {
   recipientName: string;
   slotType: string;
   customLabel: string | null;
-  slotDate: string;
+  slotDate: string | null;
   slotTime: string | null;
   notes: string | null;
   location: string | null;
@@ -75,7 +80,8 @@ function buildHtml(params: ClaimEmailParams): string {
 
   const typeLabel = customLabel || SLOT_TYPE_LABELS[slotType] || "Helping out";
   const dateFormatted = formatDate(slotDate);
-  const timeFormatted = slotTime ? formatTime(slotTime) : null;
+  // Only pair a time with a real date — an undated task has no clock.
+  const timeFormatted = slotDate && slotTime ? formatTime(slotTime) : null;
   const dateTimeLine = timeFormatted
     ? `${dateFormatted} at ${timeFormatted}`
     : dateFormatted;
@@ -142,7 +148,8 @@ function buildPlainText(params: ClaimEmailParams): string {
 
   const typeLabel = customLabel || SLOT_TYPE_LABELS[slotType] || "Helping out";
   const dateFormatted = formatDate(slotDate);
-  const timeFormatted = slotTime ? formatTime(slotTime) : null;
+  // Only pair a time with a real date — an undated task has no clock.
+  const timeFormatted = slotDate && slotTime ? formatTime(slotTime) : null;
   const dateTimeLine = timeFormatted
     ? `${dateFormatted} at ${timeFormatted}`
     : dateFormatted;
@@ -383,7 +390,7 @@ interface InviteEmailParams {
   helperName: string;
   recipientName: string;
   slotTypeLabel: string;
-  slotDate: string;
+  slotDate: string | null;
   slotTime: string | null;
   inviteUrl: string;
 }
@@ -395,7 +402,8 @@ export async function sendInviteEmail(params: InviteEmailParams): Promise<void> 
   }
 
   const dateFormatted = formatDate(params.slotDate);
-  const timeFormatted = params.slotTime ? formatTime(params.slotTime) : null;
+  const timeFormatted =
+    params.slotDate && params.slotTime ? formatTime(params.slotTime) : null;
   const dateTimeLine = timeFormatted
     ? `${dateFormatted} at ${timeFormatted}`
     : dateFormatted;

@@ -141,6 +141,84 @@ paths:
               schema:
                 $ref: "#/components/schemas/NotFoundError"
 
+  /gifts/{redemptionToken}/review:
+    get:
+      operationId: getGiftReview
+      tags: [gifts]
+      summary: Get the suggested tasks a recipient can steer before activating
+      description: >-
+        Token-gated, not auth-gated — the recipient has no account. Before
+        activation this returns occasion-aware suggested tasks that are
+        generated on the fly and not persisted. After activation it returns the
+        live page instead, so re-opening the link is always safe.
+      parameters:
+        - name: redemptionToken
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Gift found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GiftReview"
+        "404":
+          description: Gift not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotFoundError"
+
+  /gifts/{redemptionToken}/activate:
+    post:
+      operationId: activateGift
+      tags: [gifts]
+      summary: Turn the kept tasks into a live support page
+      description: >-
+        Creates the support page (with no organiser account), creates the kept
+        tasks as slots, and marks the gift redeemed. Returns the page slug.
+        Calling this again on an already-activated gift returns the existing
+        page rather than an error.
+      parameters:
+        - name: redemptionToken
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ActivateGiftRequest"
+      responses:
+        "200":
+          description: Gift was already activated; the existing page is returned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActivatedPage"
+        "201":
+          description: Support page created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActivatedPage"
+        "404":
+          description: Gift not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotFoundError"
+        "409":
+          description: Gift is not in a state that can be activated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotFoundError"
+
 components:
   schemas:
     HealthStatus:
@@ -156,6 +234,7 @@ components:
       enum:
         - meal
         - school_pickup
+        - child_care
         - errand
         - dog_walking
         - shopping
@@ -176,6 +255,10 @@ components:
           nullable: true
         slotDate:
           type: string
+          nullable: true
+          description: >-
+            Null means the task has no fixed date — a flexible offer, claimed
+            whenever suits. The date is set when a helper claims it.
         slotTime:
           type: string
           nullable: true
@@ -196,7 +279,6 @@ components:
         - id
         - pageId
         - slotType
-        - slotDate
         - isClaimed
         - createdAt
 
@@ -221,6 +303,12 @@ components:
         privacy:
           type: string
           enum: [open, pin_protected]
+        goodToKnow:
+          type: string
+          nullable: true
+          description: >-
+            An optional free-text note from the recipient, shown to every
+            helper. Null when they didn't leave one.
         slots:
           type: array
           items:
@@ -295,6 +383,129 @@ components:
         - recipientName
         - giftedBy
         - signings
+
+    SuggestedTask:
+      type: object
+      description: >-
+        A proposed task shown on the review screen. Not persisted — it becomes a
+        slot only if the recipient keeps it and activates.
+      properties:
+        key:
+          type: string
+        slotType:
+          $ref: "#/components/schemas/SlotType"
+        label:
+          type: string
+        dated:
+          type: boolean
+          description: >-
+            When false the card shows no date at all — a flexible offer. Most
+            suggestions are undated by design.
+        trustedHelpersOnly:
+          type: boolean
+      required:
+        - key
+        - slotType
+        - label
+        - dated
+        - trustedHelpersOnly
+
+    GiftReview:
+      type: object
+      properties:
+        activated:
+          type: boolean
+          description: >-
+            True once the recipient has activated. The suggestions list is then
+            empty and slug points at the live page.
+        recipientName:
+          type: string
+        giftedBy:
+          type: string
+          nullable: true
+        occasion:
+          oneOf:
+            - $ref: "#/components/schemas/GiftOccasion"
+          nullable: true
+        canActivate:
+          type: boolean
+          nullable: true
+          description: False while the gift is unpaid or cancelled.
+        slug:
+          type: string
+          nullable: true
+        status:
+          type: string
+          nullable: true
+        scheduledActivateAt:
+          type: string
+          nullable: true
+          description: Set when the recipient chose a future go-live date.
+        suggestions:
+          type: array
+          items:
+            $ref: "#/components/schemas/SuggestedTask"
+      required:
+        - activated
+        - recipientName
+        - suggestions
+
+    ActivateGiftTask:
+      type: object
+      properties:
+        slotType:
+          $ref: "#/components/schemas/SlotType"
+        label:
+          type: string
+        slotDate:
+          type: string
+          nullable: true
+          description: Omit or null for a flexible, undated task.
+        notes:
+          type: string
+          nullable: true
+        trustedHelpersOnly:
+          type: boolean
+      required:
+        - slotType
+        - label
+
+    ActivateGiftRequest:
+      type: object
+      properties:
+        tasks:
+          type: array
+          description: The tasks the recipient kept, in the wording they kept them in.
+          items:
+            $ref: "#/components/schemas/ActivateGiftTask"
+        scheduledActivateAt:
+          type: string
+          nullable: true
+          description: >-
+            Omit to go live now. Supply a future ISO timestamp to create the
+            page as a draft that the scheduler makes visible on that date.
+        goodToKnow:
+          type: string
+          nullable: true
+          description: >-
+            Optional free-text note shown to every helper on the live page.
+            Trimmed and capped server-side; omit or null for none.
+      required:
+        - tasks
+
+    ActivatedPage:
+      type: object
+      properties:
+        slug:
+          type: string
+        status:
+          type: string
+        scheduledActivateAt:
+          type: string
+          nullable: true
+      required:
+        - slug
+        - status
 
     PinRequiredError:
       type: object

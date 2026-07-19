@@ -39,9 +39,10 @@ testem.log
 /typings
 
 # Local environment (never commit real secrets — .env.example is the template)
+# .env.* catches per-environment files such as .env.sandbox, which carry real
+# connection strings and API keys; .env.example is the one deliberate exception.
 .env
-.env.local
-.env.*.local
+.env.*
 !.env.example
 
 # System Files
