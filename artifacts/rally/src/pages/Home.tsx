@@ -71,12 +71,22 @@ export default function Home() {
             <PostmarkMark className="w-10 h-10" />
             <span className="font-serif font-bold text-foreground text-lg">Aunt Lucy</span>
           </div>
-          <button
-            onClick={() => setLocation("/organise")}
-            className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-          >
-            Sign in
-          </button>
+          {/* "For employers" sits quietly beside sign-in — present for HR
+              buyers, deliberately not competing with the consumer CTA. */}
+          <div className="flex items-center gap-5">
+            <button
+              onClick={() => setLocation("/employers")}
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              For employers
+            </button>
+            <button
+              onClick={() => setLocation("/organise")}
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Sign in
+            </button>
+          </div>
         </div>
       </nav>
 

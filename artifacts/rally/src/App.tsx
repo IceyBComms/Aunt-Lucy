@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/contexts/AuthContext";
 import NotFound from "@/pages/not-found";
 import Home from "@/pages/Home";
+import Employers from "@/pages/Employers";
 import SupportPage from "@/pages/SupportPage";
 import OrganiseSignIn from "@/pages/OrganiseSignIn";
 import OrganiseCheckEmail from "@/pages/OrganiseCheckEmail";
@@ -26,6 +27,7 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={Home} />
+      <Route path="/employers" component={Employers} />
       <Route path="/s/:slug" component={SupportPage} />
 
       {/* Organiser flow */}
