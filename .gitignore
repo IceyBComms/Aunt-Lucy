@@ -38,10 +38,12 @@ yarn-error.log
 testem.log
 /typings
 
-# Local environment (never commit real secrets — .env.example is the template)
+# Local environment (never commit real secrets — .env.example is the template).
+# The wildcard is deliberate: any new local env file (.env.sandbox, .env.test,
+# a throwaway .env.whatever) is ignored by default rather than needing a rule
+# added before it is safe. Only the template is committed.
 .env
-.env.local
-.env.*.local
+.env.*
 !.env.example
 
 # System Files

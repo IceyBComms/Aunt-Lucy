@@ -54,17 +54,63 @@ export type GiftTier = {
  * from this repo. They are public URLs, not secrets — the env vars exist only so
  * a test-mode link can be substituted without a deploy.
  *
+ * Outside production these live links are refused outright; see
+ * resolvePaymentLink() below. A tier with no usable link is not sellable, so a
+ * local or sandbox run answers 400 "isn't available to buy yet" rather than
+ * sending anyone to a chargeable page. That 400 is the expected sandbox
+ * behaviour, not a fault.
+ *
  * TODO(pack-links): the 5-pack and 10-pack links also exist in the dashboard and
  * MUST stay deactivated until Item 12. They are deliberately not recorded here —
  * a URL that is not in the codebase cannot be leaked to a browser by accident.
  */
-const CONSUMER_PERSONAL_LINK =
-  process.env.STRIPE_LINK_CONSUMER_PERSONAL ??
+const LIVE_CONSUMER_PERSONAL_LINK =
   "https://buy.stripe.com/8x2fZaaPo6a7g4d2rhg7e0h";
-
-const WORKPLACE_INDIVIDUAL_LINK =
-  process.env.STRIPE_LINK_WORKPLACE_INDIVIDUAL ??
+const LIVE_WORKPLACE_INDIVIDUAL_LINK =
   "https://buy.stripe.com/bJe4gsf5E0PNf097LBg7e0g";
+
+/**
+ * Resolve a tier's payment link, refusing a live one outside production.
+ *
+ * Outside production a live link is treated as no link at all: the tier becomes
+ * unsellable and POST /gifts answers 400. That is the point. Previously an unset
+ * STRIPE_LINK_* env var fell back to the live link, so a sandbox run looked
+ * entirely safe while the checkout button charged a real card $59 — the kind of
+ * mistake you only find out about from a customer's bank statement.
+ *
+ * Stripe's own test-mode payment links are also on buy.stripe.com but their path
+ * starts with /test_, so they are allowed through. Anything unparseable is
+ * refused rather than trusted: the failure mode of a broken link is a 400, and
+ * the failure mode of a wrong link is taking someone's money.
+ */
+function resolvePaymentLink(
+  configured: string | undefined,
+  liveFallback: string,
+): string | undefined {
+  const link = configured?.trim() || liveFallback;
+
+  if (process.env.NODE_ENV === "production") return link;
+
+  try {
+    const url = new URL(link);
+    const isStripeHosted = url.hostname === "buy.stripe.com";
+    const isTestModeLink = url.pathname.startsWith("/test_");
+    if (isStripeHosted && !isTestModeLink) return undefined;
+    return link;
+  } catch {
+    return undefined;
+  }
+}
+
+const CONSUMER_PERSONAL_LINK = resolvePaymentLink(
+  process.env.STRIPE_LINK_CONSUMER_PERSONAL,
+  LIVE_CONSUMER_PERSONAL_LINK,
+);
+
+const WORKPLACE_INDIVIDUAL_LINK = resolvePaymentLink(
+  process.env.STRIPE_LINK_WORKPLACE_INDIVIDUAL,
+  LIVE_WORKPLACE_INDIVIDUAL_LINK,
+);
 
 export const TIERS: readonly GiftTier[] = [
   {
