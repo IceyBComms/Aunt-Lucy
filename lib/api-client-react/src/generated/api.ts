@@ -19,13 +19,17 @@ import type {
 import type {
   ClaimSlotRequest,
   ConflictError,
+  CreateGiftRequest,
+  CreateGiftResponse,
   GetSupportPageParams,
   GiftExperience,
+  GiftTier,
   HealthStatus,
   NotFoundError,
   PinRequiredError,
   SlotResponse,
   SupportPageWithSlots,
+  ValidationError,
 } from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
@@ -313,6 +317,169 @@ export const useClaimSlot = <
   TContext
 > => {
   return useMutation(getClaimSlotMutationOptions(options));
+};
+
+/**
+ * Returns every tier shown on the purchase page, including the ones that cannot be bought yet. Prices are GST-inclusive cents and come from the server so the buyer-facing price can never drift from what Stripe charges. A tier with sellable=false is display-only — it carries no payment link and POST /gifts refuses it.
+ * @summary List the gift tiers
+ */
+export const getListGiftTiersUrl = () => {
+  return `/api/gift-tiers`;
+};
+
+export const listGiftTiers = async (
+  options?: RequestInit,
+): Promise<GiftTier[]> => {
+  return customFetch<GiftTier[]>(getListGiftTiersUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListGiftTiersQueryKey = () => {
+  return [`/api/gift-tiers`] as const;
+};
+
+export const getListGiftTiersQueryOptions = <
+  TData = Awaited<ReturnType<typeof listGiftTiers>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listGiftTiers>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListGiftTiersQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listGiftTiers>>> = ({
+    signal,
+  }) => listGiftTiers({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listGiftTiers>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListGiftTiersQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listGiftTiers>>
+>;
+export type ListGiftTiersQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List the gift tiers
+ */
+
+export function useListGiftTiers<
+  TData = Awaited<ReturnType<typeof listGiftTiers>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listGiftTiers>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListGiftTiersQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Creates the gift in `pending` status and returns the Stripe checkout URL to send the buyer to. The URL already carries `client_reference_id` set to the new gift's id — that is the handshake the Stripe webhook uses to match the payment back to this gift, so the caller must redirect to the returned URL unchanged. Nothing is charged and nothing is emailed until the payment completes.
+ * @summary Start a gift purchase
+ */
+export const getCreateGiftUrl = () => {
+  return `/api/gifts`;
+};
+
+export const createGift = async (
+  createGiftRequest: CreateGiftRequest,
+  options?: RequestInit,
+): Promise<CreateGiftResponse> => {
+  return customFetch<CreateGiftResponse>(getCreateGiftUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createGiftRequest),
+  });
+};
+
+export const getCreateGiftMutationOptions = <
+  TError = ErrorType<ValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createGift>>,
+    TError,
+    { data: BodyType<CreateGiftRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createGift>>,
+  TError,
+  { data: BodyType<CreateGiftRequest> },
+  TContext
+> => {
+  const mutationKey = ["createGift"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createGift>>,
+    { data: BodyType<CreateGiftRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createGift(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateGiftMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createGift>>
+>;
+export type CreateGiftMutationBody = BodyType<CreateGiftRequest>;
+export type CreateGiftMutationError = ErrorType<ValidationError>;
+
+/**
+ * @summary Start a gift purchase
+ */
+export const useCreateGift = <
+  TError = ErrorType<ValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createGift>>,
+    TError,
+    { data: BodyType<CreateGiftRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createGift>>,
+  TError,
+  { data: BodyType<CreateGiftRequest> },
+  TContext
+> => {
+  return useMutation(getCreateGiftMutationOptions(options));
 };
 
 /**

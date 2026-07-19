@@ -112,6 +112,59 @@ paths:
               schema:
                 $ref: "#/components/schemas/NotFoundError"
 
+  /gift-tiers:
+    get:
+      operationId: listGiftTiers
+      tags: [gifts]
+      summary: List the gift tiers
+      description: >-
+        Returns every tier shown on the purchase page, including the ones that
+        cannot be bought yet. Prices are GST-inclusive cents and come from the
+        server so the buyer-facing price can never drift from what Stripe
+        charges. A tier with sellable=false is display-only — it carries no
+        payment link and POST /gifts refuses it.
+      responses:
+        "200":
+          description: The gift tiers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GiftTier"
+
+  /gifts:
+    post:
+      operationId: createGift
+      tags: [gifts]
+      summary: Start a gift purchase
+      description: >-
+        Creates the gift in `pending` status and returns the Stripe checkout URL
+        to send the buyer to. The URL already carries `client_reference_id` set
+        to the new gift's id — that is the handshake the Stripe webhook uses to
+        match the payment back to this gift, so the caller must redirect to the
+        returned URL unchanged. Nothing is charged and nothing is emailed until
+        the payment completes.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateGiftRequest"
+      responses:
+        "201":
+          description: Gift created and ready for payment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateGiftResponse"
+        "400":
+          description: Missing details, or a tier that cannot be bought
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationError"
+
   /gifts/{redemptionToken}:
     get:
       operationId: getGift
@@ -260,6 +313,104 @@ components:
         - ongoing_support
         - other
 
+    GiftTierId:
+      type: string
+      enum:
+        - consumer_personal
+        - workplace_individual
+        - workplace_5pack
+        - workplace_10pack
+
+    GiftTier:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/GiftTierId"
+        label:
+          type: string
+          description: The buyer-facing name of the tier.
+        blurb:
+          type: string
+          description: One line explaining who the tier is for.
+        amountCents:
+          type: integer
+          description: GST-inclusive price in cents.
+        gifts:
+          type: integer
+          description: How many separate gift pages the tier buys.
+        sellable:
+          type: boolean
+          description: >-
+            False for the pack tiers, which are shown as coming soon until
+            multi-gift fulfilment exists. A display-only tier has no payment
+            link and cannot be purchased.
+      required:
+        - id
+        - label
+        - blurb
+        - amountCents
+        - gifts
+        - sellable
+
+    CreateGiftRequest:
+      type: object
+      properties:
+        tierId:
+          $ref: "#/components/schemas/GiftTierId"
+        purchaserName:
+          type: string
+        purchaserEmail:
+          type: string
+          description: Where the receipt and the tax invoice are sent.
+        forSelf:
+          type: boolean
+          description: >-
+            True when the buyer is setting the page up for themselves. The
+            recipient fields are then ignored and the buyer's own name and email
+            are used.
+        recipientName:
+          type: string
+          nullable: true
+          description: Required unless forSelf is true.
+        recipientEmail:
+          type: string
+          nullable: true
+          description: >-
+            Where the gift is delivered. Null when the buyer chose to pass the
+            link on themselves — fulfilment then sends the link to the buyer
+            instead and nothing reaches the recipient automatically.
+        occasion:
+          oneOf:
+            - $ref: "#/components/schemas/GiftOccasion"
+          nullable: true
+        giftedByNote:
+          type: string
+          nullable: true
+          description: The optional "from" note shown on the delivered gift.
+        deliverAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            When the gift should reach the recipient. Null means as soon as the
+            payment clears.
+      required:
+        - tierId
+        - purchaserName
+        - purchaserEmail
+        - forSelf
+
+    CreateGiftResponse:
+      type: object
+      properties:
+        checkoutUrl:
+          type: string
+          description: >-
+            The Stripe payment link with client_reference_id already appended.
+            Redirect to it unchanged.
+      required:
+        - checkoutUrl
+
     GiftSigningPublic:
       type: object
       properties:
@@ -306,6 +457,14 @@ components:
       required:
         - error
         - pinRequired
+
+    ValidationError:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
 
     NotFoundError:
       type: object
