@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db, supportPagesTable, slotsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { verifyPin } from "../lib/pin";
 
 const router: IRouter = Router();
@@ -23,6 +23,15 @@ router.get("/pages/:slug", async (req, res) => {
     return;
   }
 
+  // A page that isn't active yet is not public — this covers an organiser's
+  // half-finished wizard and, more importantly, a gift the recipient activated
+  // with a future go-live date. "Nothing is visible to anyone until then" is a
+  // promise made on the activation screen, and this is where it is kept.
+  if (page.status !== "active") {
+    res.status(404).json({ error: "This support page isn't available yet." });
+    return;
+  }
+
   if (page.privacy === "pin_protected") {
     if (!pin || !(await verifyPin(pin, page.pin))) {
       res.status(401).json({ error: "A PIN is required to view this page.", pinRequired: true });
@@ -30,8 +39,14 @@ router.get("/pages/:slug", async (req, res) => {
     }
   }
 
+  // Trusted-only tasks are not part of the public page at all — they are
+  // filtered out in the query, so the row never leaves the database. Their
+  // people reach them through the invite link, never through /s/:slug.
   const slots = await db.query.slotsTable.findMany({
-    where: eq(slotsTable.pageId, page.id),
+    where: and(
+      eq(slotsTable.pageId, page.id),
+      eq(slotsTable.trustedHelpersOnly, false),
+    ),
     orderBy: (s, { asc }) => [asc(s.slotDate), asc(s.slotTime)],
   });
 
@@ -42,12 +57,10 @@ router.get("/pages/:slug", async (req, res) => {
     customLabel: slot.customLabel,
     slotDate: slot.slotDate,
     slotTime: slot.slotTime,
-    // Hide task instructions for invitation-only slots on the public page
-    notes: slot.trustedHelpersOnly ? null : slot.notes,
+    notes: slot.notes,
     isClaimed: slot.isClaimed,
     claimedByName: slot.claimedByName ?? null,
     claimedNote: slot.claimedNote ?? null,
-    invitationOnly: slot.trustedHelpersOnly,
     createdAt: slot.createdAt.toISOString(),
   }));
 
@@ -59,6 +72,7 @@ router.get("/pages/:slug", async (req, res) => {
     location: page.location ?? null,
     status: page.status,
     privacy: page.privacy,
+    goodToKnow: page.goodToKnow ?? null,
     slots: publicSlots,
   });
 });

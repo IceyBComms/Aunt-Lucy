@@ -14,6 +14,7 @@ export type SlotType = (typeof SlotType)[keyof typeof SlotType];
 export const SlotType = {
   meal: "meal",
   school_pickup: "school_pickup",
+  child_care: "child_care",
   errand: "errand",
   dog_walking: "dog_walking",
   shopping: "shopping",
@@ -26,7 +27,8 @@ export interface SlotResponse {
   pageId: string;
   slotType: SlotType;
   customLabel?: string | null;
-  slotDate: string;
+  /** Null means the task has no fixed date — a flexible offer, claimed whenever suits. The date is set when a helper claims it. */
+  slotDate?: string | null;
   slotTime?: string | null;
   notes?: string | null;
   isClaimed: boolean;
@@ -61,6 +63,8 @@ export interface SupportPageWithSlots {
   location?: string | null;
   status: SupportPageWithSlotsStatus;
   privacy: SupportPageWithSlotsPrivacy;
+  /** An optional free-text note from the recipient, shown to every helper. Null when they didn't leave one. */
+  goodToKnow?: string | null;
   slots: SlotResponse[];
 }
 
@@ -95,6 +99,57 @@ export interface GiftExperience {
   giftedBy: string;
   occasion?: GiftOccasion | null;
   signings: GiftSigningPublic[];
+}
+
+/**
+ * A proposed task shown on the review screen. Not persisted — it becomes a slot only if the recipient keeps it and activates.
+ */
+export interface SuggestedTask {
+  key: string;
+  slotType: SlotType;
+  label: string;
+  /** When false the card shows no date at all — a flexible offer. Most suggestions are undated by design. */
+  dated: boolean;
+  trustedHelpersOnly: boolean;
+}
+
+export interface GiftReview {
+  /** True once the recipient has activated. The suggestions list is then empty and slug points at the live page. */
+  activated: boolean;
+  recipientName: string;
+  giftedBy?: string | null;
+  occasion?: GiftOccasion | null;
+  /** False while the gift is unpaid or cancelled. */
+  canActivate?: boolean | null;
+  slug?: string | null;
+  status?: string | null;
+  /** Set when the recipient chose a future go-live date. */
+  scheduledActivateAt?: string | null;
+  suggestions: SuggestedTask[];
+}
+
+export interface ActivateGiftTask {
+  slotType: SlotType;
+  label: string;
+  /** Omit or null for a flexible, undated task. */
+  slotDate?: string | null;
+  notes?: string | null;
+  trustedHelpersOnly?: boolean;
+}
+
+export interface ActivateGiftRequest {
+  /** The tasks the recipient kept, in the wording they kept them in. */
+  tasks: ActivateGiftTask[];
+  /** Omit to go live now. Supply a future ISO timestamp to create the page as a draft that the scheduler makes visible on that date. */
+  scheduledActivateAt?: string | null;
+  /** Optional free-text note shown to every helper on the live page. Trimmed and capped server-side; omit or null for none. */
+  goodToKnow?: string | null;
+}
+
+export interface ActivatedPage {
+  slug: string;
+  status: string;
+  scheduledActivateAt?: string | null;
 }
 
 export interface PinRequiredError {

@@ -35,6 +35,12 @@ export const GetSupportPageResponse = zod.object({
   location: zod.string().nullish(),
   status: zod.enum(["draft", "pending_approval", "active", "closed"]),
   privacy: zod.enum(["open", "pin_protected"]),
+  goodToKnow: zod
+    .string()
+    .nullish()
+    .describe(
+      "An optional free-text note from the recipient, shown to every helper. Null when they didn't leave one.",
+    ),
   slots: zod.array(
     zod.object({
       id: zod.string(),
@@ -42,6 +48,7 @@ export const GetSupportPageResponse = zod.object({
       slotType: zod.enum([
         "meal",
         "school_pickup",
+        "child_care",
         "errand",
         "dog_walking",
         "shopping",
@@ -49,7 +56,12 @@ export const GetSupportPageResponse = zod.object({
         "other",
       ]),
       customLabel: zod.string().nullish(),
-      slotDate: zod.string(),
+      slotDate: zod
+        .string()
+        .nullish()
+        .describe(
+          "Null means the task has no fixed date — a flexible offer, claimed whenever suits. The date is set when a helper claims it.",
+        ),
       slotTime: zod.string().nullish(),
       notes: zod.string().nullish(),
       isClaimed: zod.boolean(),
@@ -84,6 +96,7 @@ export const ClaimSlotResponse = zod.object({
   slotType: zod.enum([
     "meal",
     "school_pickup",
+    "child_care",
     "errand",
     "dog_walking",
     "shopping",
@@ -91,7 +104,12 @@ export const ClaimSlotResponse = zod.object({
     "other",
   ]),
   customLabel: zod.string().nullish(),
-  slotDate: zod.string(),
+  slotDate: zod
+    .string()
+    .nullish()
+    .describe(
+      "Null means the task has no fixed date — a flexible offer, claimed whenever suits. The date is set when a helper claims it.",
+    ),
   slotTime: zod.string().nullish(),
   notes: zod.string().nullish(),
   isClaimed: zod.boolean(),
@@ -132,4 +150,121 @@ export const GetGiftResponse = zod.object({
       message: zod.string(),
     }),
   ),
+});
+
+/**
+ * Token-gated, not auth-gated — the recipient has no account. Before activation this returns occasion-aware suggested tasks that are generated on the fly and not persisted. After activation it returns the live page instead, so re-opening the link is always safe.
+ * @summary Get the suggested tasks a recipient can steer before activating
+ */
+export const GetGiftReviewParams = zod.object({
+  redemptionToken: zod.coerce.string(),
+});
+
+export const GetGiftReviewResponse = zod.object({
+  activated: zod
+    .boolean()
+    .describe(
+      "True once the recipient has activated. The suggestions list is then empty and slug points at the live page.",
+    ),
+  recipientName: zod.string(),
+  giftedBy: zod.string().nullish(),
+  occasion: zod
+    .enum([
+      "new_baby",
+      "illness_recovery",
+      "bereavement",
+      "ongoing_support",
+      "other",
+    ])
+    .nullish(),
+  canActivate: zod
+    .boolean()
+    .nullish()
+    .describe("False while the gift is unpaid or cancelled."),
+  slug: zod.string().nullish(),
+  status: zod.string().nullish(),
+  scheduledActivateAt: zod
+    .string()
+    .nullish()
+    .describe("Set when the recipient chose a future go-live date."),
+  suggestions: zod.array(
+    zod
+      .object({
+        key: zod.string(),
+        slotType: zod.enum([
+          "meal",
+          "school_pickup",
+          "child_care",
+          "errand",
+          "dog_walking",
+          "shopping",
+          "visit",
+          "other",
+        ]),
+        label: zod.string(),
+        dated: zod
+          .boolean()
+          .describe(
+            "When false the card shows no date at all — a flexible offer. Most suggestions are undated by design.",
+          ),
+        trustedHelpersOnly: zod.boolean(),
+      })
+      .describe(
+        "A proposed task shown on the review screen. Not persisted — it becomes a slot only if the recipient keeps it and activates.",
+      ),
+  ),
+});
+
+/**
+ * Creates the support page (with no organiser account), creates the kept tasks as slots, and marks the gift redeemed. Returns the page slug. Calling this again on an already-activated gift returns the existing page rather than an error.
+ * @summary Turn the kept tasks into a live support page
+ */
+export const ActivateGiftParams = zod.object({
+  redemptionToken: zod.coerce.string(),
+});
+
+export const ActivateGiftBody = zod.object({
+  tasks: zod
+    .array(
+      zod.object({
+        slotType: zod.enum([
+          "meal",
+          "school_pickup",
+          "child_care",
+          "errand",
+          "dog_walking",
+          "shopping",
+          "visit",
+          "other",
+        ]),
+        label: zod.string(),
+        slotDate: zod
+          .string()
+          .nullish()
+          .describe("Omit or null for a flexible, undated task."),
+        notes: zod.string().nullish(),
+        trustedHelpersOnly: zod.boolean().optional(),
+      }),
+    )
+    .describe(
+      "The tasks the recipient kept, in the wording they kept them in.",
+    ),
+  scheduledActivateAt: zod
+    .string()
+    .nullish()
+    .describe(
+      "Omit to go live now. Supply a future ISO timestamp to create the page as a draft that the scheduler makes visible on that date.",
+    ),
+  goodToKnow: zod
+    .string()
+    .nullish()
+    .describe(
+      "Optional free-text note shown to every helper on the live page. Trimmed and capped server-side; omit or null for none.",
+    ),
+});
+
+export const ActivateGiftResponse = zod.object({
+  slug: zod.string(),
+  status: zod.string(),
+  scheduledActivateAt: zod.string().nullish(),
 });

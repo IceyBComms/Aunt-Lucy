@@ -17,10 +17,13 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
+  ActivateGiftRequest,
+  ActivatedPage,
   ClaimSlotRequest,
   ConflictError,
   GetSupportPageParams,
   GiftExperience,
+  GiftReview,
   HealthStatus,
   NotFoundError,
   PinRequiredError,
@@ -393,3 +396,180 @@ export function useGetGift<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * Token-gated, not auth-gated — the recipient has no account. Before activation this returns occasion-aware suggested tasks that are generated on the fly and not persisted. After activation it returns the live page instead, so re-opening the link is always safe.
+ * @summary Get the suggested tasks a recipient can steer before activating
+ */
+export const getGetGiftReviewUrl = (redemptionToken: string) => {
+  return `/api/gifts/${redemptionToken}/review`;
+};
+
+export const getGiftReview = async (
+  redemptionToken: string,
+  options?: RequestInit,
+): Promise<GiftReview> => {
+  return customFetch<GiftReview>(getGetGiftReviewUrl(redemptionToken), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetGiftReviewQueryKey = (redemptionToken: string) => {
+  return [`/api/gifts/${redemptionToken}/review`] as const;
+};
+
+export const getGetGiftReviewQueryOptions = <
+  TData = Awaited<ReturnType<typeof getGiftReview>>,
+  TError = ErrorType<NotFoundError>,
+>(
+  redemptionToken: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getGiftReview>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetGiftReviewQueryKey(redemptionToken);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getGiftReview>>> = ({
+    signal,
+  }) => getGiftReview(redemptionToken, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!redemptionToken,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getGiftReview>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetGiftReviewQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getGiftReview>>
+>;
+export type GetGiftReviewQueryError = ErrorType<NotFoundError>;
+
+/**
+ * @summary Get the suggested tasks a recipient can steer before activating
+ */
+
+export function useGetGiftReview<
+  TData = Awaited<ReturnType<typeof getGiftReview>>,
+  TError = ErrorType<NotFoundError>,
+>(
+  redemptionToken: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getGiftReview>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetGiftReviewQueryOptions(redemptionToken, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Creates the support page (with no organiser account), creates the kept tasks as slots, and marks the gift redeemed. Returns the page slug. Calling this again on an already-activated gift returns the existing page rather than an error.
+ * @summary Turn the kept tasks into a live support page
+ */
+export const getActivateGiftUrl = (redemptionToken: string) => {
+  return `/api/gifts/${redemptionToken}/activate`;
+};
+
+export const activateGift = async (
+  redemptionToken: string,
+  activateGiftRequest: ActivateGiftRequest,
+  options?: RequestInit,
+): Promise<ActivatedPage> => {
+  return customFetch<ActivatedPage>(getActivateGiftUrl(redemptionToken), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(activateGiftRequest),
+  });
+};
+
+export const getActivateGiftMutationOptions = <
+  TError = ErrorType<NotFoundError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof activateGift>>,
+    TError,
+    { redemptionToken: string; data: BodyType<ActivateGiftRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof activateGift>>,
+  TError,
+  { redemptionToken: string; data: BodyType<ActivateGiftRequest> },
+  TContext
+> => {
+  const mutationKey = ["activateGift"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof activateGift>>,
+    { redemptionToken: string; data: BodyType<ActivateGiftRequest> }
+  > = (props) => {
+    const { redemptionToken, data } = props ?? {};
+
+    return activateGift(redemptionToken, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ActivateGiftMutationResult = NonNullable<
+  Awaited<ReturnType<typeof activateGift>>
+>;
+export type ActivateGiftMutationBody = BodyType<ActivateGiftRequest>;
+export type ActivateGiftMutationError = ErrorType<NotFoundError>;
+
+/**
+ * @summary Turn the kept tasks into a live support page
+ */
+export const useActivateGift = <
+  TError = ErrorType<NotFoundError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof activateGift>>,
+    TError,
+    { redemptionToken: string; data: BodyType<ActivateGiftRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof activateGift>>,
+  TError,
+  { redemptionToken: string; data: BodyType<ActivateGiftRequest> },
+  TContext
+> => {
+  return useMutation(getActivateGiftMutationOptions(options));
+};
