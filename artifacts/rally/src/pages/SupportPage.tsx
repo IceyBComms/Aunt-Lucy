@@ -114,10 +114,15 @@ export default function SupportPage() {
         <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-white via-transparent to-transparent"></div>
         <div className="max-w-3xl mx-auto relative z-10">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-            <h1 className="text-4xl sm:text-5xl md:text-6xl font-serif font-bold tracking-tight mb-4">
+            <h1 className="text-primary-foreground text-4xl sm:text-5xl md:text-6xl font-serif font-bold tracking-tight mb-4">
               Support for {page.recipientName}
             </h1>
-            
+
+            <p className="text-primary-foreground/90 text-lg sm:text-xl leading-relaxed mb-6 max-w-2xl">
+              Someone set this up because {page.recipientName}'s got a lot on
+              right now — pick anything that suits, whenever suits. No pressure.
+            </p>
+
             {page.location && (
               <p className="flex items-center gap-2 text-primary-foreground/80 text-lg mb-6">
                 <MapPin className="w-5 h-5" />
@@ -138,11 +143,26 @@ export default function SupportPage() {
 
       {/* Main Content */}
       <main className="flex-1 max-w-3xl w-full mx-auto px-4 sm:px-6 py-12">
+        {/* A "good to know" note from the recipient, shown to every helper.
+            Plain text — React escapes it; never rendered as raw HTML. */}
+        {page.goodToKnow && (
+          <div className="mb-10 rounded-3xl bg-secondary/60 border border-secondary-border p-6 sm:p-7">
+            <p className="text-xs font-semibold uppercase tracking-wide text-primary/70 mb-2">
+              Good to know
+            </p>
+            <p className="text-foreground/80 text-base sm:text-lg leading-relaxed">
+              {page.goodToKnow}
+            </p>
+          </div>
+        )}
+
         {page.slots.length === 0 ? (
           <div className="text-center py-20 bg-card rounded-3xl border border-border border-dashed">
             <Heart className="w-12 h-12 text-muted-foreground/30 mx-auto mb-4" />
-            <h3 className="text-xl font-serif font-medium text-foreground">No slots added yet.</h3>
-            <p className="text-muted-foreground mt-2">Check back later for ways to help.</p>
+            <h3 className="text-xl font-serif font-medium text-foreground">
+              {page.recipientName}'s all sorted for the time being — thanks for checking in.
+            </h3>
+            <p className="text-muted-foreground mt-2">Do pop back soon.</p>
           </div>
         ) : allClaimed ? (
           <motion.div 
@@ -201,8 +221,9 @@ export default function SupportPage() {
       </footer>
 
       {/* Modals */}
-      <ClaimDialog 
+      <ClaimDialog
         slot={selectedSlot}
+        recipientName={page.recipientName}
         isOpen={!!selectedSlot}
         onClose={() => setSelectedSlot(null)}
         onSubmit={handleClaimSubmit}

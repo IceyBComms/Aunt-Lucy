@@ -23,7 +23,12 @@ export const slotsTable = pgTable("slots", {
     .references(() => supportPagesTable.id, { onDelete: "cascade" }),
   slotType: slotTypeEnum("slot_type").notNull(),
   customLabel: text("custom_label"),
-  slotDate: date("slot_date").notNull(),
+  // Nullable on purpose: a slot with no date is a flexible offer ("a meal,
+  // whenever suits") rather than an appointment. The date is filled in when a
+  // helper claims it. Most tasks a recipient keeps at activation are undated —
+  // asking someone recovering from birth or a bereavement to build a calendar
+  // is the homework this product exists to remove.
+  slotDate: date("slot_date"),
   slotTime: time("slot_time"),
   notes: text("notes"),
   trustedHelpersOnly: boolean("trusted_helpers_only").notNull().default(false),

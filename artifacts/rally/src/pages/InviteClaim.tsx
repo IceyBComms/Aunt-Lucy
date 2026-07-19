@@ -162,7 +162,7 @@ export default function InviteClaim() {
             <ShieldCheck className="w-4 h-4" />
             Personal invitation
           </div>
-          <h1 className="font-serif text-2xl font-bold mb-1">
+          <h1 className="text-white font-serif text-2xl font-bold mb-1">
             Hi {details.helperName},
           </h1>
           <p className="text-white/80 leading-relaxed">

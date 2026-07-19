@@ -1,15 +1,12 @@
 import type { SlotResponse } from "@workspace/api-client-react";
 import { Button } from "./ui/button";
 import { format, parseISO } from "date-fns";
-import { CheckCircle2, Clock, ClipboardList, ShieldCheck } from "lucide-react";
+import { CheckCircle2, Clock, ClipboardList } from "lucide-react";
 import { motion } from "framer-motion";
 
-// Extended type — server returns `invitationOnly` for trusted slots
-type ExtendedSlot = SlotResponse & { invitationOnly?: boolean };
-
 interface SlotCardProps {
-  slot: ExtendedSlot;
-  onClaim: (slot: ExtendedSlot) => void;
+  slot: SlotResponse;
+  onClaim: (slot: SlotResponse) => void;
   index: number;
 }
 
@@ -29,51 +26,19 @@ const getSlotDetails = (type: string) => {
 
 export function SlotCard({ slot, onClaim, index }: SlotCardProps) {
   const details = getSlotDetails(slot.slotType);
-  const dateObj = parseISO(slot.slotDate);
-  const formattedDate = format(dateObj, "EEEE, MMMM d");
-  
+  // A slot with no date is a flexible offer — the helper picks the day when
+  // they claim it. Say so in words rather than showing an empty "when".
+  const formattedDate = slot.slotDate
+    ? format(parseISO(slot.slotDate), "EEEE, MMMM d")
+    : "Whenever suits";
+
   let formattedTime = "";
-  if (slot.slotTime) {
+  if (slot.slotDate && slot.slotTime) {
     const [hours, minutes] = slot.slotTime.split(":");
     const h = parseInt(hours, 10);
     const ampm = h >= 12 ? "PM" : "AM";
     const h12 = h % 12 || 12;
     formattedTime = `${h12}:${minutes} ${ampm}`;
-  }
-
-  if (slot.invitationOnly && !slot.isClaimed) {
-    return (
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3, delay: index * 0.05 }}
-        className="flex flex-col rounded-3xl bg-amber-50 border-2 border-amber-200/80 p-5"
-      >
-        <div className="flex items-center gap-3 mb-3">
-          <span className="flex items-center justify-center w-12 h-12 rounded-2xl bg-amber-100 text-2xl">
-            {details.icon}
-          </span>
-          <div>
-            <h3 className="font-serif font-semibold text-foreground text-lg">
-              {slot.customLabel || details.label}
-            </h3>
-            <p className="text-sm text-muted-foreground flex items-center gap-1.5">
-              <Clock className="w-3.5 h-3.5" />
-              {formattedDate} {formattedTime && `• ${formattedTime}`}
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 mt-auto pt-3 border-t border-amber-200">
-          <ShieldCheck className="w-4 h-4 text-amber-700 flex-shrink-0" />
-          <p className="text-sm font-medium text-amber-800">
-            By invitation only
-          </p>
-        </div>
-        <p className="text-xs text-amber-700/80 mt-1.5 pl-6">
-          The organiser will personally invite trusted helpers for this slot.
-        </p>
-      </motion.div>
-    );
   }
 
   if (slot.isClaimed) {

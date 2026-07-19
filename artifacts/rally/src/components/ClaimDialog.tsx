@@ -21,13 +21,14 @@ type ClaimFormData = z.infer<typeof claimSchema>;
 
 interface ClaimDialogProps {
   slot: SlotResponse | null;
+  recipientName: string;
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (data: ClaimFormData) => Promise<void>;
   isSubmitting: boolean;
 }
 
-export function ClaimDialog({ slot, isOpen, onClose, onSubmit, isSubmitting }: ClaimDialogProps) {
+export function ClaimDialog({ slot, recipientName, isOpen, onClose, onSubmit, isSubmitting }: ClaimDialogProps) {
   const {
     register,
     handleSubmit,
@@ -52,16 +53,26 @@ export function ClaimDialog({ slot, isOpen, onClose, onSubmit, isSubmitting }: C
 
   if (!slot) return null;
 
-  const dateObj = parseISO(slot.slotDate);
-  const formattedDate = format(dateObj, "EEEE, MMMM d");
+  // Undated slots are flexible offers, so the sentence below drops the date
+  // rather than naming one — "taking the Whenever suits slot" is not English.
+  const formattedDate = slot.slotDate
+    ? format(parseISO(slot.slotDate), "EEEE, MMMM d")
+    : null;
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogHeader>
         <DialogTitle>You're amazing.</DialogTitle>
         <DialogDescription className="mt-2 text-base">
-          Just a few details so we know who's taking the{" "}
-          <strong className="text-foreground font-medium">{formattedDate}</strong> slot.
+          {formattedDate ? (
+            <>
+              Just a few details so we know who's taking the{" "}
+              <strong className="text-foreground font-medium">{formattedDate}</strong>{" "}
+              slot.
+            </>
+          ) : (
+            <>Just a few details so we know who's taking this one.</>
+          )}
         </DialogDescription>
       </DialogHeader>
 
@@ -107,13 +118,13 @@ export function ClaimDialog({ slot, isOpen, onClose, onSubmit, isSubmitting }: C
             <p className="text-sm text-destructive pl-1">{errors.contact.message}</p>
           )}
           <p className="text-xs text-muted-foreground pl-1">
-            Only shared with the page organiser — never shown publicly.
+            Only shared with {recipientName} — never shown publicly.
           </p>
         </div>
 
         <div className="space-y-1.5">
           <Label htmlFor="note" className="text-foreground/80 pl-1">
-            Message to the organiser{" "}
+            Message for {recipientName}{" "}
             <span className="font-normal text-muted-foreground">(optional)</span>
           </Label>
           <Textarea
@@ -122,7 +133,7 @@ export function ClaimDialog({ slot, isOpen, onClose, onSubmit, isSubmitting }: C
             {...register("note")}
           />
           <p className="text-xs text-muted-foreground pl-1">
-            Anything useful for the organiser to know — timing, questions, a kind word.
+            Anything useful for {recipientName} to know — timing, questions, a kind word.
           </p>
         </div>
 
