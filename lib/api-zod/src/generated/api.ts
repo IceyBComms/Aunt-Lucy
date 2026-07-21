@@ -187,6 +187,16 @@ export const GetGiftReviewResponse = zod.object({
     .string()
     .nullish()
     .describe("Set when the recipient chose a future go-live date."),
+  situationLine: zod
+    .string()
+    .nullish()
+    .describe(
+      "The default situation line for this occasion, prefilled into the activation UI (editable). Null once activated.",
+    ),
+  manageToken: zod
+    .string()
+    .nullish()
+    .describe("Present once activated — the private management token."),
   suggestions: zod.array(
     zod
       .object({
@@ -261,10 +271,315 @@ export const ActivateGiftBody = zod.object({
     .describe(
       "Optional free-text note shown to every helper on the live page. Trimmed and capped server-side; omit or null for none.",
     ),
+  recipientPronouns: zod
+    .enum(["she_her", "he_him", "they_them"])
+    .describe(
+      "How the recipient is referred to in the helper invite copy. Defaults to they_them so nothing is ever assumed.",
+    )
+    .nullish()
+    .describe("Defaults to they_them when omitted."),
+  situationLine: zod
+    .string()
+    .nullish()
+    .describe(
+      'The short, deliberately-vague phrase used in the invite copy (\"Sarah\'s <situationLine>\"). Defaults from the occasion when omitted.',
+    ),
 });
 
 export const ActivateGiftResponse = zod.object({
   slug: zod.string(),
   status: zod.string(),
   scheduledActivateAt: zod.string().nullish(),
+  manageToken: zod
+    .string()
+    .nullish()
+    .describe(
+      "The private per-page management token — the recipient's re-entry credential for adding people and sending invites. Not the public slug or gift link.",
+    ),
+});
+
+/**
+ * Token-gated by the private per-page management token. Returns the page details, tasks, contacts and the state of every invite sent or queued.
+ * @summary The recipient's management view of their page
+ */
+export const GetManageStateParams = zod.object({
+  token: zod.coerce.string(),
+});
+
+export const GetManageStateResponse = zod.object({
+  role: zod.enum(["recipient", "manager"]),
+  recipientName: zod.string(),
+  slug: zod.string(),
+  status: zod.string(),
+  occasion: zod
+    .enum([
+      "new_baby",
+      "illness_recovery",
+      "bereavement",
+      "ongoing_support",
+      "other",
+    ])
+    .nullish(),
+  recipientPronouns: zod
+    .enum(["she_her", "he_him", "they_them"])
+    .describe(
+      "How the recipient is referred to in the helper invite copy. Defaults to they_them so nothing is ever assumed.",
+    ),
+  situationLine: zod.string().nullish(),
+  bereavement: zod
+    .boolean()
+    .describe("When true the UI leads with self-share and waves are gated."),
+  shareLink: zod.string(),
+  tasks: zod.array(
+    zod.object({
+      id: zod.string(),
+      slotType: zod.enum([
+        "meal",
+        "school_pickup",
+        "child_care",
+        "errand",
+        "dog_walking",
+        "shopping",
+        "visit",
+        "other",
+      ]),
+      label: zod.string(),
+      trustedHelpersOnly: zod.boolean(),
+      isClaimed: zod.boolean(),
+      claimedByName: zod.string().nullish(),
+    }),
+  ),
+  contacts: zod.array(
+    zod.object({
+      id: zod.string(),
+      name: zod.string(),
+      mobile: zod.string().nullish(),
+      email: zod.string().nullish(),
+      trusted: zod.boolean(),
+      optedOut: zod.boolean(),
+    }),
+  ),
+  invites: zod.array(
+    zod.object({
+      id: zod.string(),
+      contactId: zod.string().nullish(),
+      name: zod.string(),
+      kind: zod.enum(["general", "trusted", "second_wave"]),
+      channel: zod.enum(["sms", "email"]),
+      status: zod.enum(["queued", "sent", "failed", "cancelled"]),
+      scheduledFor: zod.string(),
+      sentAt: zod.string().nullish(),
+      claimedAt: zod.string().nullish(),
+    }),
+  ),
+});
+
+/**
+ * @summary Update the recipient's pronoun and situation line
+ */
+export const UpdateManageDetailsParams = zod.object({
+  token: zod.coerce.string(),
+});
+
+export const UpdateManageDetailsBody = zod.object({
+  recipientPronouns: zod
+    .enum(["she_her", "he_him", "they_them"])
+    .optional()
+    .describe(
+      "How the recipient is referred to in the helper invite copy. Defaults to they_them so nothing is ever assumed.",
+    ),
+  situationLine: zod.string().nullish(),
+});
+
+export const UpdateManageDetailsResponse = zod.object({
+  recipientPronouns: zod
+    .enum(["she_her", "he_him", "they_them"])
+    .describe(
+      "How the recipient is referred to in the helper invite copy. Defaults to they_them so nothing is ever assumed.",
+    ),
+  situationLine: zod.string().nullish(),
+});
+
+/**
+ * @summary Add a contact (name + mobile and/or email, optional trusted tag)
+ */
+export const AddContactParams = zod.object({
+  token: zod.coerce.string(),
+});
+
+export const AddContactBody = zod.object({
+  name: zod.string(),
+  mobile: zod.string().nullish(),
+  email: zod.string().nullish(),
+  trusted: zod.boolean().optional(),
+});
+
+/**
+ * @summary Edit a contact
+ */
+export const UpdateContactParams = zod.object({
+  token: zod.coerce.string(),
+  contactId: zod.coerce.string(),
+});
+
+export const UpdateContactBody = zod.object({
+  name: zod.string().optional(),
+  mobile: zod.string().nullish(),
+  email: zod.string().nullish(),
+  trusted: zod.boolean().optional(),
+});
+
+export const UpdateContactResponse = zod.object({
+  id: zod.string(),
+  name: zod.string(),
+  mobile: zod.string().nullish(),
+  email: zod.string().nullish(),
+  trusted: zod.boolean(),
+  optedOut: zod.boolean(),
+});
+
+/**
+ * @summary Remove a contact
+ */
+export const DeleteContactParams = zod.object({
+  token: zod.coerce.string(),
+  contactId: zod.coerce.string(),
+});
+
+export const DeleteContactResponse = zod.object({
+  ok: zod.boolean(),
+});
+
+/**
+ * Returns the rendered message per contact (the verbatim Aunt Lucy copy, with any personal opener) so the recipient can review before sending.
+ * @summary Render the exact invite messages without sending
+ */
+export const PreviewInvitesParams = zod.object({
+  token: zod.coerce.string(),
+});
+
+export const PreviewInvitesBody = zod.object({
+  confirmed: zod
+    .boolean()
+    .optional()
+    .describe("Required true to send\/schedule on a bereavement page."),
+  scheduledFor: zod
+    .string()
+    .nullish()
+    .describe("ISO timestamp; used by the schedule endpoint only."),
+  invites: zod.array(
+    zod.object({
+      contactId: zod.string(),
+      slotId: zod
+        .string()
+        .nullish()
+        .describe("Set to ask this person about one sensitive (trusted) task."),
+      kind: zod
+        .enum(["general", "trusted", "second_wave"])
+        .nullish()
+        .describe(
+          "Inferred when omitted (trusted if slotId is set, else general).",
+        ),
+      openingLine: zod
+        .string()
+        .nullish()
+        .describe(
+          "The recipient's optional personal opener, shown above the verbatim body.",
+        ),
+    }),
+  ),
+});
+
+export const PreviewInvitesResponse = zod.object({
+  previews: zod.array(
+    zod.object({
+      contactId: zod.string(),
+      name: zod.string().nullish(),
+      kind: zod.enum(["general", "trusted", "second_wave"]).nullish(),
+      channel: zod.enum(["sms", "email"]).nullish(),
+      subject: zod.string().nullish(),
+      body: zod.string().nullish(),
+      error: zod.string().nullish(),
+    }),
+  ),
+});
+
+/**
+ * Sends immediately. For a bereavement page the request is refused with 409 unless `confirmed` is true (self-share is the gentle default).
+ * @summary Send invites now
+ */
+export const SendInvitesParams = zod.object({
+  token: zod.coerce.string(),
+});
+
+export const SendInvitesBody = zod.object({
+  confirmed: zod
+    .boolean()
+    .optional()
+    .describe("Required true to send\/schedule on a bereavement page."),
+  scheduledFor: zod
+    .string()
+    .nullish()
+    .describe("ISO timestamp; used by the schedule endpoint only."),
+  invites: zod.array(
+    zod.object({
+      contactId: zod.string(),
+      slotId: zod
+        .string()
+        .nullish()
+        .describe("Set to ask this person about one sensitive (trusted) task."),
+      kind: zod
+        .enum(["general", "trusted", "second_wave"])
+        .nullish()
+        .describe(
+          "Inferred when omitted (trusted if slotId is set, else general).",
+        ),
+      openingLine: zod
+        .string()
+        .nullish()
+        .describe(
+          "The recipient's optional personal opener, shown above the verbatim body.",
+        ),
+    }),
+  ),
+});
+
+/**
+ * Queues the invites for the dispatcher to send at scheduledFor. Same bereavement gate as send.
+ * @summary Queue invites as a scheduled wave
+ */
+export const ScheduleInvitesParams = zod.object({
+  token: zod.coerce.string(),
+});
+
+export const ScheduleInvitesBody = zod.object({
+  confirmed: zod
+    .boolean()
+    .optional()
+    .describe("Required true to send\/schedule on a bereavement page."),
+  scheduledFor: zod
+    .string()
+    .nullish()
+    .describe("ISO timestamp; used by the schedule endpoint only."),
+  invites: zod.array(
+    zod.object({
+      contactId: zod.string(),
+      slotId: zod
+        .string()
+        .nullish()
+        .describe("Set to ask this person about one sensitive (trusted) task."),
+      kind: zod
+        .enum(["general", "trusted", "second_wave"])
+        .nullish()
+        .describe(
+          "Inferred when omitted (trusted if slotId is set, else general).",
+        ),
+      openingLine: zod
+        .string()
+        .nullish()
+        .describe(
+          "The recipient's optional personal opener, shown above the verbatim body.",
+        ),
+    }),
+  ),
 });

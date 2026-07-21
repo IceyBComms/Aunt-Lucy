@@ -125,6 +125,10 @@ export interface GiftReview {
   status?: string | null;
   /** Set when the recipient chose a future go-live date. */
   scheduledActivateAt?: string | null;
+  /** The default situation line for this occasion, prefilled into the activation UI (editable). Null once activated. */
+  situationLine?: string | null;
+  /** Present once activated — the private management token. */
+  manageToken?: string | null;
   suggestions: SuggestedTask[];
 }
 
@@ -137,6 +141,18 @@ export interface ActivateGiftTask {
   trustedHelpersOnly?: boolean;
 }
 
+/**
+ * How the recipient is referred to in the helper invite copy. Defaults to they_them so nothing is ever assumed.
+ */
+export type RecipientPronouns =
+  (typeof RecipientPronouns)[keyof typeof RecipientPronouns];
+
+export const RecipientPronouns = {
+  she_her: "she_her",
+  he_him: "he_him",
+  they_them: "they_them",
+} as const;
+
 export interface ActivateGiftRequest {
   /** The tasks the recipient kept, in the wording they kept them in. */
   tasks: ActivateGiftTask[];
@@ -144,12 +160,18 @@ export interface ActivateGiftRequest {
   scheduledActivateAt?: string | null;
   /** Optional free-text note shown to every helper on the live page. Trimmed and capped server-side; omit or null for none. */
   goodToKnow?: string | null;
+  /** Defaults to they_them when omitted. */
+  recipientPronouns?: RecipientPronouns | null;
+  /** The short, deliberately-vague phrase used in the invite copy ("Sarah's <situationLine>"). Defaults from the occasion when omitted. */
+  situationLine?: string | null;
 }
 
 export interface ActivatedPage {
   slug: string;
   status: string;
   scheduledActivateAt?: string | null;
+  /** The private per-page management token — the recipient's re-entry credential for adding people and sending invites. Not the public slug or gift link. */
+  manageToken?: string | null;
 }
 
 export interface PinRequiredError {
@@ -163,6 +185,179 @@ export interface NotFoundError {
 
 export interface ConflictError {
   error: string;
+}
+
+export interface OkResponse {
+  ok: boolean;
+}
+
+export type InviteKind = (typeof InviteKind)[keyof typeof InviteKind];
+
+export const InviteKind = {
+  general: "general",
+  trusted: "trusted",
+  second_wave: "second_wave",
+} as const;
+
+export type InviteChannel = (typeof InviteChannel)[keyof typeof InviteChannel];
+
+export const InviteChannel = {
+  sms: "sms",
+  email: "email",
+} as const;
+
+export interface ManageTaskSummary {
+  id: string;
+  slotType: SlotType;
+  label: string;
+  trustedHelpersOnly: boolean;
+  isClaimed: boolean;
+  claimedByName?: string | null;
+}
+
+export interface ManageContact {
+  id: string;
+  name: string;
+  mobile?: string | null;
+  email?: string | null;
+  trusted: boolean;
+  optedOut: boolean;
+}
+
+export type ManageInviteStatus =
+  (typeof ManageInviteStatus)[keyof typeof ManageInviteStatus];
+
+export const ManageInviteStatus = {
+  queued: "queued",
+  sent: "sent",
+  failed: "failed",
+  cancelled: "cancelled",
+} as const;
+
+export interface ManageInvite {
+  id: string;
+  contactId?: string | null;
+  name: string;
+  kind: InviteKind;
+  channel: InviteChannel;
+  status: ManageInviteStatus;
+  scheduledFor: string;
+  sentAt?: string | null;
+  claimedAt?: string | null;
+}
+
+export type ManageStateRole =
+  (typeof ManageStateRole)[keyof typeof ManageStateRole];
+
+export const ManageStateRole = {
+  recipient: "recipient",
+  manager: "manager",
+} as const;
+
+export interface ManageState {
+  role: ManageStateRole;
+  recipientName: string;
+  slug: string;
+  status: string;
+  occasion?: GiftOccasion | null;
+  recipientPronouns: RecipientPronouns;
+  situationLine?: string | null;
+  /** When true the UI leads with self-share and waves are gated. */
+  bereavement: boolean;
+  shareLink: string;
+  tasks: ManageTaskSummary[];
+  contacts: ManageContact[];
+  invites: ManageInvite[];
+}
+
+export interface ManageDetails {
+  recipientPronouns: RecipientPronouns;
+  situationLine?: string | null;
+}
+
+export interface UpdateDetailsRequest {
+  recipientPronouns?: RecipientPronouns;
+  situationLine?: string | null;
+}
+
+export interface AddContactRequest {
+  name: string;
+  mobile?: string | null;
+  email?: string | null;
+  trusted?: boolean;
+}
+
+export interface UpdateContactRequest {
+  name?: string;
+  mobile?: string | null;
+  email?: string | null;
+  trusted?: boolean;
+}
+
+export interface InviteRequestItem {
+  contactId: string;
+  /** Set to ask this person about one sensitive (trusted) task. */
+  slotId?: string | null;
+  /** Inferred when omitted (trusted if slotId is set, else general). */
+  kind?: InviteKind | null;
+  /** The recipient's optional personal opener, shown above the verbatim body. */
+  openingLine?: string | null;
+}
+
+export interface InviteBatchRequest {
+  /** Required true to send/schedule on a bereavement page. */
+  confirmed?: boolean;
+  /** ISO timestamp; used by the schedule endpoint only. */
+  scheduledFor?: string | null;
+  invites: InviteRequestItem[];
+}
+
+export interface InvitePreview {
+  contactId: string;
+  name?: string | null;
+  kind?: InviteKind | null;
+  channel?: InviteChannel | null;
+  subject?: string | null;
+  body?: string | null;
+  error?: string | null;
+}
+
+export interface InvitePreviewResponse {
+  previews: InvitePreview[];
+}
+
+export type InviteResultStatus =
+  (typeof InviteResultStatus)[keyof typeof InviteResultStatus];
+
+export const InviteResultStatus = {
+  sent: "sent",
+  failed: "failed",
+  queued: "queued",
+  skipped: "skipped",
+} as const;
+
+export interface InviteResult {
+  contactId: string;
+  status: InviteResultStatus;
+  error?: string | null;
+}
+
+export type InviteResultsResponseMode =
+  (typeof InviteResultsResponseMode)[keyof typeof InviteResultsResponseMode];
+
+export const InviteResultsResponseMode = {
+  now: "now",
+  schedule: "schedule",
+} as const;
+
+export interface InviteResultsResponse {
+  mode: InviteResultsResponseMode;
+  results: InviteResult[];
+}
+
+export interface BereavementGateError {
+  error: string;
+  message?: string;
 }
 
 export type GetSupportPageParams = {

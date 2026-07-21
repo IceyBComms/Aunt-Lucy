@@ -60,6 +60,19 @@ function prettyDate(iso: string): string {
   });
 }
 
+/** Resolve {poss}/{obj} pronoun tokens in an occasion line for display. */
+function resolvePronounTokens(
+  line: string,
+  p: "she_her" | "he_him" | "they_them",
+): string {
+  const map = {
+    she_her: { poss: "her", obj: "her" },
+    he_him: { poss: "his", obj: "him" },
+    they_them: { poss: "their", obj: "them" },
+  }[p];
+  return line.replace(/\{poss\}/g, map.poss).replace(/\{obj\}/g, map.obj);
+}
+
 function todayIso(): string {
   const d = new Date();
   d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
@@ -79,6 +92,14 @@ export function GiftActivation({ token }: { token: string }) {
   const [goLiveDate, setGoLiveDate] = useState("");
   const [goodToKnow, setGoodToKnow] = useState("");
   const [copied, setCopied] = useState(false);
+  const [manageCopied, setManageCopied] = useState(false);
+  // Pronoun + situation line power the warm invite copy sent to helpers later.
+  // Defaulted, optional to change — steering, never homework.
+  const [pronouns, setPronouns] = useState<"she_her" | "he_him" | "they_them">(
+    "they_them",
+  );
+  const [situationLine, setSituationLine] = useState("");
+  const [situationEdited, setSituationEdited] = useState(false);
 
   // Seed the local draft once the suggestions arrive. Everything the recipient
   // does lives here in the browser until they tap "Make it live" — nothing is
@@ -98,6 +119,15 @@ export function GiftActivation({ token }: { token: string }) {
     }
   }, [data, tasks.length]);
 
+  // Seed the situation line from the occasion default the server suggests,
+  // resolving its {poss}/{obj} pronoun tokens for display. Re-resolves when the
+  // recipient changes their pronoun, until they hand-edit the line.
+  useEffect(() => {
+    if (data && !data.activated && data.situationLine && !situationEdited) {
+      setSituationLine(resolvePronounTokens(data.situationLine, pronouns));
+    }
+  }, [data, pronouns, situationEdited]);
+
   const activate = useActivateGift({
     mutation: {
       onSuccess: () => {
@@ -112,12 +142,18 @@ export function GiftActivation({ token }: { token: string }) {
     setTasks((prev) => prev.map((t) => (t.key === key ? { ...t, ...patch } : t)));
 
   const activatedPage = data?.activated
-    ? { slug: data.slug, status: data.status, scheduledActivateAt: data.scheduledActivateAt }
+    ? {
+        slug: data.slug,
+        status: data.status,
+        scheduledActivateAt: data.scheduledActivateAt,
+        manageToken: data.manageToken ?? null,
+      }
     : activate.data
       ? {
           slug: activate.data.slug,
           status: activate.data.status,
           scheduledActivateAt: activate.data.scheduledActivateAt ?? null,
+          manageToken: activate.data.manageToken ?? null,
         }
       : null;
 
@@ -175,6 +211,45 @@ export function GiftActivation({ token }: { token: string }) {
           See your page
           <ArrowRight className="h-4 w-4" />
         </a>
+
+        {/* Private management link — add people and let Aunt Lucy do the asking */}
+        {activatedPage.manageToken && (
+          <div className="mt-7 border-t border-[#e7ddd0] pt-6">
+            <h3 className="mb-1.5 font-serif text-[1.2rem] font-semibold text-[#2c2c2c]">
+              Want us to round up your people?
+            </h3>
+            <p className="mx-auto mb-4 max-w-[30ch] text-[0.95rem] text-[#52493f]">
+              Add a few names and Aunt Lucy will do the asking — gently, no
+              pressure on anyone. This is your private link; keep it handy.
+            </p>
+            <a
+              href={`/manage/${activatedPage.manageToken}`}
+              className="inline-flex items-center gap-2 rounded-full bg-[#2d6a4f] px-6 py-3 font-serif text-[1.02rem] font-semibold text-white shadow-[0_10px_24px_-12px_rgba(45,106,79,0.7)] transition-all hover:-translate-y-0.5 hover:bg-[#245842]"
+            >
+              Add your people
+              <ArrowRight className="h-4 w-4" />
+            </a>
+            <div className="mx-auto mt-3 flex max-w-full items-center gap-2 rounded-full border border-[#e7ddd0] bg-white px-4 py-2.5">
+              <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-left text-[0.82rem] text-[#8b7e74]">
+                {`${window.location.origin}/manage/${activatedPage.manageToken}`}
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  void navigator.clipboard.writeText(
+                    `${window.location.origin}/manage/${activatedPage.manageToken}`,
+                  );
+                  setManageCopied(true);
+                  setTimeout(() => setManageCopied(false), 2000);
+                }}
+                className="flex flex-none items-center gap-1.5 rounded-full bg-[#f3eadd] px-3 py-1.5 text-[0.78rem] font-semibold text-[#2d6a4f]"
+              >
+                {manageCopied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                {manageCopied ? "Copied" : "Copy"}
+              </button>
+            </div>
+          </div>
+        )}
       </section>
     );
   }
@@ -412,6 +487,48 @@ export function GiftActivation({ token }: { token: string }) {
         />
       </div>
 
+      {/* ABOUT YOU — quietly powers the warm wording of invites sent later */}
+      <div className="mt-7">
+        <h3 className="mb-1.5 font-serif text-[1.05rem] font-semibold text-[#2c2c2c]">
+          When Aunt Lucy writes to your people{" "}
+          <span className="font-sans text-[0.85rem] font-normal text-[#8b7e74]">
+            (optional)
+          </span>
+        </h3>
+        <p className="mb-2.5 text-[0.88rem] text-[#8b7e74]">
+          Just so the messages sound right — you can change these anytime.
+        </p>
+        <div className="flex flex-col gap-3 rounded-[0.9rem] border border-[#e0d6c8] bg-white px-3.5 py-3">
+          <label className="text-[0.9rem] text-[#52493f]">
+            Refer to you as
+            <select
+              value={pronouns}
+              onChange={(e) =>
+                setPronouns(e.target.value as "she_her" | "he_him" | "they_them")
+              }
+              className="mt-1 w-full rounded-[0.7rem] border border-[#e0d6c8] bg-[#faf7f2] px-3 py-2.5 text-[0.95rem] text-[#2c2c2c] focus:border-[#2d6a4f] focus:outline-none"
+            >
+              <option value="they_them">they / them</option>
+              <option value="she_her">she / her</option>
+              <option value="he_him">he / him</option>
+            </select>
+          </label>
+          <label className="text-[0.9rem] text-[#52493f]">
+            {data?.recipientName ? `${data.recipientName}'s…` : "What's going on"}
+            <input
+              value={situationLine}
+              maxLength={120}
+              onChange={(e) => {
+                setSituationEdited(true);
+                setSituationLine(e.target.value);
+              }}
+              placeholder="just welcomed their new baby"
+              className="mt-1 w-full rounded-[0.7rem] border border-[#e0d6c8] bg-[#faf7f2] px-3 py-2.5 text-[0.95rem] text-[#2c2c2c] placeholder:text-[#b3a99d] focus:border-[#2d6a4f] focus:outline-none"
+            />
+          </label>
+        </div>
+      </div>
+
       {/* ACTIVATION */}
       <div className="-mx-6 mt-9 rounded-t-[1.6rem] border border-b-0 border-[#e7ddd0] bg-gradient-to-b from-[#faf7f2] to-[#f3eadd] px-[1.6rem] pt-[2.3rem] pb-[2.5rem] text-center">
         <p className="text-[0.72rem] font-semibold uppercase tracking-[0.22em] text-[#d15b3e]">
@@ -465,6 +582,8 @@ export function GiftActivation({ token }: { token: string }) {
                     ? new Date(goLiveDate + "T09:00:00").toISOString()
                     : null,
                 goodToKnow: goodToKnow.trim() || null,
+                recipientPronouns: pronouns,
+                situationLine: situationLine.trim() || null,
               },
             })
           }

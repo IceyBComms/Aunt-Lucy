@@ -1,32 +1,34 @@
 import { Router, type IRouter } from "express";
 import crypto from "crypto";
-import { db, slotsTable, trustedHelperInvitesTable, supportPagesTable } from "@workspace/db";
+import { db, slotsTable, helperInvitesTable, supportPagesTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { requireAuth, type AuthRequest } from "../middleware/requireAuth";
-import { sendInviteSms } from "../lib/sms";
-import { sendInviteEmail } from "../lib/email";
+import { sendSms } from "../lib/sms";
+import { sendHelperInviteEmail } from "../lib/email";
 import { logger } from "../lib/logger";
 import { getAppBaseUrl } from "../lib/appUrl";
+import { firstName } from "../lib/giftFulfilment";
+import {
+  resolvePronouns,
+  applyPronounTokens,
+  defaultSituationLine,
+  defaultTrustedLine,
+  trustedInviteSms,
+  generalInviteEmailSubject,
+  generalInviteEmailText,
+  type RecipientPronouns,
+} from "../lib/inviteCopy";
 
 const router: IRouter = Router();
-
-const SLOT_TYPE_LABELS: Record<string, string> = {
-  meal: "Meal",
-  school_pickup: "School Pickup",
-  child_care: "Child Care",
-  errand: "Errand",
-  dog_walking: "Dog Walking",
-  shopping: "Shopping",
-  visit: "Visit",
-  other: "Help",
-};
 
 function isEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
-// POST /api/organiser/pages/:pageId/slots/:slotId/invites
-// Add a trusted helper and send SMS or email invite
+// ─── Organiser (authed) — invite a named person to one slot ──────────────────
+// The account-based path for organiser-created / self-purchase pages. The
+// account-free recipient path lives in routes/manage.ts. Both write to the same
+// helper_invites table and use the same approved copy.
 router.post(
   "/organiser/pages/:pageId/slots/:slotId/invites",
   requireAuth as any,
@@ -34,7 +36,6 @@ router.post(
     const authReq = req as unknown as AuthRequest;
     const { pageId, slotId } = req.params;
 
-    // Verify organiser owns this page
     const page = await db.query.supportPagesTable.findFirst({
       where: and(
         eq(supportPagesTable.id, pageId),
@@ -68,61 +69,70 @@ router.post(
     }
 
     const contactIsEmail = isEmail(contactTrimmed);
+    const base = getAppBaseUrl();
     const inviteToken = crypto.randomBytes(24).toString("hex");
-    const inviteUrl = `${getAppBaseUrl()}/invite/${inviteToken}`;
-    const slotTypeLabel =
-      slot.customLabel || SLOT_TYPE_LABELS[slot.slotType] || slot.slotType;
+    const helperFirstName = firstName(nameTrimmed);
+    const recipientFirstName = firstName(page.recipientName);
+    const pronounsEnum = page.recipientPronouns as RecipientPronouns;
+    const pronouns = resolvePronouns(pronounsEnum);
 
     const [invite] = await db
-      .insert(trustedHelperInvitesTable)
+      .insert(helperInvitesTable)
       .values({
+        pageId,
+        contactId: null,
         slotId,
+        kind: contactIsEmail ? "general" : "trusted",
+        channel: contactIsEmail ? "email" : "sms",
         name: nameTrimmed,
         mobile: contactIsEmail ? null : contactTrimmed,
         email: contactIsEmail ? contactTrimmed : null,
-        inviteToken,
+        inviteToken: contactIsEmail ? null : inviteToken,
+        status: "queued",
+        scheduledFor: new Date(),
       })
       .returning();
 
+    let ok: boolean;
     if (contactIsEmail) {
-      // Send email invite
-      try {
-        await sendInviteEmail({
-          to: contactTrimmed,
-          helperName: nameTrimmed,
-          recipientName: page.recipientName,
-          slotTypeLabel,
-          slotDate: slot.slotDate,
-          slotTime: slot.slotTime,
-          inviteUrl,
-        });
-        await db
-          .update(trustedHelperInvitesTable)
-          .set({ emailSentAt: new Date() })
-          .where(eq(trustedHelperInvitesTable.id, invite.id));
-      } catch (err) {
-        logger.error({ err, to: contactTrimmed }, "Failed to send invite email");
-      }
-    } else {
-      // Send SMS invite
-      await sendInviteSms({
+      ok = await sendHelperInviteEmail({
         to: contactTrimmed,
-        recipientName: page.recipientName,
-        slotTypeLabel,
-        slotDate: slot.slotDate,
-        slotTime: slot.slotTime,
-        helperName: nameTrimmed,
-        inviteUrl,
+        subject: generalInviteEmailSubject(recipientFirstName),
+        text: generalInviteEmailText({
+          helperFirstName,
+          recipientFirstName,
+          situationLine: applyPronounTokens(
+            page.situationLine ?? defaultSituationLine(page.occasion ?? null),
+            pronounsEnum,
+          ),
+          pronounObj: pronouns.obj,
+          link: `${base}/s/${page.slug}`,
+          unsubscribeUrl: `${base}/s/${page.slug}`,
+        }),
+        link: `${base}/s/${page.slug}`,
+        unsubscribeUrl: `${base}/s/${page.slug}`,
       });
-      await db
-        .update(trustedHelperInvitesTable)
-        .set({ smsSentAt: new Date() })
-        .where(eq(trustedHelperInvitesTable.id, invite.id));
+    } else {
+      ok = await sendSms({
+        to: contactTrimmed,
+        body: trustedInviteSms({
+          helperFirstName,
+          recipientFirstName,
+          trustedLine: applyPronounTokens(defaultTrustedLine(page.occasion ?? null), pronounsEnum),
+          pronounPoss: pronouns.poss,
+          link: `${base}/invite/${inviteToken}`,
+        }),
+      });
     }
 
+    await db
+      .update(helperInvitesTable)
+      .set(ok ? { status: "sent", sentAt: new Date() } : { status: "failed", failedAt: new Date() })
+      .where(eq(helperInvitesTable.id, invite.id));
+
     logger.info(
-      { slotId, name: nameTrimmed, via: contactIsEmail ? "email" : "sms" },
-      "Trusted helper invite created",
+      { slotId, name: nameTrimmed, via: contactIsEmail ? "email" : "sms", ok },
+      "Helper invite created (organiser)",
     );
 
     res.status(201).json({
@@ -142,40 +152,33 @@ router.delete(
     const authReq = req as unknown as AuthRequest;
     const { inviteId } = req.params;
 
-    const invite = await db.query.trustedHelperInvitesTable.findFirst({
-      where: eq(trustedHelperInvitesTable.id, inviteId),
-      with: { slot: { with: { page: true } } },
+    const invite = await db.query.helperInvitesTable.findFirst({
+      where: eq(helperInvitesTable.id, inviteId),
+      with: { page: true },
     });
 
-    if (!invite || invite.slot.page.organiserId !== authReq.organiserId) {
+    if (!invite || invite.page.organiserId !== authReq.organiserId) {
       res.status(404).json({ error: "Invite not found." });
       return;
     }
 
-    await db
-      .delete(trustedHelperInvitesTable)
-      .where(eq(trustedHelperInvitesTable.id, inviteId));
-
+    await db.delete(helperInvitesTable).where(eq(helperInvitesTable.id, inviteId));
     res.json({ ok: true });
   },
 );
 
-// ─── Public invite endpoints ──────────────────────────────────────────────────
+// ─── Public invite endpoints (trusted-slot claim via token) ──────────────────
 
 // GET /api/invite/:token — get invite details
 router.get("/invite/:token", async (req, res) => {
   const { token } = req.params;
 
-  const invite = await db.query.trustedHelperInvitesTable.findFirst({
-    where: eq(trustedHelperInvitesTable.inviteToken, token),
-    with: {
-      slot: {
-        with: { page: true },
-      },
-    },
+  const invite = await db.query.helperInvitesTable.findFirst({
+    where: eq(helperInvitesTable.inviteToken, token),
+    with: { slot: { with: { page: true } } },
   });
 
-  if (!invite) {
+  if (!invite || !invite.slot) {
     res.status(404).json({ error: "This invitation link is invalid or has expired." });
     return;
   }
@@ -208,12 +211,12 @@ router.get("/invite/:token", async (req, res) => {
 router.post("/invite/:token/claim", async (req, res) => {
   const { token } = req.params;
 
-  const invite = await db.query.trustedHelperInvitesTable.findFirst({
-    where: eq(trustedHelperInvitesTable.inviteToken, token),
+  const invite = await db.query.helperInvitesTable.findFirst({
+    where: eq(helperInvitesTable.inviteToken, token),
     with: { slot: true },
   });
 
-  if (!invite) {
+  if (!invite || !invite.slot) {
     res.status(404).json({ error: "This invitation link is invalid." });
     return;
   }
@@ -239,12 +242,12 @@ router.post("/invite/:token/claim", async (req, res) => {
       claimedByName: invite.name,
       claimedByContact: invite.mobile ?? invite.email ?? invite.name,
     })
-    .where(eq(slotsTable.id, invite.slotId));
+    .where(eq(slotsTable.id, invite.slotId!));
 
   await db
-    .update(trustedHelperInvitesTable)
+    .update(helperInvitesTable)
     .set({ claimedAt: now })
-    .where(eq(trustedHelperInvitesTable.id, invite.id));
+    .where(eq(helperInvitesTable.id, invite.id));
 
   logger.info({ inviteId: invite.id, name: invite.name }, "Trusted helper claimed slot");
 

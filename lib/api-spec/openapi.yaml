@@ -16,6 +16,8 @@ tags:
     description: Slot operations
   - name: gifts
     description: Gift experience operations
+  - name: manage
+    description: Token-gated recipient management — contacts and the Aunt Lucy invite/trickle
 paths:
   /healthz:
     get:
@@ -218,6 +220,256 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/NotFoundError"
+
+  /manage/{token}:
+    get:
+      operationId: getManageState
+      tags: [manage]
+      summary: The recipient's management view of their page
+      description: >-
+        Token-gated by the private per-page management token. Returns the page
+        details, tasks, contacts and the state of every invite sent or queued.
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Management state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ManageState"
+        "401":
+          description: Invalid or revoked management token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotFoundError"
+
+  /manage/{token}/details:
+    patch:
+      operationId: updateManageDetails
+      tags: [manage]
+      summary: Update the recipient's pronoun and situation line
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateDetailsRequest"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ManageDetails"
+        "400":
+          description: Nothing to update or invalid value
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotFoundError"
+
+  /manage/{token}/contacts:
+    post:
+      operationId: addContact
+      tags: [manage]
+      summary: Add a contact (name + mobile and/or email, optional trusted tag)
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddContactRequest"
+      responses:
+        "201":
+          description: Contact added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ManageContact"
+        "400":
+          description: Invalid contact
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotFoundError"
+
+  /manage/{token}/contacts/{contactId}:
+    patch:
+      operationId: updateContact
+      tags: [manage]
+      summary: Edit a contact
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: contactId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateContactRequest"
+      responses:
+        "200":
+          description: Contact updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ManageContact"
+        "404":
+          description: Contact not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotFoundError"
+    delete:
+      operationId: deleteContact
+      tags: [manage]
+      summary: Remove a contact
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: contactId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Contact removed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResponse"
+        "404":
+          description: Contact not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotFoundError"
+
+  /manage/{token}/invites/preview:
+    post:
+      operationId: previewInvites
+      tags: [manage]
+      summary: Render the exact invite messages without sending
+      description: >-
+        Returns the rendered message per contact (the verbatim Aunt Lucy copy,
+        with any personal opener) so the recipient can review before sending.
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InviteBatchRequest"
+      responses:
+        "200":
+          description: Rendered previews
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InvitePreviewResponse"
+
+  /manage/{token}/invites/send:
+    post:
+      operationId: sendInvites
+      tags: [manage]
+      summary: Send invites now
+      description: >-
+        Sends immediately. For a bereavement page the request is refused with
+        409 unless `confirmed` is true (self-share is the gentle default).
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InviteBatchRequest"
+      responses:
+        "201":
+          description: Processed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InviteResultsResponse"
+        "409":
+          description: Bereavement confirmation required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BereavementGateError"
+
+  /manage/{token}/invites/schedule:
+    post:
+      operationId: scheduleInvites
+      tags: [manage]
+      summary: Queue invites as a scheduled wave
+      description: >-
+        Queues the invites for the dispatcher to send at scheduledFor. Same
+        bereavement gate as send.
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InviteBatchRequest"
+      responses:
+        "201":
+          description: Queued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InviteResultsResponse"
+        "409":
+          description: Bereavement confirmation required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BereavementGateError"
 
 components:
   schemas:
@@ -441,6 +693,16 @@ components:
           type: string
           nullable: true
           description: Set when the recipient chose a future go-live date.
+        situationLine:
+          type: string
+          nullable: true
+          description: >-
+            The default situation line for this occasion, prefilled into the
+            activation UI (editable). Null once activated.
+        manageToken:
+          type: string
+          nullable: true
+          description: Present once activated — the private management token.
         suggestions:
           type: array
           items:
@@ -470,6 +732,16 @@ components:
         - slotType
         - label
 
+    RecipientPronouns:
+      type: string
+      enum:
+        - she_her
+        - he_him
+        - they_them
+      description: >-
+        How the recipient is referred to in the helper invite copy. Defaults to
+        they_them so nothing is ever assumed.
+
     ActivateGiftRequest:
       type: object
       properties:
@@ -490,6 +762,17 @@ components:
           description: >-
             Optional free-text note shown to every helper on the live page.
             Trimmed and capped server-side; omit or null for none.
+        recipientPronouns:
+          oneOf:
+            - $ref: "#/components/schemas/RecipientPronouns"
+          nullable: true
+          description: Defaults to they_them when omitted.
+        situationLine:
+          type: string
+          nullable: true
+          description: >-
+            The short, deliberately-vague phrase used in the invite copy
+            ("Sarah's <situationLine>"). Defaults from the occasion when omitted.
       required:
         - tasks
 
@@ -503,6 +786,13 @@ components:
         scheduledActivateAt:
           type: string
           nullable: true
+        manageToken:
+          type: string
+          nullable: true
+          description: >-
+            The private per-page management token — the recipient's re-entry
+            credential for adding people and sending invites. Not the public
+            slug or gift link.
       required:
         - slug
         - status
@@ -530,6 +820,321 @@ components:
       type: object
       properties:
         error:
+          type: string
+      required:
+        - error
+
+    OkResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+      required:
+        - ok
+
+    InviteKind:
+      type: string
+      enum:
+        - general
+        - trusted
+        - second_wave
+
+    InviteChannel:
+      type: string
+      enum:
+        - sms
+        - email
+
+    ManageTaskSummary:
+      type: object
+      properties:
+        id:
+          type: string
+        slotType:
+          $ref: "#/components/schemas/SlotType"
+        label:
+          type: string
+        trustedHelpersOnly:
+          type: boolean
+        isClaimed:
+          type: boolean
+        claimedByName:
+          type: string
+          nullable: true
+      required:
+        - id
+        - slotType
+        - label
+        - trustedHelpersOnly
+        - isClaimed
+
+    ManageContact:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        mobile:
+          type: string
+          nullable: true
+        email:
+          type: string
+          nullable: true
+        trusted:
+          type: boolean
+        optedOut:
+          type: boolean
+      required:
+        - id
+        - name
+        - trusted
+        - optedOut
+
+    ManageInvite:
+      type: object
+      properties:
+        id:
+          type: string
+        contactId:
+          type: string
+          nullable: true
+        name:
+          type: string
+        kind:
+          $ref: "#/components/schemas/InviteKind"
+        channel:
+          $ref: "#/components/schemas/InviteChannel"
+        status:
+          type: string
+          enum: [queued, sent, failed, cancelled]
+        scheduledFor:
+          type: string
+        sentAt:
+          type: string
+          nullable: true
+        claimedAt:
+          type: string
+          nullable: true
+      required:
+        - id
+        - name
+        - kind
+        - channel
+        - status
+        - scheduledFor
+
+    ManageState:
+      type: object
+      properties:
+        role:
+          type: string
+          enum: [recipient, manager]
+        recipientName:
+          type: string
+        slug:
+          type: string
+        status:
+          type: string
+        occasion:
+          oneOf:
+            - $ref: "#/components/schemas/GiftOccasion"
+          nullable: true
+        recipientPronouns:
+          $ref: "#/components/schemas/RecipientPronouns"
+        situationLine:
+          type: string
+          nullable: true
+        bereavement:
+          type: boolean
+          description: When true the UI leads with self-share and waves are gated.
+        shareLink:
+          type: string
+        tasks:
+          type: array
+          items:
+            $ref: "#/components/schemas/ManageTaskSummary"
+        contacts:
+          type: array
+          items:
+            $ref: "#/components/schemas/ManageContact"
+        invites:
+          type: array
+          items:
+            $ref: "#/components/schemas/ManageInvite"
+      required:
+        - role
+        - recipientName
+        - slug
+        - status
+        - recipientPronouns
+        - bereavement
+        - shareLink
+        - tasks
+        - contacts
+        - invites
+
+    ManageDetails:
+      type: object
+      properties:
+        recipientPronouns:
+          $ref: "#/components/schemas/RecipientPronouns"
+        situationLine:
+          type: string
+          nullable: true
+      required:
+        - recipientPronouns
+
+    UpdateDetailsRequest:
+      type: object
+      properties:
+        recipientPronouns:
+          $ref: "#/components/schemas/RecipientPronouns"
+        situationLine:
+          type: string
+          nullable: true
+
+    AddContactRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        mobile:
+          type: string
+          nullable: true
+        email:
+          type: string
+          nullable: true
+        trusted:
+          type: boolean
+      required:
+        - name
+
+    UpdateContactRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        mobile:
+          type: string
+          nullable: true
+        email:
+          type: string
+          nullable: true
+        trusted:
+          type: boolean
+
+    InviteRequestItem:
+      type: object
+      properties:
+        contactId:
+          type: string
+        slotId:
+          type: string
+          nullable: true
+          description: Set to ask this person about one sensitive (trusted) task.
+        kind:
+          oneOf:
+            - $ref: "#/components/schemas/InviteKind"
+          nullable: true
+          description: Inferred when omitted (trusted if slotId is set, else general).
+        openingLine:
+          type: string
+          nullable: true
+          description: The recipient's optional personal opener, shown above the verbatim body.
+      required:
+        - contactId
+
+    InviteBatchRequest:
+      type: object
+      properties:
+        confirmed:
+          type: boolean
+          description: Required true to send/schedule on a bereavement page.
+        scheduledFor:
+          type: string
+          nullable: true
+          description: ISO timestamp; used by the schedule endpoint only.
+        invites:
+          type: array
+          items:
+            $ref: "#/components/schemas/InviteRequestItem"
+      required:
+        - invites
+
+    InvitePreview:
+      type: object
+      properties:
+        contactId:
+          type: string
+        name:
+          type: string
+          nullable: true
+        kind:
+          oneOf:
+            - $ref: "#/components/schemas/InviteKind"
+          nullable: true
+        channel:
+          oneOf:
+            - $ref: "#/components/schemas/InviteChannel"
+          nullable: true
+        subject:
+          type: string
+          nullable: true
+        body:
+          type: string
+          nullable: true
+        error:
+          type: string
+          nullable: true
+      required:
+        - contactId
+
+    InvitePreviewResponse:
+      type: object
+      properties:
+        previews:
+          type: array
+          items:
+            $ref: "#/components/schemas/InvitePreview"
+      required:
+        - previews
+
+    InviteResult:
+      type: object
+      properties:
+        contactId:
+          type: string
+        status:
+          type: string
+          enum: [sent, failed, queued, skipped]
+        error:
+          type: string
+          nullable: true
+      required:
+        - contactId
+        - status
+
+    InviteResultsResponse:
+      type: object
+      properties:
+        mode:
+          type: string
+          enum: [now, schedule]
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/InviteResult"
+      required:
+        - mode
+        - results
+
+    BereavementGateError:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
           type: string
       required:
         - error
