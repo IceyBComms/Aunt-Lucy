@@ -484,6 +484,82 @@ export async function sendInviteEmail(params: InviteEmailParams): Promise<void> 
   logger.info({ to: params.to }, "Invite email sent");
 }
 
+// ─── Helper Invite Email (9c) ─────────────────────────────────────────────────
+//
+// The body wording is composed verbatim in inviteCopy.ts. This layer wraps that
+// exact text in the branded HTML chrome (turning the "See how you can help →"
+// line into a button and the unsubscribe line into a link) and sends it. The
+// plain-text part is the canonical copy, unchanged.
+
+export interface HelperInviteEmailParams {
+  to: string;
+  subject: string;
+  /** The verbatim 9c body from inviteCopy.generalInviteEmailText. */
+  text: string;
+  /** The support-page link the CTA points at. */
+  link: string;
+  /** One-tap unsubscribe that genuinely suppresses future sends. */
+  unsubscribeUrl: string;
+  /** The recipient's optional personal opener, shown above the body. */
+  openingLine?: string | null;
+}
+
+export async function sendHelperInviteEmail(
+  params: HelperInviteEmailParams,
+): Promise<boolean> {
+  if (isPlaceholderResendKey) {
+    console.log(
+      `\n📧 Helper invite email for ${params.to} (local dev — sending disabled):\n${params.text}\n`,
+    );
+    return true;
+  }
+  if (!resend) {
+    logger.warn("RESEND_API_KEY not set — skipping helper invite email");
+    return false;
+  }
+
+  const openerHtml = params.openingLine?.trim()
+    ? `<p style="margin:0 0 20px;color:#333;font-size:16px;line-height:1.6;font-style:italic;">${escapeHtml(params.openingLine.trim())}</p>`
+    : "";
+
+  // The body text minus the CTA line and the unsubscribe line, which become a
+  // button and a footer link respectively. Everything else is shown verbatim.
+  const paragraphs = params.text
+    .split("\n\n")
+    .filter(
+      (p) =>
+        !p.startsWith("See how you can help →") &&
+        !p.startsWith("Don't want to receive these emails?"),
+    )
+    .map(
+      (p) =>
+        `<p style="margin:0 0 20px;color:#333;font-size:16px;line-height:1.6;">${escapeHtml(p).replace(/\n/g, "<br>")}</p>`,
+    )
+    .join("\n");
+
+  const contentHtml = `${openerHtml}${paragraphs}
+          ${renderButton(params.link, "See how you can help")}`;
+
+  const { error } = await resend.emails.send({
+    from: FROM_ADDRESS,
+    to: params.to,
+    subject: params.subject,
+    html: renderGiftLayout({
+      preheader: "A gentle, no-pressure way to lend a hand.",
+      contentHtml,
+      footerHtml: `Don't want to receive these emails? <a href="${escapeHtml(params.unsubscribeUrl)}" style="color:#999;">Unsubscribe here</a>.`,
+    }),
+    text: params.text,
+  });
+
+  if (error) {
+    logger.error({ error, to: params.to }, "Failed to send helper invite email");
+    return false;
+  }
+  logger.info({ to: params.to }, "Helper invite email sent");
+  return true;
+}
+
 // ─── Gift Fulfilment Emails ───────────────────────────────────────────────────
 //
 // Copy for the three emails below is fixed by content/EMAIL_TEMPLATES.md and is

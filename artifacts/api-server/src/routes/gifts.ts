@@ -1,10 +1,20 @@
 import { Router, type IRouter } from "express";
-import { db, giftsTable, giftSigningsTable, supportPagesTable, slotsTable } from "@workspace/db";
+import crypto from "crypto";
+import { db, giftsTable, giftSigningsTable, supportPagesTable, slotsTable, pageGrantsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { suggestionsFor, type SuggestedTask } from "../lib/occasionSuggestions";
 import { uniqueSlug } from "../lib/slug";
+import { defaultSituationLine, type RecipientPronouns } from "../lib/inviteCopy";
 
 const router: IRouter = Router();
+
+const PRONOUN_VALUES: readonly RecipientPronouns[] = ["she_her", "he_him", "they_them"];
+
+function asPronouns(value: unknown): RecipientPronouns {
+  return typeof value === "string" && (PRONOUN_VALUES as readonly string[]).includes(value)
+    ? (value as RecipientPronouns)
+    : "they_them";
+}
 
 /** Slot types the database accepts, for validating tasks the recipient adds. */
 const SLOT_TYPES = [
@@ -114,12 +124,18 @@ router.get("/gifts/:redemptionToken/review", async (req, res) => {
     // The page is gone (closed and deleted) but the gift record remains. Treat
     // it as activated rather than inviting them to activate into nothing.
     if (page) {
+      // The recipient's own management grant, so re-opening the gift link can
+      // hand them back into /manage to add people and send invites.
+      const grant = await db.query.pageGrantsTable.findFirst({
+        where: eq(pageGrantsTable.pageId, page.id),
+      });
       res.json({
         activated: true,
         recipientName: gift.recipientName,
         slug: page.slug,
         status: page.status,
         scheduledActivateAt: page.scheduledActivateAt?.toISOString() ?? null,
+        manageToken: grant?.token ?? null,
         suggestions: [],
       });
       return;
@@ -131,10 +147,15 @@ router.get("/gifts/:redemptionToken/review", async (req, res) => {
     recipientName: gift.recipientName,
     giftedBy: gift.purchaserName,
     occasion: gift.occasion ?? null,
+    // The default situation line for this occasion, prefilled into the
+    // activation UI where the recipient can keep or tweak it (a placeholder
+    // wording for now — see inviteCopy.ts).
+    situationLine: defaultSituationLine(gift.occasion ?? null),
     canActivate: ACTIVATABLE.includes(gift.status),
     slug: null,
     status: null,
     scheduledActivateAt: null,
+    manageToken: null,
     suggestions: suggestionsFor(gift.occasion ?? null).map((t: SuggestedTask) => ({
       key: t.key,
       slotType: t.slotType,
@@ -177,10 +198,14 @@ router.post("/gifts/:redemptionToken/activate", async (req, res) => {
       where: eq(supportPagesTable.id, gift.pageId),
     });
     if (existing) {
+      const grant = await db.query.pageGrantsTable.findFirst({
+        where: eq(pageGrantsTable.pageId, existing.id),
+      });
       res.json({
         slug: existing.slug,
         status: existing.status,
         scheduledActivateAt: existing.scheduledActivateAt?.toISOString() ?? null,
+        manageToken: grant?.token ?? null,
       });
       return;
     }
@@ -209,6 +234,14 @@ router.post("/gifts/:redemptionToken/activate", async (req, res) => {
   // Optional free-text note shown to every helper. Trimmed and capped like a
   // task's notes; empty becomes null so no "good to know" card is rendered.
   const goodToKnow = trimmed(body.goodToKnow).slice(0, 500) || null;
+
+  // Pronoun + situation line power the helper-invite copy sent in Item 5/6.
+  // Occasion is carried from the gift; the situation line defaults from it and
+  // is editable. Pronouns default to they/them when not supplied.
+  const recipientPronouns = asPronouns(body.recipientPronouns);
+  const situationLine =
+    trimmed(body.situationLine).slice(0, 120) ||
+    defaultSituationLine(gift.occasion ?? null);
 
   const tasksRaw = Array.isArray(body.tasks) ? body.tasks : [];
   const tasks = tasksRaw
@@ -240,6 +273,9 @@ router.post("/gifts/:redemptionToken/activate", async (req, res) => {
     .slice(0, 50);
 
   const slug = await uniqueSlug();
+  // The private management token for the recipient's own grant — the re-entry
+  // credential. Not the public slug and not the gift redemption token.
+  const manageToken = crypto.randomBytes(32).toString("hex");
 
   const page = await db.transaction(async (tx) => {
     const [created] = await tx
@@ -253,6 +289,10 @@ router.post("/gifts/:redemptionToken/activate", async (req, res) => {
         scheduledActivateAt,
         goodToKnow,
         privacy: "open",
+        // Carried from the gift; power the invite copy in Item 5/6.
+        occasion: gift.occasion ?? null,
+        recipientPronouns,
+        situationLine,
       })
       .returning();
 
@@ -270,6 +310,14 @@ router.post("/gifts/:redemptionToken/activate", async (req, res) => {
       );
     }
 
+    // Mint the recipient's own management grant so they can return to add
+    // people and send invites — no account, ever.
+    await tx.insert(pageGrantsTable).values({
+      pageId: created.id,
+      token: manageToken,
+      role: "recipient",
+    });
+
     await tx
       .update(giftsTable)
       .set({
@@ -286,6 +334,7 @@ router.post("/gifts/:redemptionToken/activate", async (req, res) => {
     slug: page.slug,
     status: page.status,
     scheduledActivateAt: page.scheduledActivateAt?.toISOString() ?? null,
+    manageToken,
   });
 });
 

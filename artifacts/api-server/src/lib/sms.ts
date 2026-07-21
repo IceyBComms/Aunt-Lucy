@@ -12,6 +12,35 @@ if (!client) {
   logger.warn("Twilio credentials not set — SMS sending disabled");
 }
 
+/**
+ * Sends an already-rendered SMS body. The invite copy is composed in
+ * inviteCopy.ts (verbatim templates), so this layer only transmits — it never
+ * builds the wording. Returns true if the message was handed to Twilio.
+ *
+ * Failures are logged and swallowed for the batch dispatcher's benefit (one bad
+ * number must not abort a wave); callers that need the outcome use the return.
+ */
+export async function sendSms({
+  to,
+  body,
+}: {
+  to: string;
+  body: string;
+}): Promise<boolean> {
+  if (!client || !fromNumber) {
+    logger.warn({ to }, "SMS not sent — Twilio not configured");
+    return false;
+  }
+  try {
+    await client.messages.create({ body, from: fromNumber, to });
+    logger.info({ to }, "SMS sent");
+    return true;
+  } catch (err) {
+    logger.error({ err, to }, "Failed to send SMS");
+    return false;
+  }
+}
+
 export async function sendInviteSms({
   to,
   recipientName,

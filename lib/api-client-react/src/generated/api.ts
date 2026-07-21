@@ -19,16 +19,27 @@ import type {
 import type {
   ActivateGiftRequest,
   ActivatedPage,
+  AddContactRequest,
+  BereavementGateError,
   ClaimSlotRequest,
   ConflictError,
   GetSupportPageParams,
   GiftExperience,
   GiftReview,
   HealthStatus,
+  InviteBatchRequest,
+  InvitePreviewResponse,
+  InviteResultsResponse,
+  ManageContact,
+  ManageDetails,
+  ManageState,
   NotFoundError,
+  OkResponse,
   PinRequiredError,
   SlotResponse,
   SupportPageWithSlots,
+  UpdateContactRequest,
+  UpdateDetailsRequest,
 } from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
@@ -572,4 +583,703 @@ export const useActivateGift = <
   TContext
 > => {
   return useMutation(getActivateGiftMutationOptions(options));
+};
+
+/**
+ * Token-gated by the private per-page management token. Returns the page details, tasks, contacts and the state of every invite sent or queued.
+ * @summary The recipient's management view of their page
+ */
+export const getGetManageStateUrl = (token: string) => {
+  return `/api/manage/${token}`;
+};
+
+export const getManageState = async (
+  token: string,
+  options?: RequestInit,
+): Promise<ManageState> => {
+  return customFetch<ManageState>(getGetManageStateUrl(token), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetManageStateQueryKey = (token: string) => {
+  return [`/api/manage/${token}`] as const;
+};
+
+export const getGetManageStateQueryOptions = <
+  TData = Awaited<ReturnType<typeof getManageState>>,
+  TError = ErrorType<NotFoundError>,
+>(
+  token: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getManageState>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetManageStateQueryKey(token);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getManageState>>> = ({
+    signal,
+  }) => getManageState(token, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!token,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getManageState>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetManageStateQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getManageState>>
+>;
+export type GetManageStateQueryError = ErrorType<NotFoundError>;
+
+/**
+ * @summary The recipient's management view of their page
+ */
+
+export function useGetManageState<
+  TData = Awaited<ReturnType<typeof getManageState>>,
+  TError = ErrorType<NotFoundError>,
+>(
+  token: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getManageState>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetManageStateQueryOptions(token, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Update the recipient's pronoun and situation line
+ */
+export const getUpdateManageDetailsUrl = (token: string) => {
+  return `/api/manage/${token}/details`;
+};
+
+export const updateManageDetails = async (
+  token: string,
+  updateDetailsRequest: UpdateDetailsRequest,
+  options?: RequestInit,
+): Promise<ManageDetails> => {
+  return customFetch<ManageDetails>(getUpdateManageDetailsUrl(token), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateDetailsRequest),
+  });
+};
+
+export const getUpdateManageDetailsMutationOptions = <
+  TError = ErrorType<NotFoundError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateManageDetails>>,
+    TError,
+    { token: string; data: BodyType<UpdateDetailsRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateManageDetails>>,
+  TError,
+  { token: string; data: BodyType<UpdateDetailsRequest> },
+  TContext
+> => {
+  const mutationKey = ["updateManageDetails"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateManageDetails>>,
+    { token: string; data: BodyType<UpdateDetailsRequest> }
+  > = (props) => {
+    const { token, data } = props ?? {};
+
+    return updateManageDetails(token, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateManageDetailsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateManageDetails>>
+>;
+export type UpdateManageDetailsMutationBody = BodyType<UpdateDetailsRequest>;
+export type UpdateManageDetailsMutationError = ErrorType<NotFoundError>;
+
+/**
+ * @summary Update the recipient's pronoun and situation line
+ */
+export const useUpdateManageDetails = <
+  TError = ErrorType<NotFoundError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateManageDetails>>,
+    TError,
+    { token: string; data: BodyType<UpdateDetailsRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateManageDetails>>,
+  TError,
+  { token: string; data: BodyType<UpdateDetailsRequest> },
+  TContext
+> => {
+  return useMutation(getUpdateManageDetailsMutationOptions(options));
+};
+
+/**
+ * @summary Add a contact (name + mobile and/or email, optional trusted tag)
+ */
+export const getAddContactUrl = (token: string) => {
+  return `/api/manage/${token}/contacts`;
+};
+
+export const addContact = async (
+  token: string,
+  addContactRequest: AddContactRequest,
+  options?: RequestInit,
+): Promise<ManageContact> => {
+  return customFetch<ManageContact>(getAddContactUrl(token), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(addContactRequest),
+  });
+};
+
+export const getAddContactMutationOptions = <
+  TError = ErrorType<NotFoundError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof addContact>>,
+    TError,
+    { token: string; data: BodyType<AddContactRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof addContact>>,
+  TError,
+  { token: string; data: BodyType<AddContactRequest> },
+  TContext
+> => {
+  const mutationKey = ["addContact"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof addContact>>,
+    { token: string; data: BodyType<AddContactRequest> }
+  > = (props) => {
+    const { token, data } = props ?? {};
+
+    return addContact(token, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AddContactMutationResult = NonNullable<
+  Awaited<ReturnType<typeof addContact>>
+>;
+export type AddContactMutationBody = BodyType<AddContactRequest>;
+export type AddContactMutationError = ErrorType<NotFoundError>;
+
+/**
+ * @summary Add a contact (name + mobile and/or email, optional trusted tag)
+ */
+export const useAddContact = <
+  TError = ErrorType<NotFoundError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof addContact>>,
+    TError,
+    { token: string; data: BodyType<AddContactRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof addContact>>,
+  TError,
+  { token: string; data: BodyType<AddContactRequest> },
+  TContext
+> => {
+  return useMutation(getAddContactMutationOptions(options));
+};
+
+/**
+ * @summary Edit a contact
+ */
+export const getUpdateContactUrl = (token: string, contactId: string) => {
+  return `/api/manage/${token}/contacts/${contactId}`;
+};
+
+export const updateContact = async (
+  token: string,
+  contactId: string,
+  updateContactRequest: UpdateContactRequest,
+  options?: RequestInit,
+): Promise<ManageContact> => {
+  return customFetch<ManageContact>(getUpdateContactUrl(token, contactId), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateContactRequest),
+  });
+};
+
+export const getUpdateContactMutationOptions = <
+  TError = ErrorType<NotFoundError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateContact>>,
+    TError,
+    { token: string; contactId: string; data: BodyType<UpdateContactRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateContact>>,
+  TError,
+  { token: string; contactId: string; data: BodyType<UpdateContactRequest> },
+  TContext
+> => {
+  const mutationKey = ["updateContact"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateContact>>,
+    { token: string; contactId: string; data: BodyType<UpdateContactRequest> }
+  > = (props) => {
+    const { token, contactId, data } = props ?? {};
+
+    return updateContact(token, contactId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateContactMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateContact>>
+>;
+export type UpdateContactMutationBody = BodyType<UpdateContactRequest>;
+export type UpdateContactMutationError = ErrorType<NotFoundError>;
+
+/**
+ * @summary Edit a contact
+ */
+export const useUpdateContact = <
+  TError = ErrorType<NotFoundError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateContact>>,
+    TError,
+    { token: string; contactId: string; data: BodyType<UpdateContactRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateContact>>,
+  TError,
+  { token: string; contactId: string; data: BodyType<UpdateContactRequest> },
+  TContext
+> => {
+  return useMutation(getUpdateContactMutationOptions(options));
+};
+
+/**
+ * @summary Remove a contact
+ */
+export const getDeleteContactUrl = (token: string, contactId: string) => {
+  return `/api/manage/${token}/contacts/${contactId}`;
+};
+
+export const deleteContact = async (
+  token: string,
+  contactId: string,
+  options?: RequestInit,
+): Promise<OkResponse> => {
+  return customFetch<OkResponse>(getDeleteContactUrl(token, contactId), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteContactMutationOptions = <
+  TError = ErrorType<NotFoundError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteContact>>,
+    TError,
+    { token: string; contactId: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteContact>>,
+  TError,
+  { token: string; contactId: string },
+  TContext
+> => {
+  const mutationKey = ["deleteContact"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteContact>>,
+    { token: string; contactId: string }
+  > = (props) => {
+    const { token, contactId } = props ?? {};
+
+    return deleteContact(token, contactId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteContactMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteContact>>
+>;
+
+export type DeleteContactMutationError = ErrorType<NotFoundError>;
+
+/**
+ * @summary Remove a contact
+ */
+export const useDeleteContact = <
+  TError = ErrorType<NotFoundError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteContact>>,
+    TError,
+    { token: string; contactId: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteContact>>,
+  TError,
+  { token: string; contactId: string },
+  TContext
+> => {
+  return useMutation(getDeleteContactMutationOptions(options));
+};
+
+/**
+ * Returns the rendered message per contact (the verbatim Aunt Lucy copy, with any personal opener) so the recipient can review before sending.
+ * @summary Render the exact invite messages without sending
+ */
+export const getPreviewInvitesUrl = (token: string) => {
+  return `/api/manage/${token}/invites/preview`;
+};
+
+export const previewInvites = async (
+  token: string,
+  inviteBatchRequest: InviteBatchRequest,
+  options?: RequestInit,
+): Promise<InvitePreviewResponse> => {
+  return customFetch<InvitePreviewResponse>(getPreviewInvitesUrl(token), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(inviteBatchRequest),
+  });
+};
+
+export const getPreviewInvitesMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof previewInvites>>,
+    TError,
+    { token: string; data: BodyType<InviteBatchRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof previewInvites>>,
+  TError,
+  { token: string; data: BodyType<InviteBatchRequest> },
+  TContext
+> => {
+  const mutationKey = ["previewInvites"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof previewInvites>>,
+    { token: string; data: BodyType<InviteBatchRequest> }
+  > = (props) => {
+    const { token, data } = props ?? {};
+
+    return previewInvites(token, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type PreviewInvitesMutationResult = NonNullable<
+  Awaited<ReturnType<typeof previewInvites>>
+>;
+export type PreviewInvitesMutationBody = BodyType<InviteBatchRequest>;
+export type PreviewInvitesMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Render the exact invite messages without sending
+ */
+export const usePreviewInvites = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof previewInvites>>,
+    TError,
+    { token: string; data: BodyType<InviteBatchRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof previewInvites>>,
+  TError,
+  { token: string; data: BodyType<InviteBatchRequest> },
+  TContext
+> => {
+  return useMutation(getPreviewInvitesMutationOptions(options));
+};
+
+/**
+ * Sends immediately. For a bereavement page the request is refused with 409 unless `confirmed` is true (self-share is the gentle default).
+ * @summary Send invites now
+ */
+export const getSendInvitesUrl = (token: string) => {
+  return `/api/manage/${token}/invites/send`;
+};
+
+export const sendInvites = async (
+  token: string,
+  inviteBatchRequest: InviteBatchRequest,
+  options?: RequestInit,
+): Promise<InviteResultsResponse> => {
+  return customFetch<InviteResultsResponse>(getSendInvitesUrl(token), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(inviteBatchRequest),
+  });
+};
+
+export const getSendInvitesMutationOptions = <
+  TError = ErrorType<BereavementGateError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof sendInvites>>,
+    TError,
+    { token: string; data: BodyType<InviteBatchRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof sendInvites>>,
+  TError,
+  { token: string; data: BodyType<InviteBatchRequest> },
+  TContext
+> => {
+  const mutationKey = ["sendInvites"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof sendInvites>>,
+    { token: string; data: BodyType<InviteBatchRequest> }
+  > = (props) => {
+    const { token, data } = props ?? {};
+
+    return sendInvites(token, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SendInvitesMutationResult = NonNullable<
+  Awaited<ReturnType<typeof sendInvites>>
+>;
+export type SendInvitesMutationBody = BodyType<InviteBatchRequest>;
+export type SendInvitesMutationError = ErrorType<BereavementGateError>;
+
+/**
+ * @summary Send invites now
+ */
+export const useSendInvites = <
+  TError = ErrorType<BereavementGateError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof sendInvites>>,
+    TError,
+    { token: string; data: BodyType<InviteBatchRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof sendInvites>>,
+  TError,
+  { token: string; data: BodyType<InviteBatchRequest> },
+  TContext
+> => {
+  return useMutation(getSendInvitesMutationOptions(options));
+};
+
+/**
+ * Queues the invites for the dispatcher to send at scheduledFor. Same bereavement gate as send.
+ * @summary Queue invites as a scheduled wave
+ */
+export const getScheduleInvitesUrl = (token: string) => {
+  return `/api/manage/${token}/invites/schedule`;
+};
+
+export const scheduleInvites = async (
+  token: string,
+  inviteBatchRequest: InviteBatchRequest,
+  options?: RequestInit,
+): Promise<InviteResultsResponse> => {
+  return customFetch<InviteResultsResponse>(getScheduleInvitesUrl(token), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(inviteBatchRequest),
+  });
+};
+
+export const getScheduleInvitesMutationOptions = <
+  TError = ErrorType<BereavementGateError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof scheduleInvites>>,
+    TError,
+    { token: string; data: BodyType<InviteBatchRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof scheduleInvites>>,
+  TError,
+  { token: string; data: BodyType<InviteBatchRequest> },
+  TContext
+> => {
+  const mutationKey = ["scheduleInvites"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof scheduleInvites>>,
+    { token: string; data: BodyType<InviteBatchRequest> }
+  > = (props) => {
+    const { token, data } = props ?? {};
+
+    return scheduleInvites(token, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ScheduleInvitesMutationResult = NonNullable<
+  Awaited<ReturnType<typeof scheduleInvites>>
+>;
+export type ScheduleInvitesMutationBody = BodyType<InviteBatchRequest>;
+export type ScheduleInvitesMutationError = ErrorType<BereavementGateError>;
+
+/**
+ * @summary Queue invites as a scheduled wave
+ */
+export const useScheduleInvites = <
+  TError = ErrorType<BereavementGateError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof scheduleInvites>>,
+    TError,
+    { token: string; data: BodyType<InviteBatchRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof scheduleInvites>>,
+  TError,
+  { token: string; data: BodyType<InviteBatchRequest> },
+  TContext
+> => {
+  return useMutation(getScheduleInvitesMutationOptions(options));
 };

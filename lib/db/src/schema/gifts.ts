@@ -2,16 +2,11 @@ import { pgTable, text, timestamp, integer, pgEnum } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { supportPagesTable } from "./supportPages";
+// Occasion is now shared with support_pages (carried over at activation), so it
+// lives in enums.ts. Re-exported below to keep existing import paths working.
+import { giftOccasionEnum } from "./enums";
 
-// Mirrors the wizard's occasion field so warm templates can be chosen at
-// purchase time, before the recipient's support page exists.
-export const giftOccasionEnum = pgEnum("gift_occasion", [
-  "new_baby",
-  "illness_recovery",
-  "bereavement",
-  "ongoing_support",
-  "other",
-]);
+export { giftOccasionEnum };
 
 export const giftStatusEnum = pgEnum("gift_status", [
   "pending",

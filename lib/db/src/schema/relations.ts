@@ -4,13 +4,18 @@ import { slotsTable } from "./slots";
 import { organisersTable } from "./organisers";
 import { magicLinkTokensTable } from "./magicLinkTokens";
 import { sessionsTable } from "./sessions";
-import { trustedHelperInvitesTable } from "./trustedHelperInvites";
+import { contactsTable } from "./contacts";
+import { pageGrantsTable } from "./pageGrants";
+import { helperInvitesTable } from "./helperInvites";
 import { giftsTable } from "./gifts";
 import { giftMessagesTable } from "./giftMessages";
 import { giftSigningsTable } from "./giftSignings";
 
 export const supportPagesRelations = relations(supportPagesTable, ({ many, one }) => ({
   slots: many(slotsTable),
+  contacts: many(contactsTable),
+  grants: many(pageGrantsTable),
+  invites: many(helperInvitesTable),
   organiser: one(organisersTable, {
     fields: [supportPagesTable.organiserId],
     references: [organisersTable.id],
@@ -24,8 +29,38 @@ export const slotsRelations = relations(slotsTable, ({ one, many }) => ({
     fields: [slotsTable.pageId],
     references: [supportPagesTable.id],
   }),
-  trustedHelperInvites: many(trustedHelperInvitesTable),
+  invites: many(helperInvitesTable),
   giftMessages: many(giftMessagesTable),
+}));
+
+export const contactsRelations = relations(contactsTable, ({ one, many }) => ({
+  page: one(supportPagesTable, {
+    fields: [contactsTable.pageId],
+    references: [supportPagesTable.id],
+  }),
+  invites: many(helperInvitesTable),
+}));
+
+export const pageGrantsRelations = relations(pageGrantsTable, ({ one }) => ({
+  page: one(supportPagesTable, {
+    fields: [pageGrantsTable.pageId],
+    references: [supportPagesTable.id],
+  }),
+}));
+
+export const helperInvitesRelations = relations(helperInvitesTable, ({ one }) => ({
+  page: one(supportPagesTable, {
+    fields: [helperInvitesTable.pageId],
+    references: [supportPagesTable.id],
+  }),
+  slot: one(slotsTable, {
+    fields: [helperInvitesTable.slotId],
+    references: [slotsTable.id],
+  }),
+  contact: one(contactsTable, {
+    fields: [helperInvitesTable.contactId],
+    references: [contactsTable.id],
+  }),
 }));
 
 export const giftsRelations = relations(giftsTable, ({ one, many }) => ({
@@ -52,13 +87,6 @@ export const giftSigningsRelations = relations(giftSigningsTable, ({ one }) => (
   gift: one(giftsTable, {
     fields: [giftSigningsTable.giftId],
     references: [giftsTable.id],
-  }),
-}));
-
-export const trustedHelperInvitesRelations = relations(trustedHelperInvitesTable, ({ one }) => ({
-  slot: one(slotsTable, {
-    fields: [trustedHelperInvitesTable.slotId],
-    references: [slotsTable.id],
   }),
 }));
 

@@ -1,6 +1,7 @@
 import { pgTable, text, timestamp, pgEnum } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
+import { giftOccasionEnum } from "./enums";
 
 export const pageStatusEnum = pgEnum("page_status", [
   "draft",
@@ -12,6 +13,15 @@ export const pageStatusEnum = pgEnum("page_status", [
 export const pagePrivacyEnum = pgEnum("page_privacy", [
   "open",
   "pin_protected",
+]);
+
+// How the recipient is referred to in the warm invite copy sent to helpers.
+// Defaults to they/them so nothing is ever assumed; the recipient sets this at
+// activation. A name-only fallback is handled in the copy layer, not here.
+export const recipientPronounsEnum = pgEnum("recipient_pronouns", [
+  "she_her",
+  "he_him",
+  "they_them",
 ]);
 
 export const supportPagesTable = pgTable("support_pages", {
@@ -32,6 +42,19 @@ export const supportPagesTable = pgTable("support_pages", {
   privacy: pagePrivacyEnum("privacy").notNull().default("open"),
   pin: text("pin"),
   approvalToken: text("approval_token"),
+  // Carried onto the page at activation (from the gift, or set in the wizard).
+  // Used to derive the situation line below, and to decide whether to default
+  // the invite flow to self-share (bereavement) rather than an automated wave.
+  occasion: giftOccasionEnum("occasion"),
+  // Drives pronoun tokens in the helper invite copy. Defaults to they/them.
+  recipientPronouns: recipientPronounsEnum("recipient_pronouns")
+    .notNull()
+    .default("they_them"),
+  // The short, deliberately-vague phrase the invite copy drops in after the
+  // recipient's name ("Sarah's <situationLine>"). Defaulted from the occasion
+  // at activation and editable by the recipient — never clinical, never
+  // detailed (see the privacy rules in CLAUDE.md).
+  situationLine: text("situation_line"),
   // Set when a recipient activates their gift but chooses a future go-live
   // date. The page and its slots exist immediately with status 'draft' (so
   // nothing is visible at /s/:slug), and the existing dispatcher flips it to
