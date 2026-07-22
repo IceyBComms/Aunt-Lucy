@@ -100,6 +100,12 @@ export function GiftActivation({ token }: { token: string }) {
   );
   const [situationLine, setSituationLine] = useState("");
   const [situationEdited, setSituationEdited] = useState(false);
+  // Where to reach the recipient about their own page (Item 8). Prefilled from
+  // the gift when we hold an email, asked for when we don't. Optional — skipping
+  // just means notifications wait until an email is added later via /manage.
+  const [recipientEmail, setRecipientEmail] = useState("");
+  const [recipientMobile, setRecipientMobile] = useState("");
+  const [emailEdited, setEmailEdited] = useState(false);
 
   // Seed the local draft once the suggestions arrive. Everything the recipient
   // does lives here in the browser until they tap "Make it live" — nothing is
@@ -127,6 +133,13 @@ export function GiftActivation({ token }: { token: string }) {
       setSituationLine(resolvePronounTokens(data.situationLine, pronouns));
     }
   }, [data, pronouns, situationEdited]);
+
+  // Prefill the email from the one we already hold (from the gift), once.
+  useEffect(() => {
+    if (data && !data.activated && data.recipientEmail && !emailEdited) {
+      setRecipientEmail(data.recipientEmail);
+    }
+  }, [data, emailEdited]);
 
   const activate = useActivateGift({
     mutation: {
@@ -529,6 +542,47 @@ export function GiftActivation({ token }: { token: string }) {
         </div>
       </div>
 
+      {/* WHERE SHOULD WE REACH YOU — powers the "help arriving" notifications.
+          PLACEHOLDER copy — Kate to approve. Optional; prefilled from the gift. */}
+      <div className="mt-7">
+        <h3 className="mb-1.5 font-serif text-[1.05rem] font-semibold text-[#2c2c2c]">
+          Where should we reach you?{" "}
+          <span className="font-sans text-[0.85rem] font-normal text-[#8b7e74]">
+            (optional)
+          </span>
+        </h3>
+        <p className="mb-2.5 text-[0.88rem] text-[#8b7e74]">
+          So we can let you know when someone's helped — nothing else. You can add
+          or change this anytime.
+        </p>
+        <div className="flex flex-col gap-3 rounded-[0.9rem] border border-[#e0d6c8] bg-white px-3.5 py-3">
+          <label className="text-[0.9rem] text-[#52493f]">
+            Email
+            <input
+              type="email"
+              value={recipientEmail}
+              onChange={(e) => {
+                setEmailEdited(true);
+                setRecipientEmail(e.target.value);
+              }}
+              placeholder="you@example.com"
+              className="mt-1 w-full rounded-[0.7rem] border border-[#e0d6c8] bg-[#faf7f2] px-3 py-2.5 text-[0.95rem] text-[#2c2c2c] placeholder:text-[#b3a99d] focus:border-[#2d6a4f] focus:outline-none"
+            />
+          </label>
+          <label className="text-[0.9rem] text-[#52493f]">
+            Mobile{" "}
+            <span className="text-[0.8rem] text-[#8b7e74]">(for text updates too)</span>
+            <input
+              type="tel"
+              value={recipientMobile}
+              onChange={(e) => setRecipientMobile(e.target.value)}
+              placeholder="0400 000 000"
+              className="mt-1 w-full rounded-[0.7rem] border border-[#e0d6c8] bg-[#faf7f2] px-3 py-2.5 text-[0.95rem] text-[#2c2c2c] placeholder:text-[#b3a99d] focus:border-[#2d6a4f] focus:outline-none"
+            />
+          </label>
+        </div>
+      </div>
+
       {/* ACTIVATION */}
       <div className="-mx-6 mt-9 rounded-t-[1.6rem] border border-b-0 border-[#e7ddd0] bg-gradient-to-b from-[#faf7f2] to-[#f3eadd] px-[1.6rem] pt-[2.3rem] pb-[2.5rem] text-center">
         <p className="text-[0.72rem] font-semibold uppercase tracking-[0.22em] text-[#d15b3e]">
@@ -584,6 +638,8 @@ export function GiftActivation({ token }: { token: string }) {
                 goodToKnow: goodToKnow.trim() || null,
                 recipientPronouns: pronouns,
                 situationLine: situationLine.trim() || null,
+                recipientEmail: recipientEmail.trim() || null,
+                recipientMobile: recipientMobile.trim() || null,
               },
             })
           }

@@ -560,6 +560,144 @@ export async function sendHelperInviteEmail(
   return true;
 }
 
+// ─── Recipient claim notification (Item 8) ────────────────────────────────────
+//
+// Sent to the RECIPIENT when help arrives — recipient framing, never "organiser".
+// Batched: one email can cover several claims that landed since the last run.
+//
+// ⚠️ PLACEHOLDER COPY — subject and body wording below are placeholders for Kate
+// to approve separately, exactly like the invite copy. The mechanism (batching,
+// what/who/when, the manage CTA) is what's being built here; the words are not
+// final. Do not treat this wording as approved.
+
+export interface RecipientClaimItem {
+  helperName: string;
+  slotType: string;
+  customLabel: string | null;
+  slotDate: string | null;
+  slotTime: string | null;
+  note: string | null;
+}
+
+export interface RecipientClaimNotificationParams {
+  to: string;
+  recipientFirstName: string;
+  /** The recipient's private /manage link — "see who's helping". */
+  manageLink: string;
+  claims: RecipientClaimItem[];
+}
+
+/** "Dropping off a meal, Friday 1 August at 3:00 PM" / "…, whenever suits you". */
+function claimWhenLabel(slotDate: string | null, slotTime: string | null): string {
+  const dateFormatted = formatDate(slotDate);
+  const timeFormatted = slotDate && slotTime ? formatTime(slotTime) : null;
+  return timeFormatted ? `${dateFormatted} at ${timeFormatted}` : dateFormatted;
+}
+
+export function buildRecipientClaimNotificationEmail(
+  params: RecipientClaimNotificationParams,
+): RenderedEmail {
+  const { recipientFirstName, manageLink, claims } = params;
+  const single = claims.length === 1;
+
+  // PLACEHOLDER subject.
+  const subject = single
+    ? "Someone's shown up for you 💛"
+    : "People are showing up for you 💛";
+
+  const lineFor = (c: RecipientClaimItem) => {
+    const task = c.customLabel || SLOT_TYPE_LABELS[c.slotType] || "Helping out";
+    const when = claimWhenLabel(c.slotDate, c.slotTime);
+    const noteBit = c.note ? ` · "${c.note}"` : "";
+    return { task, when, noteBit, helper: c.helperName };
+  };
+
+  const itemsHtml = claims
+    .map((c) => {
+      const l = lineFor(c);
+      return `<li style="margin-bottom:10px;"><strong>${escapeHtml(l.helper)}</strong> is taking care of <strong>${escapeHtml(l.task)}</strong>, ${escapeHtml(l.when)}${l.noteBit ? ` <span style="color:#5a5a5a;">${escapeHtml(l.noteBit)}</span>` : ""}</li>`;
+    })
+    .join("\n");
+
+  // PLACEHOLDER body.
+  const contentHtml = `          <p style="margin:0 0 20px;color:#333;font-size:16px;line-height:1.6;">
+            Hi ${escapeHtml(recipientFirstName)},
+          </p>
+          <p style="margin:0 0 16px;color:#333;font-size:16px;line-height:1.6;">
+            A little good news — ${single ? "someone has" : "some of your people have"} stepped in:
+          </p>
+          <ul style="margin:0 0 24px;padding-left:20px;color:#333;font-size:16px;line-height:1.7;">
+${itemsHtml}
+          </ul>
+          <p style="margin:0 0 24px;color:#333;font-size:16px;line-height:1.6;">
+            There's nothing you need to do — we just wanted you to know you're being looked after.
+          </p>
+          ${renderButton(manageLink, "See who's helping")}
+          <p style="margin:0;color:#2D6A4F;font-size:15px;line-height:1.6;">
+            — Aunt Lucy
+          </p>`;
+
+  const textItems = claims
+    .map((c) => {
+      const l = lineFor(c);
+      return `• ${l.helper} is taking care of ${l.task}, ${l.when}${l.noteBit}`;
+    })
+    .join("\n");
+
+  const text = [
+    `Hi ${recipientFirstName},`,
+    ``,
+    `A little good news — ${single ? "someone has" : "some of your people have"} stepped in:`,
+    ``,
+    textItems,
+    ``,
+    `There's nothing you need to do — we just wanted you to know you're being looked after.`,
+    ``,
+    `See who's helping: ${manageLink}`,
+    ``,
+    `— Aunt Lucy`,
+  ].join("\n");
+
+  return {
+    subject,
+    html: renderGiftLayout({
+      preheader: "Someone's lending a hand — nothing for you to do.",
+      contentHtml,
+      footerHtml: `Can't click the button? Copy this link: ${escapeHtml(manageLink)}`,
+    }),
+    text,
+  };
+}
+
+/** Returns true if the email was handed to Resend (or dev-logged), false if not. */
+export async function sendRecipientClaimNotification(
+  params: RecipientClaimNotificationParams,
+): Promise<boolean> {
+  if (isPlaceholderResendKey) {
+    console.log(
+      `\n💛 Recipient claim notification for ${params.to} (local dev — sending disabled):\n${buildRecipientClaimNotificationEmail(params).text}\n`,
+    );
+    return true;
+  }
+  if (!resend) {
+    logger.warn("RESEND_API_KEY not set — skipping recipient claim notification");
+    return false;
+  }
+
+  const { error } = await resend.emails.send({
+    from: FROM_ADDRESS,
+    to: params.to,
+    ...buildRecipientClaimNotificationEmail(params),
+  });
+
+  if (error) {
+    logger.error({ error, to: params.to }, "Failed to send recipient claim notification");
+    return false;
+  }
+  logger.info({ to: params.to, claims: params.claims.length }, "Recipient claim notification sent");
+  return true;
+}
+
 // ─── Gift Fulfilment Emails ───────────────────────────────────────────────────
 //
 // Copy for the three emails below is fixed by content/EMAIL_TEMPLATES.md and is

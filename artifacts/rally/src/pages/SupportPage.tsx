@@ -143,6 +143,21 @@ export default function SupportPage() {
 
       {/* Main Content */}
       <main className="flex-1 max-w-3xl w-full mx-auto px-4 sm:px-6 py-12">
+        {/* Ambient presence (Item 7): the warmth of "people are helping" without
+            naming anyone. Count is distinct people, deduped server-side.
+            PLACEHOLDER copy — Kate to approve. */}
+        {page.helpingCount > 0 && (
+          <div className="mb-8 flex items-center justify-center gap-2 rounded-full bg-primary/5 border border-primary/10 px-5 py-3 text-center">
+            <Heart className="w-4 h-4 text-primary flex-none" />
+            <p className="text-sm sm:text-base text-foreground/80 font-medium">
+              {page.helpingCount === 1
+                ? "1 person is already helping"
+                : `${page.helpingCount} people are already helping`}
+              {" "}💛
+            </p>
+          </div>
+        )}
+
         {/* A "good to know" note from the recipient, shown to every helper.
             Plain text — React escapes it; never rendered as raw HTML. */}
         {page.goodToKnow && (

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRoute } from "wouter";
 import {
   ArrowRight,
@@ -18,6 +18,7 @@ import {
   usePreviewInvites,
   useSendInvites,
   useScheduleInvites,
+  useUpdateManageDetails,
   type InvitePreview,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -26,6 +27,25 @@ import { useQueryClient } from "@tanstack/react-query";
 interface Selection {
   include: boolean;
   slotId: string | null;
+}
+
+/** "Friday, 1 August" / "Friday, 1 August · 3:00 pm" / "" when undated. */
+function formatWhen(slotDate: string | null, slotTime: string | null): string {
+  if (!slotDate) return "";
+  const [y, m, d] = slotDate.split("-").map(Number);
+  const date = new Date(y, m - 1, d);
+  let out = date.toLocaleDateString("en-AU", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  });
+  if (slotTime) {
+    const [h, min] = slotTime.split(":").map(Number);
+    const ampm = h >= 12 ? "pm" : "am";
+    const h12 = h % 12 || 12;
+    out += ` · ${h12}:${String(min).padStart(2, "0")}${ampm}`;
+  }
+  return out;
 }
 
 export function Manage() {
@@ -44,6 +64,7 @@ export function Manage() {
   const preview = usePreviewInvites();
   const send = useSendInvites({ mutation: { onSuccess: invalidate } });
   const schedule = useScheduleInvites({ mutation: { onSuccess: invalidate } });
+  const updateDetails = useUpdateManageDetails({ mutation: { onSuccess: invalidate } });
 
   // New-contact form
   const [name, setName] = useState("");
@@ -62,6 +83,27 @@ export function Manage() {
     () => (data?.tasks ?? []).filter((t) => t.trustedHelpersOnly && !t.isClaimed),
     [data],
   );
+  // Claimed tasks, newest first — the "watch help arrive" payoff (Item 8).
+  const claimedTasks = useMemo(
+    () =>
+      (data?.tasks ?? [])
+        .filter((t) => t.isClaimed)
+        .sort((a, b) => (b.claimedAt ?? "").localeCompare(a.claimedAt ?? "")),
+    [data],
+  );
+
+  // Where we reach the recipient when help arrives — editable so someone who
+  // skipped it at activation can add it. Seeded once from the loaded state.
+  const [reachEmail, setReachEmail] = useState("");
+  const [reachMobile, setReachMobile] = useState("");
+  const [reachSeeded, setReachSeeded] = useState(false);
+  useEffect(() => {
+    if (data && !reachSeeded) {
+      setReachEmail(data.recipientEmail ?? "");
+      setReachMobile(data.recipientMobile ?? "");
+      setReachSeeded(true);
+    }
+  }, [data, reachSeeded]);
 
   if (isLoading) {
     return (
@@ -160,6 +202,97 @@ export function Manage() {
           </div>
         </section>
       )}
+
+      {/* Help arriving (Item 8) — the "watch help arrive" payoff. The recipient
+          always sees who claimed, regardless of the helper's public choice.
+          PLACEHOLDER copy — Kate to approve. */}
+      {claimedTasks.length > 0 && (
+        <section className="mb-7">
+          <h2 className="mb-1 font-serif text-[1.15rem] font-semibold text-[#2c2c2c]">
+            Help on the way 💛
+          </h2>
+          <p className="mb-3 text-[0.9rem] text-[#8b7e74]">
+            People who've stepped in — nothing for you to do, just lovely to see.
+          </p>
+          <div className="flex flex-col gap-2.5">
+            {claimedTasks.map((t) => {
+              const when = formatWhen(t.slotDate ?? null, t.slotTime ?? null);
+              return (
+                <div
+                  key={t.id}
+                  className="rounded-[1rem] border border-[#e7ddd0] bg-white px-4 py-3"
+                >
+                  <p className="text-[0.98rem] text-[#2c2c2c]">
+                    <span className="font-semibold">{t.claimedByName ?? "A friend"}</span>
+                    {" — "}
+                    {t.label}
+                  </p>
+                  {when && (
+                    <p className="mt-0.5 text-[0.82rem] text-[#8b7e74]">{when}</p>
+                  )}
+                  {t.claimedNote && (
+                    <p className="mt-1.5 rounded-[0.6rem] bg-[#f3eadd] px-3 py-2 text-[0.85rem] text-[#52493f]">
+                      &ldquo;{t.claimedNote}&rdquo;
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {/* Where we'll reach you (Item 8) — editable so a recipient who skipped it
+          at activation can add it. PLACEHOLDER copy — Kate to approve. */}
+      <section className="mb-7 rounded-[1.1rem] border border-[#e7ddd0] bg-white px-5 py-5">
+        <h2 className="mb-1 font-serif text-[1.15rem] font-semibold text-[#2c2c2c]">
+          Where we'll reach you
+        </h2>
+        <p className="mb-3 text-[0.88rem] text-[#8b7e74]">
+          We'll let you know when someone's helped — nothing else.
+        </p>
+        <div className="flex flex-col gap-2.5">
+          <input
+            value={reachEmail}
+            onChange={(e) => setReachEmail(e.target.value)}
+            placeholder="Email"
+            className="w-full rounded-[0.7rem] border border-[#e0d6c8] bg-[#faf7f2] px-3 py-2.5 text-[0.97rem] text-[#2c2c2c] focus:border-[#2d6a4f] focus:outline-none"
+          />
+          <input
+            value={reachMobile}
+            onChange={(e) => setReachMobile(e.target.value)}
+            placeholder="Mobile (optional)"
+            className="w-full rounded-[0.7rem] border border-[#e0d6c8] bg-[#faf7f2] px-3 py-2.5 text-[0.97rem] text-[#2c2c2c] focus:border-[#2d6a4f] focus:outline-none"
+          />
+          <button
+            type="button"
+            disabled={updateDetails.isPending}
+            onClick={() =>
+              updateDetails.mutate({
+                token,
+                data: {
+                  recipientEmail: reachEmail.trim() || null,
+                  recipientMobile: reachMobile.trim() || null,
+                },
+              })
+            }
+            className="mt-1 self-start rounded-full bg-[#2d6a4f] px-5 py-2.5 text-[0.9rem] font-semibold text-white disabled:opacity-50"
+          >
+            {updateDetails.isPending ? "Saving…" : "Save"}
+          </button>
+          {updateDetails.isSuccess && (
+            <p className="flex items-center gap-1.5 text-[0.88rem] text-[#2d6a4f]">
+              <Check className="h-4 w-4" />
+              Saved.
+            </p>
+          )}
+          {updateDetails.isError && (
+            <p className="text-[0.85rem] text-[#c0563a]">
+              {(updateDetails.error as Error)?.message ?? "That didn't work — try again."}
+            </p>
+          )}
+        </div>
+      </section>
 
       {/* Add a person */}
       <section className="mb-7 rounded-[1.1rem] border border-[#e7ddd0] bg-white px-5 py-5">

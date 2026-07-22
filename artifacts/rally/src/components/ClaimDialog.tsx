@@ -15,6 +15,10 @@ const claimSchema = z.object({
   firstName: z.string().min(2, "Please enter your first name"),
   contact: z.string().min(5, "Please provide an email or phone number"),
   note: z.string().optional(),
+  // Opt-in, defaults false (see defaultValues) — hidden by default, per the
+  // brief. When false, only the recipient sees the name; other helpers see the
+  // ambient count instead.
+  showName: z.boolean().optional(),
 });
 
 type ClaimFormData = z.infer<typeof claimSchema>;
@@ -40,6 +44,7 @@ export function ClaimDialog({ slot, recipientName, isOpen, onClose, onSubmit, is
       firstName: "",
       contact: "",
       note: "",
+      showName: false,
     },
   });
 
@@ -136,6 +141,22 @@ export function ClaimDialog({ slot, recipientName, isOpen, onClose, onSubmit, is
             Anything useful for {recipientName} to know — timing, questions, a kind word.
           </p>
         </div>
+
+        {/* Name visibility (Item 7). PLACEHOLDER copy — Kate to approve.
+            Hidden by default: unchecked means only {recipientName} sees the name;
+            other helpers see an ambient "N people helping" count instead. */}
+        <label className="flex items-start gap-3 rounded-2xl bg-secondary/40 border border-secondary-border p-4 cursor-pointer">
+          <input
+            type="checkbox"
+            {...register("showName")}
+            className="mt-0.5 h-4 w-4 accent-primary flex-none"
+          />
+          <span className="text-sm text-foreground/80 leading-relaxed">
+            <span className="font-medium text-foreground">Show my name to everyone helping</span>
+            <br />
+            Otherwise it stays just between you and {recipientName}.
+          </span>
+        </label>
 
         <div className="pt-4">
           <Button

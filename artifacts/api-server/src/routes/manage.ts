@@ -72,6 +72,10 @@ router.get("/manage/:token", requireManagementToken as any, async (req, res) => 
     occasion: page.occasion ?? null,
     recipientPronouns: page.recipientPronouns,
     situationLine: page.situationLine ?? defaultSituationLine(page.occasion ?? null),
+    // Where the recipient is notified when help arrives — shown so they can add
+    // or change it if they skipped it at activation.
+    recipientEmail: page.recipientEmail ?? null,
+    recipientMobile: page.recipientMobile ?? null,
     // Bereavement defaults the invite flow to self-share, waves off unless the
     // recipient explicitly confirms — surfaced so the UI can lead with that.
     bereavement: page.occasion === "bereavement",
@@ -82,7 +86,14 @@ router.get("/manage/:token", requireManagementToken as any, async (req, res) => 
       label: s.customLabel ?? s.slotType,
       trustedHelpersOnly: s.trustedHelpersOnly,
       isClaimed: s.isClaimed,
+      // The recipient always sees who claimed, regardless of the helper's public
+      // visibility choice — this is the "look who showed up" payoff, and the note
+      // is the helper's message to them. Safe: shown only to the recipient.
       claimedByName: s.claimedByName,
+      claimedNote: s.claimedNote ?? null,
+      claimedAt: s.claimedAt?.toISOString() ?? null,
+      slotDate: s.slotDate,
+      slotTime: s.slotTime,
     })),
     contacts: page.contacts.map((c) => ({
       id: c.id,
@@ -124,6 +135,20 @@ router.patch("/manage/:token/details", requireManagementToken as any, async (req
   if (body.situationLine !== undefined) {
     patch.situationLine = trimmed(body.situationLine).slice(0, 120) || null;
   }
+  // Where claim notifications are sent — settable here for a recipient who
+  // skipped it at activation. An empty value clears it; a non-empty value must
+  // look like an email address.
+  if (body.recipientEmail !== undefined) {
+    const e = trimmed(body.recipientEmail);
+    if (e && !isEmail(e)) {
+      res.status(400).json({ error: "That email address doesn't look right." });
+      return;
+    }
+    patch.recipientEmail = e || null;
+  }
+  if (body.recipientMobile !== undefined) {
+    patch.recipientMobile = trimmed(body.recipientMobile).slice(0, 40) || null;
+  }
   if (Object.keys(patch).length === 0) {
     res.status(400).json({ error: "Nothing to update." });
     return;
@@ -138,6 +163,8 @@ router.patch("/manage/:token/details", requireManagementToken as any, async (req
   res.json({
     recipientPronouns: updated.recipientPronouns,
     situationLine: updated.situationLine,
+    recipientEmail: updated.recipientEmail ?? null,
+    recipientMobile: updated.recipientMobile ?? null,
   });
 });
 

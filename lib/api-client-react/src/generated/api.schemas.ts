@@ -65,6 +65,8 @@ export interface SupportPageWithSlots {
   privacy: SupportPageWithSlotsPrivacy;
   /** An optional free-text note from the recipient, shown to every helper. Null when they didn't leave one. */
   goodToKnow?: string | null;
+  /** Ambient presence — the number of distinct people helping (deduped by claimed contact), for the warm "N people helping" line. Carries the warmth without naming anyone, so it is safe to show to everyone. */
+  helpingCount: number;
   slots: SlotResponse[];
 }
 
@@ -72,6 +74,8 @@ export interface ClaimSlotRequest {
   firstName: string;
   contact: string;
   note?: string | null;
+  /** The helper's opt-in choice: when true, their name is shown to other helpers on the public page; when false or omitted, only the recipient sees it (the public page shows an ambient count instead). Defaults to false — hidden by default, never surprised into being shown. */
+  showName?: boolean | null;
   /** Required when claiming a slot on a PIN-protected page. */
   pin?: string | null;
 }
@@ -127,6 +131,8 @@ export interface GiftReview {
   scheduledActivateAt?: string | null;
   /** The default situation line for this occasion, prefilled into the activation UI (editable). Null once activated. */
   situationLine?: string | null;
+  /** The recipient's email as we already hold it (from the gift), to prefill the "where should we reach you?" field at activation. Null when we hold none — the field is then asked for, not assumed. */
+  recipientEmail?: string | null;
   /** Present once activated — the private management token. */
   manageToken?: string | null;
   suggestions: SuggestedTask[];
@@ -164,6 +170,10 @@ export interface ActivateGiftRequest {
   recipientPronouns?: RecipientPronouns | null;
   /** The short, deliberately-vague phrase used in the invite copy ("Sarah's <situationLine>"). Defaults from the occasion when omitted. */
   situationLine?: string | null;
+  /** Where to reach the recipient about their own page — used for the claim notifications. Captured at activation (prefilled from the gift when held, asked for when not). Omit or null to skip; notifications then don't fire until an email is added via /manage. */
+  recipientEmail?: string | null;
+  /** Optional mobile for future SMS updates. Stored when supplied; no SMS is sent yet. */
+  recipientMobile?: string | null;
 }
 
 export interface ActivatedPage {
@@ -212,7 +222,14 @@ export interface ManageTaskSummary {
   label: string;
   trustedHelpersOnly: boolean;
   isClaimed: boolean;
+  /** Who claimed it. Always present to the recipient/manager regardless of the helper's public-visibility choice — this is the "look who showed up" payoff and is safe because it is shown only to the person the help is for. */
   claimedByName?: string | null;
+  /** The helper's optional message to the recipient, if left. */
+  claimedNote?: string | null;
+  /** When it was claimed (ISO), for the "help arriving" view. */
+  claimedAt?: string | null;
+  slotDate?: string | null;
+  slotTime?: string | null;
 }
 
 export interface ManageContact {
@@ -262,6 +279,10 @@ export interface ManageState {
   occasion?: GiftOccasion | null;
   recipientPronouns: RecipientPronouns;
   situationLine?: string | null;
+  /** Where the recipient is notified when help arrives. Editable here so a recipient who skipped it at activation can add it. Null when none. */
+  recipientEmail?: string | null;
+  /** Optional mobile for future SMS updates. Null when none. */
+  recipientMobile?: string | null;
   /** When true the UI leads with self-share and waves are gated. */
   bereavement: boolean;
   shareLink: string;
@@ -278,6 +299,10 @@ export interface ManageDetails {
 export interface UpdateDetailsRequest {
   recipientPronouns?: RecipientPronouns;
   situationLine?: string | null;
+  /** Set/clear where claim notifications are sent. Send an empty string or null to clear; a non-empty value must look like an email address. */
+  recipientEmail?: string | null;
+  /** Set/clear the optional mobile for future SMS updates. */
+  recipientMobile?: string | null;
 }
 
 export interface AddContactRequest {

@@ -210,6 +210,7 @@ router.get("/invite/:token", async (req, res) => {
 // POST /api/invite/:token/claim — claim via invite
 router.post("/invite/:token/claim", async (req, res) => {
   const { token } = req.params;
+  const { showName } = req.body as { showName?: boolean };
 
   const invite = await db.query.helperInvitesTable.findFirst({
     where: eq(helperInvitesTable.inviteToken, token),
@@ -241,6 +242,11 @@ router.post("/invite/:token/claim", async (req, res) => {
       isClaimed: true,
       claimedByName: invite.name,
       claimedByContact: invite.mobile ?? invite.email ?? invite.name,
+      claimedAt: now,
+      // Same opt-in default as the public claim path. A trusted, named helper
+      // still chooses whether other helpers see their name; the recipient always
+      // does.
+      claimedNameVisible: showName === true,
     })
     .where(eq(slotsTable.id, invite.slotId!));
 
