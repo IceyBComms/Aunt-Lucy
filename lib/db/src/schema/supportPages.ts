@@ -31,7 +31,18 @@ export const supportPagesTable = pgTable("support_pages", {
   slug: text("slug").notNull().unique(),
   organiserId: text("organiser_id"),
   recipientName: text("recipient_name").notNull(),
+  // Legacy, unused single contact field — superseded by the two typed columns
+  // below. Left in place so no data is disturbed; not written by new code.
   recipientContact: text("recipient_contact"),
+  // Where to reach the recipient about their own page. Captured at activation
+  // (prefilled from the gift when we hold it, asked for when we don't) and
+  // editable later via /manage. recipient_email is the channel the claim
+  // notifications use now; recipient_mobile is captured optionally for SMS once
+  // that path is wired. Both nullable: a recipient may activate without leaving
+  // either, in which case notifications simply don't fire (the /manage "help
+  // arriving" view is the fallback).
+  recipientEmail: text("recipient_email"),
+  recipientMobile: text("recipient_mobile"),
   situationDescription: text("situation_description"),
   location: text("location"),
   // An optional free-text note the recipient writes at activation, shown to

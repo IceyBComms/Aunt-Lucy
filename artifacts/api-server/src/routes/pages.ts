@@ -59,10 +59,25 @@ router.get("/pages/:slug", async (req, res) => {
     slotTime: slot.slotTime,
     notes: slot.notes,
     isClaimed: slot.isClaimed,
-    claimedByName: slot.claimedByName ?? null,
-    claimedNote: slot.claimedNote ?? null,
+    // Name is shown to other helpers ONLY if the claimer opted in. Everyone else
+    // sees the ambient count below instead — hidden by default, never surprised
+    // into being shown. The recipient sees names via /manage, not this endpoint.
+    claimedByName: slot.claimedNameVisible ? (slot.claimedByName ?? null) : null,
+    // The claim note is a private message to the recipient — never public. It is
+    // surfaced on /manage, not here.
+    claimedNote: null,
     createdAt: slot.createdAt.toISOString(),
   }));
+
+  // Ambient presence: distinct people helping, deduped by claimed contact (which
+  // stays stable even when a helper's name is hidden). Someone who claimed two
+  // tasks counts once. Trusted-only slots are excluded here by the query above,
+  // so this reflects the public page — a warm signal, never a roster.
+  const helpingCount = new Set(
+    slots
+      .filter((s) => s.isClaimed)
+      .map((s) => s.claimedByContact ?? `slot:${s.id}`),
+  ).size;
 
   res.json({
     id: page.id,
@@ -73,6 +88,7 @@ router.get("/pages/:slug", async (req, res) => {
     status: page.status,
     privacy: page.privacy,
     goodToKnow: page.goodToKnow ?? null,
+    helpingCount,
     slots: publicSlots,
   });
 });

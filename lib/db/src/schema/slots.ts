@@ -36,6 +36,19 @@ export const slotsTable = pgTable("slots", {
   claimedByName: text("claimed_by_name"),
   claimedByContact: text("claimed_by_contact"),
   claimedNote: text("claimed_note"),
+  // When the slot was claimed. Drives the batched recipient notification (which
+  // claims are new) and the "when" shown on /manage. Null for claims made before
+  // this column existed — see the backfill in migration 0002.
+  claimedAt: timestamp("claimed_at"),
+  // The helper's opt-in choice at claim time. Default false: a helper's name is
+  // shown on the public /s/ page ONLY if they ticked "show my name". The
+  // recipient always sees the name on /manage regardless — that read is never
+  // gated by this flag. See CLAUDE.md "Helper visibility — presence vs names".
+  claimedNameVisible: boolean("claimed_name_visible").notNull().default(false),
+  // Set by the claim-notification dispatcher once this claim has been included
+  // in a batch to the recipient, so it is never notified twice. Backfilled to
+  // now() for pre-existing claims so they are treated as already-notified.
+  recipientNotifiedAt: timestamp("recipient_notified_at"),
   reminderSent: boolean("reminder_sent").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });

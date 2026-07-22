@@ -45,6 +45,10 @@ function trimmed(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function isEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
 function asSlotType(value: unknown): SlotType | null {
   return typeof value === "string" && SLOT_TYPES.includes(value as SlotType)
     ? (value as SlotType)
@@ -151,6 +155,10 @@ router.get("/gifts/:redemptionToken/review", async (req, res) => {
     // activation UI where the recipient can keep or tweak it (a placeholder
     // wording for now — see inviteCopy.ts).
     situationLine: defaultSituationLine(gift.occasion ?? null),
+    // Prefill the "where should we reach you?" field with the email we already
+    // hold from the gift, if any. Null when we hold none (self-setup, future
+    // physical-card gifts) — activation asks for it rather than assuming.
+    recipientEmail: gift.recipientEmail ?? null,
     canActivate: ACTIVATABLE.includes(gift.status),
     slug: null,
     status: null,
@@ -235,6 +243,20 @@ router.post("/gifts/:redemptionToken/activate", async (req, res) => {
   // task's notes; empty becomes null so no "good to know" card is rendered.
   const goodToKnow = trimmed(body.goodToKnow).slice(0, 500) || null;
 
+  // Where to reach the recipient about their own page — captured here so the
+  // Item 8 claim notifications are deliverable. Prefilled from the gift in the
+  // UI but sent explicitly, so a recipient with no gift email (self-setup,
+  // physical-card gifts) can supply one. Both optional: skip and notifications
+  // simply don't fire until an email is added via /manage. An email that
+  // doesn't look like one is rejected rather than silently stored unusable.
+  const recipientEmailRaw = trimmed(body.recipientEmail);
+  if (recipientEmailRaw && !isEmail(recipientEmailRaw)) {
+    res.status(400).json({ error: "That email address doesn't look right." });
+    return;
+  }
+  const recipientEmail = recipientEmailRaw || null;
+  const recipientMobile = trimmed(body.recipientMobile).slice(0, 40) || null;
+
   // Pronoun + situation line power the helper-invite copy sent in Item 5/6.
   // Occasion is carried from the gift; the situation line defaults from it and
   // is editable. Pronouns default to they/them when not supplied.
@@ -285,6 +307,10 @@ router.post("/gifts/:redemptionToken/activate", async (req, res) => {
         // No account, by design. See the note above.
         organiserId: null,
         recipientName: gift.recipientName,
+        // Fall back to the gift's email when the client sent none, so a plain
+        // "activate" still wires up notifications for the common gift path.
+        recipientEmail: recipientEmail ?? gift.recipientEmail ?? null,
+        recipientMobile,
         status: scheduledActivateAt ? "draft" : "active",
         scheduledActivateAt,
         goodToKnow,

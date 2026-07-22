@@ -8,11 +8,12 @@ const router: IRouter = Router();
 
 router.post("/slots/:slotId/claim", async (req, res) => {
   const { slotId } = req.params;
-  const { firstName, contact, note, pin } = req.body as {
+  const { firstName, contact, note, pin, showName } = req.body as {
     firstName: string;
     contact: string;
     note?: string;
     pin?: string;
+    showName?: boolean;
   };
 
   const firstNameTrimmed = typeof firstName === "string" ? firstName.trim() : "";
@@ -65,6 +66,11 @@ router.post("/slots/:slotId/claim", async (req, res) => {
       claimedByName: firstNameTrimmed,
       claimedByContact: contactTrimmed,
       claimedNote: note?.trim() ?? null,
+      claimedAt: new Date(),
+      // Opt-in, defaulting false: the name is shown to other helpers on the
+      // public page only if the helper ticked "show my name". The recipient sees
+      // it either way (via /manage), so this flag never hides it from them.
+      claimedNameVisible: showName === true,
     })
     .where(and(eq(slotsTable.id, slot.id), eq(slotsTable.isClaimed, false)))
     .returning();

@@ -561,6 +561,12 @@ components:
           description: >-
             An optional free-text note from the recipient, shown to every
             helper. Null when they didn't leave one.
+        helpingCount:
+          type: integer
+          description: >-
+            Ambient presence — the number of distinct people helping (deduped by
+            claimed contact), for the warm "N people helping" line. Carries the
+            warmth without naming anyone, so it is safe to show to everyone.
         slots:
           type: array
           items:
@@ -571,6 +577,7 @@ components:
         - recipientName
         - status
         - privacy
+        - helpingCount
         - slots
 
     ClaimSlotRequest:
@@ -583,6 +590,14 @@ components:
         note:
           type: string
           nullable: true
+        showName:
+          type: boolean
+          nullable: true
+          description: >-
+            The helper's opt-in choice: when true, their name is shown to other
+            helpers on the public page; when false or omitted, only the recipient
+            sees it (the public page shows an ambient count instead). Defaults to
+            false — hidden by default, never surprised into being shown.
         pin:
           type: string
           nullable: true
@@ -699,6 +714,13 @@ components:
           description: >-
             The default situation line for this occasion, prefilled into the
             activation UI (editable). Null once activated.
+        recipientEmail:
+          type: string
+          nullable: true
+          description: >-
+            The recipient's email as we already hold it (from the gift), to
+            prefill the "where should we reach you?" field at activation. Null
+            when we hold none — the field is then asked for, not assumed.
         manageToken:
           type: string
           nullable: true
@@ -773,6 +795,20 @@ components:
           description: >-
             The short, deliberately-vague phrase used in the invite copy
             ("Sarah's <situationLine>"). Defaults from the occasion when omitted.
+        recipientEmail:
+          type: string
+          nullable: true
+          description: >-
+            Where to reach the recipient about their own page — used for the
+            claim notifications. Captured at activation (prefilled from the gift
+            when held, asked for when not). Omit or null to skip; notifications
+            then don't fire until an email is added via /manage.
+        recipientMobile:
+          type: string
+          nullable: true
+          description: >-
+            Optional mobile for future SMS updates. Stored when supplied; no SMS
+            is sent yet.
       required:
         - tasks
 
@@ -861,6 +897,25 @@ components:
         claimedByName:
           type: string
           nullable: true
+          description: >-
+            Who claimed it. Always present to the recipient/manager regardless of
+            the helper's public-visibility choice — this is the "look who showed
+            up" payoff and is safe because it is shown only to the person the
+            help is for.
+        claimedNote:
+          type: string
+          nullable: true
+          description: The helper's optional message to the recipient, if left.
+        claimedAt:
+          type: string
+          nullable: true
+          description: When it was claimed (ISO), for the "help arriving" view.
+        slotDate:
+          type: string
+          nullable: true
+        slotTime:
+          type: string
+          nullable: true
       required:
         - id
         - slotType
@@ -945,6 +1000,16 @@ components:
         situationLine:
           type: string
           nullable: true
+        recipientEmail:
+          type: string
+          nullable: true
+          description: >-
+            Where the recipient is notified when help arrives. Editable here so a
+            recipient who skipped it at activation can add it. Null when none.
+        recipientMobile:
+          type: string
+          nullable: true
+          description: Optional mobile for future SMS updates. Null when none.
         bereavement:
           type: boolean
           description: When true the UI leads with self-share and waves are gated.
@@ -982,6 +1047,12 @@ components:
         situationLine:
           type: string
           nullable: true
+        recipientEmail:
+          type: string
+          nullable: true
+        recipientMobile:
+          type: string
+          nullable: true
       required:
         - recipientPronouns
 
@@ -993,6 +1064,16 @@ components:
         situationLine:
           type: string
           nullable: true
+        recipientEmail:
+          type: string
+          nullable: true
+          description: >-
+            Set/clear where claim notifications are sent. Send an empty string or
+            null to clear; a non-empty value must look like an email address.
+        recipientMobile:
+          type: string
+          nullable: true
+          description: Set/clear the optional mobile for future SMS updates.
 
     AddContactRequest:
       type: object

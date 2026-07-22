@@ -41,6 +41,11 @@ export const GetSupportPageResponse = zod.object({
     .describe(
       "An optional free-text note from the recipient, shown to every helper. Null when they didn't leave one.",
     ),
+  helpingCount: zod
+    .number()
+    .describe(
+      'Ambient presence — the number of distinct people helping (deduped by claimed contact), for the warm \"N people helping\" line. Carries the warmth without naming anyone, so it is safe to show to everyone.',
+    ),
   slots: zod.array(
     zod.object({
       id: zod.string(),
@@ -84,6 +89,12 @@ export const ClaimSlotBody = zod.object({
   firstName: zod.string(),
   contact: zod.string(),
   note: zod.string().nullish(),
+  showName: zod
+    .boolean()
+    .nullish()
+    .describe(
+      "The helper's opt-in choice: when true, their name is shown to other helpers on the public page; when false or omitted, only the recipient sees it (the public page shows an ambient count instead). Defaults to false — hidden by default, never surprised into being shown.",
+    ),
   pin: zod
     .string()
     .nullish()
@@ -193,6 +204,12 @@ export const GetGiftReviewResponse = zod.object({
     .describe(
       "The default situation line for this occasion, prefilled into the activation UI (editable). Null once activated.",
     ),
+  recipientEmail: zod
+    .string()
+    .nullish()
+    .describe(
+      'The recipient\'s email as we already hold it (from the gift), to prefill the \"where should we reach you?\" field at activation. Null when we hold none — the field is then asked for, not assumed.',
+    ),
   manageToken: zod
     .string()
     .nullish()
@@ -284,6 +301,18 @@ export const ActivateGiftBody = zod.object({
     .describe(
       'The short, deliberately-vague phrase used in the invite copy (\"Sarah\'s <situationLine>\"). Defaults from the occasion when omitted.',
     ),
+  recipientEmail: zod
+    .string()
+    .nullish()
+    .describe(
+      "Where to reach the recipient about their own page — used for the claim notifications. Captured at activation (prefilled from the gift when held, asked for when not). Omit or null to skip; notifications then don't fire until an email is added via \/manage.",
+    ),
+  recipientMobile: zod
+    .string()
+    .nullish()
+    .describe(
+      "Optional mobile for future SMS updates. Stored when supplied; no SMS is sent yet.",
+    ),
 });
 
 export const ActivateGiftResponse = zod.object({
@@ -326,6 +355,16 @@ export const GetManageStateResponse = zod.object({
       "How the recipient is referred to in the helper invite copy. Defaults to they_them so nothing is ever assumed.",
     ),
   situationLine: zod.string().nullish(),
+  recipientEmail: zod
+    .string()
+    .nullish()
+    .describe(
+      "Where the recipient is notified when help arrives. Editable here so a recipient who skipped it at activation can add it. Null when none.",
+    ),
+  recipientMobile: zod
+    .string()
+    .nullish()
+    .describe("Optional mobile for future SMS updates. Null when none."),
   bereavement: zod
     .boolean()
     .describe("When true the UI leads with self-share and waves are gated."),
@@ -346,7 +385,22 @@ export const GetManageStateResponse = zod.object({
       label: zod.string(),
       trustedHelpersOnly: zod.boolean(),
       isClaimed: zod.boolean(),
-      claimedByName: zod.string().nullish(),
+      claimedByName: zod
+        .string()
+        .nullish()
+        .describe(
+          'Who claimed it. Always present to the recipient\/manager regardless of the helper\'s public-visibility choice — this is the \"look who showed up\" payoff and is safe because it is shown only to the person the help is for.',
+        ),
+      claimedNote: zod
+        .string()
+        .nullish()
+        .describe("The helper's optional message to the recipient, if left."),
+      claimedAt: zod
+        .string()
+        .nullish()
+        .describe('When it was claimed (ISO), for the \"help arriving\" view.'),
+      slotDate: zod.string().nullish(),
+      slotTime: zod.string().nullish(),
     }),
   ),
   contacts: zod.array(
@@ -389,6 +443,16 @@ export const UpdateManageDetailsBody = zod.object({
       "How the recipient is referred to in the helper invite copy. Defaults to they_them so nothing is ever assumed.",
     ),
   situationLine: zod.string().nullish(),
+  recipientEmail: zod
+    .string()
+    .nullish()
+    .describe(
+      "Set\/clear where claim notifications are sent. Send an empty string or null to clear; a non-empty value must look like an email address.",
+    ),
+  recipientMobile: zod
+    .string()
+    .nullish()
+    .describe("Set\/clear the optional mobile for future SMS updates."),
 });
 
 export const UpdateManageDetailsResponse = zod.object({

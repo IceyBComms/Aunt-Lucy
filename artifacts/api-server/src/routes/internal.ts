@@ -5,13 +5,21 @@ import {
   giftsTable,
   giftMessagesTable,
   supportPagesTable,
+  slotsTable,
+  pageGrantsTable,
   helperInvitesTable,
   contactsTable,
 } from "@workspace/db";
-import { and, eq, inArray, isNotNull, lte } from "drizzle-orm";
+import { and, eq, inArray, isNull, isNotNull, lte, ne } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import { firstName, giftLinkFor } from "../lib/giftFulfilment";
-import { sendActivationReminder, sendGiftDelivery, sendHelperInviteEmail } from "../lib/email";
+import {
+  sendActivationReminder,
+  sendGiftDelivery,
+  sendHelperInviteEmail,
+  sendRecipientClaimNotification,
+  type RecipientClaimItem,
+} from "../lib/email";
 import { sendSms } from "../lib/sms";
 import { getAppBaseUrl } from "../lib/appUrl";
 import {
@@ -344,5 +352,134 @@ router.post("/internal/dispatch-invites", async (req, res) => {
   logger.info({ claimed: claimed.length, sent, failed, cancelled }, "Invite dispatch run complete");
   res.json({ claimed: claimed.length, sent, failed, cancelled });
 });
+
+/**
+ * POST /api/internal/dispatch-claim-notifications — tell the recipient help
+ * arrived (Item 8).
+ *
+ * Shares the cron with the other internal jobs. Batches by page: every claimed
+ * slot not yet notified is gathered into ONE email per page, so a flurry of
+ * claims becomes a single warm note rather than a stream of pings.
+ *
+ * Only pages that actually hold a recipient_email are considered — a page with
+ * none is left pending (not stamped), so the moment an email is added via
+ * /manage the next run picks the backlog up. Nothing is ever lost; the /manage
+ * "help arriving" view is the always-on fallback in the meantime.
+ *
+ * Claim-then-send: the pending slots are stamped notified up front (atomically,
+ * so two overlapping runs can't both grab them). On a send failure the stamp is
+ * reverted so the next run retries — for this feature eventual delivery matters
+ * more than the rare duplicate.
+ */
+router.post("/internal/dispatch-claim-notifications", async (req, res) => {
+  if (!cronAuthorised(req, res)) return;
+
+  const base = getAppBaseUrl();
+
+  // Pages with at least one un-notified claim AND somewhere to send it.
+  const candidates = await db
+    .selectDistinct({ pageId: slotsTable.pageId })
+    .from(slotsTable)
+    .innerJoin(supportPagesTable, eq(slotsTable.pageId, supportPagesTable.id))
+    .where(
+      and(
+        eq(slotsTable.isClaimed, true),
+        isNull(slotsTable.recipientNotifiedAt),
+        isNotNull(supportPagesTable.recipientEmail),
+        ne(supportPagesTable.status, "closed"),
+      ),
+    )
+    .limit(BATCH_LIMIT);
+
+  let pagesNotified = 0;
+  let claimsNotified = 0;
+  let failed = 0;
+
+  for (const { pageId } of candidates) {
+    const now = new Date();
+
+    // Atomically claim this page's pending slots by stamping them. RETURNING
+    // gives us exactly the rows this run owns — concurrency-safe.
+    const rows = await db
+      .update(slotsTable)
+      .set({ recipientNotifiedAt: now })
+      .where(
+        and(
+          eq(slotsTable.pageId, pageId),
+          eq(slotsTable.isClaimed, true),
+          isNull(slotsTable.recipientNotifiedAt),
+        ),
+      )
+      .returning();
+
+    if (rows.length === 0) continue; // another run beat us to it
+
+    const page = await db.query.supportPagesTable.findFirst({
+      where: eq(supportPagesTable.id, pageId),
+    });
+    if (!page || !page.recipientEmail) {
+      // Lost the email between select and now — release the rows for a retry.
+      await releaseNotificationStamp(rows.map((r) => r.id), now);
+      continue;
+    }
+
+    // The recipient's own management link — "see who's helping".
+    const grant = await db.query.pageGrantsTable.findFirst({
+      where: and(eq(pageGrantsTable.pageId, pageId), eq(pageGrantsTable.role, "recipient")),
+    });
+    const manageLink = grant
+      ? `${base}/manage/${grant.token}`
+      : `${base}/s/${page.slug}`;
+
+    const claims: RecipientClaimItem[] = rows.map((s) => ({
+      helperName: s.claimedByName ?? "A friend",
+      slotType: s.slotType,
+      customLabel: s.customLabel,
+      slotDate: s.slotDate,
+      slotTime: s.slotTime,
+      note: s.claimedNote,
+    }));
+
+    const ok = await sendRecipientClaimNotification({
+      to: page.recipientEmail,
+      recipientFirstName: firstName(page.recipientName),
+      manageLink,
+      claims,
+    });
+
+    if (ok) {
+      pagesNotified += 1;
+      claimsNotified += rows.length;
+    } else {
+      failed += 1;
+      // Revert so the next run retries rather than dropping the news entirely.
+      await releaseNotificationStamp(rows.map((r) => r.id), now);
+    }
+  }
+
+  logger.info(
+    { considered: candidates.length, pagesNotified, claimsNotified, failed },
+    "Claim-notification dispatch run complete",
+  );
+  res.json({ considered: candidates.length, pagesNotified, claimsNotified, failed });
+});
+
+/**
+ * Reverts a notification stamp back to null for the given slots, but only the
+ * ones this run set (matched on the exact timestamp), so a concurrent run's
+ * stamps are never clobbered.
+ */
+async function releaseNotificationStamp(slotIds: string[], stamp: Date): Promise<void> {
+  if (slotIds.length === 0) return;
+  await db
+    .update(slotsTable)
+    .set({ recipientNotifiedAt: null })
+    .where(
+      and(
+        inArray(slotsTable.id, slotIds),
+        eq(slotsTable.recipientNotifiedAt, stamp),
+      ),
+    );
+}
 
 export default router;
