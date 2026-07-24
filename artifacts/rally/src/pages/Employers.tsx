@@ -23,44 +23,25 @@ const stagger = {
   animate: { transition: { staggerChildren: 0.12 } },
 };
 
-const STATS = [
-  {
-    stat: "1 in 5 new mothers and 1 in 10 new fathers in Australia experience perinatal depression and anxiety. With the right support around them, that risk drops significantly.",
-    source: "Gidget Foundation Australia",
-  },
-  {
-    stat: "Social support reduces the prevalence of postnatal depression by 30–40%. Practical help — meals, errands, someone to walk the dog — isn't just kind. It's protective.",
-    source: "Clinical and Experimental Obstetrics & Gynecology, 2023",
-  },
-];
-
 const STEPS = [
   {
-    title: "You gift it",
-    body: "Purchase an Aunt Lucy page for your employee as part of their parental leave send-off. Available individually or in bulk. Invoice billing available for 10-pack and above.",
+    title: "You gift it.",
+    body: "Buy an Aunt Lucy page for your team member, invite colleagues to sign it with their own warm notes, and choose when it arrives. Two minutes. No IT, no logins.",
   },
   {
-    title: "Your team signs the card",
-    body: "Share a private link with colleagues before delivery day. Everyone leaves a short warm note — no account needed, takes 60 seconds. Everything is held until delivery.",
+    title: "They add their trusted circle.",
+    // NOTE: the "hand the whole thing to a partner or friend to run" promise below
+    // is copy-approved but the hand-off control (name + phone) in the activation
+    // flow is NOT yet wired — see PR notes / checks A. Kept verbatim per brief.
+    body: "When they've got a quiet moment, they tell Aunt Lucy what they'll need and who they trust — family, friends, colleagues. Not up to it? They can hand the whole thing to a partner or friend to run for them. Nothing's live yet.",
   },
   {
-    title: "Your employee receives something genuinely special",
-    body: "On their last day — or whenever you choose — they receive a beautifully designed digital gift. Their name. Your organisation's message. Every colleague note, revealed as they scroll.",
-  },
-  {
-    title: "They set it up before leave starts",
-    body: "While they still have energy, they configure their support page — what help they need, who they trust, when visitors are welcome. Everything is ready. Nothing is live yet.",
-  },
-  {
-    title: "They launch it when the moment comes",
-    body: "When labour starts, when they get home from hospital, when they're ready — one button. Their support network is notified. Helpers claim slots. Eight weeks of real support begins.",
-  },
-  {
-    title: "You've done something that lasts",
-    body: "Not flowers that die in a week. Not a hamper that's gone in two days. Eight weeks of coordinated practical support — and an employee who knows their workplace genuinely showed up for them.",
+    title: "Aunt Lucy takes it from there.",
+    body: "One tap, and the support begins to flow — meals, lifts, whatever's needed, and for weeks, not just the first rushed few days.",
   },
 ];
 
+// Reuses Home's slot grid — same items, so the two pages read as siblings.
 const SLOT_TYPES = [
   { icon: Utensils, label: "Meals and food delivery" },
   { icon: ShoppingBag, label: "Grocery runs" },
@@ -71,73 +52,58 @@ const SLOT_TYPES = [
   { icon: BellOff, label: "\"No visitors this week\"" },
 ];
 
-const PRICING = [
-  {
-    name: "Individual gift",
-    price: "$79",
-    detail: "One employee. The most thoughtful parental leave send-off you can give.",
-    cta: "Gift an individual page",
-  },
-  {
-    name: "5-pack",
-    price: "$329",
-    sub: "$65.80 per gift — save $66",
-    detail: "For teams with a few employees going on leave through the year.",
-    cta: "Buy a 5-pack",
-    featured: true,
-  },
-  {
-    name: "10-pack",
-    price: "$549",
-    sub: "$54.90 per gift — save $241",
-    detail: "Best value for organisations with regular parental leave activity.",
-    cta: "Buy a 10-pack",
-  },
-  {
-    name: "Annual subscription",
-    price: "Let's talk",
-    detail: "Unlimited pages, invoice billing, priority support, optional custom branding.",
-    cta: "Book a chat",
-  },
-];
-
-const FAQ = [
-  {
-    q: "What if our employee doesn't want to activate it?",
-    a: "No problem. The gift code is valid for 12 months. They set it up and launch it only when they're ready — nothing goes live until they choose. If they never use it, the gift still delivered something real: the warm notes from their team on their last day.",
-  },
-  {
-    q: "What's the admin burden on us?",
-    a: "Close to zero. You purchase, receive a gift code, and share a signing link with your team. Aunt Lucy handles everything else.",
-  },
-  {
-    q: "Do helpers need to download an app or create an account?",
-    a: "No. Helpers click a link, see what's needed, and claim a slot. That's it.",
-  },
-  {
-    q: "Can we add our own message?",
-    a: "Yes. At purchase you write a personal note from your organisation. It appears prominently in the gift your employee receives.",
-  },
-  {
-    q: "Does this work for all types of parental leave?",
-    a: "Yes — Aunt Lucy works for mothers, fathers, non-birthing partners, adoptive parents and families via surrogacy. Any new parent going on leave.",
-  },
-  {
-    q: "Do you offer invoicing?",
-    a: "Yes for the 10-pack and annual subscription. Individual and 5-pack purchases are by card via our secure Stripe checkout.",
-  },
-  {
-    q: "Can we use Aunt Lucy for other life events?",
-    a: "Right now Aunt Lucy is focused on the new parent experience. Broader life event support is on the roadmap.",
-  },
-];
-
 export default function Employers() {
   const [, setLocation] = useLocation();
 
+  // "Enquire about packs" is an enquiry, NOT an instant purchase — multi-gift
+  // pack fulfilment isn't built, so this must never point at a Stripe pack link.
+  // Uses the same support address already used elsewhere in the app.
+  const packEnquiryHref =
+    "mailto:hello@auntlucy.com.au?subject=Aunt%20Lucy%20%E2%80%94%20multi-gift%20pack%20enquiry";
+
+  const FAQ: { q: string; a: React.ReactNode }[] = [
+    {
+      q: "Does our employee have to do anything?",
+      a: "Only when they're ready — they open a page that's already set up and tap \"make it live\". And if they're not up to it themselves, they can hand the whole page to a partner or friend to set up and run for them. No account, ever.",
+    },
+    {
+      q: "Does this need IT, an integration or a login?",
+      a: "None of it. There's nothing to install, no system to connect, no SSO, no admin access — you buy a gift page like any online purchase. Your IT team doesn't need to be involved.",
+    },
+    {
+      q: "Can the company see their page or what they're going through?",
+      a: "No. You're the giver, not an admin — you don't get access to their page, their tasks, or any personal details. That stays between them and the people they choose to let in.",
+    },
+    {
+      q: "Is their information secure?",
+      a: (
+        <>
+          Yes. Each page is private, reached only by its own secure link, and
+          sensitive tasks are only ever shown to the people they trust.
+          Everything's handled under our{" "}
+          <button
+            onClick={() => setLocation("/privacy")}
+            className="text-primary underline underline-offset-2 hover:text-primary/80 transition-colors"
+          >
+            Privacy Policy
+          </button>
+          , with extra care for sensitive information.
+        </>
+      ),
+    },
+    {
+      q: "Can the whole team sign it?",
+      a: "Yes — invite colleagues to add their own warm notes before it's sent, so it arrives as a message from everyone, not just one name.",
+    },
+    {
+      q: "Can we brand it as ours?",
+      a: "On the roadmap for larger orgs — mention it when you enquire.",
+    },
+  ];
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      {/* Nav */}
+      {/* Nav — logo returns home, Sign in for organisers/admins */}
       <nav className="w-full px-6 py-5">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
           <button
@@ -168,45 +134,38 @@ export default function Employers() {
           className="inline-flex items-center gap-2 bg-primary/8 text-primary text-sm font-medium px-4 py-1.5 rounded-full mb-8"
         >
           <Heart className="w-3.5 h-3.5 fill-primary/30" />
-          Aunt Lucy for Employers
+          For HR &amp; People teams · Free for helpers · No app needed
         </motion.div>
 
         <motion.h1
           variants={fadeUp}
           className="font-serif text-5xl sm:text-6xl font-bold text-foreground leading-[1.1] mb-6 max-w-3xl"
         >
-          The parental leave gift that{" "}
-          <span className="text-primary">actually helps.</span>
+          Give your people help,{" "}
+          <span className="text-primary">not more stuff.</span>
         </motion.h1>
 
         <motion.p
           variants={fadeUp}
-          className="text-xl text-muted-foreground leading-relaxed max-w-xl mb-8"
+          className="font-serif text-2xl sm:text-3xl text-foreground leading-snug mb-6"
         >
-          Most employers send flowers. The best ones send an Aunt Lucy.
+          Gift someone on your team their own Aunt Lucy.
         </motion.p>
 
         <motion.p
           variants={fadeUp}
-          className="text-lg text-muted-foreground leading-relaxed max-w-2xl mb-8"
+          className="text-lg text-muted-foreground leading-relaxed max-w-xl mb-4"
         >
-          When an employee goes on parental leave, they receive a lot of
-          goodwill. What they rarely get is organised, practical support for the
-          weeks when they need it most. Aunt Lucy changes that. You gift your
-          employee a private support page. Before their leave starts, while they
-          still have energy and clarity, they set it up exactly how they want —
-          the help they need, who they trust, when visitors are welcome. Then
-          when the moment comes — baby has arrived, they're heading to hospital,
-          they're finally home — they hit one button. Their support network is
-          notified. The help begins. They don't have to think about it again.
+          Aunt Lucy is the warm, organised friend who takes charge when life gets
+          full-on — sorting the meals, picking up the kids, making endless cups
+          of tea.
         </motion.p>
 
         <motion.p
           variants={fadeUp}
-          className="font-serif text-lg font-semibold text-foreground max-w-xl mb-10"
+          className="text-lg text-foreground font-medium leading-relaxed max-w-xl mb-10"
         >
-          You gift it. They set it up on their terms. Their people show up when
-          it counts.
+          Everyone signs the card. This is how your team actually shows up.
         </motion.p>
 
         <motion.div variants={fadeUp} className="flex flex-col items-center gap-4">
@@ -216,13 +175,15 @@ export default function Employers() {
             variant="accent"
             className="text-base px-8 py-6 h-auto font-serif shadow-lg shadow-accent/20 hover:shadow-accent/30 transition-shadow"
           >
-            {/* Placeholder — Stripe checkout link added later */}
-            <a href="#">Gift it to your team</a>
+            {/* → /buy, Workplace $79 tier. Placeholder href — the app's per-tier
+                Stripe payment links (Item 2) aren't wired yet; there's no /buy
+                route. Matches the existing placeholder convention on Home. */}
+            <a href="#">Gift Aunt Lucy</a>
           </Button>
         </motion.div>
       </motion.section>
 
-      {/* Who is Aunt Lucy */}
+      {/* The problem */}
       <section className="bg-card border-t border-border/50 py-20 px-6">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -232,111 +193,23 @@ export default function Employers() {
           className="max-w-2xl mx-auto text-center"
         >
           <h2 className="font-serif text-3xl font-bold text-foreground mb-5">
-            Who is Aunt Lucy?
+            You want to do something real. You send flowers.
           </h2>
-          <p className="text-muted-foreground leading-relaxed text-lg">
-            You know an Aunt Lucy. She's the one who quietly sorted everything
-            when your family needed it most — no fuss, no fanfare, just the right
-            person appearing with the right thing at the right time. She brings
-            the food nobody asked for but everyone needed. She handles the
-            awkward conversations. She makes everything feel manageable without
-            ever making a fuss about it. Not everyone is lucky enough to have an
-            Aunt Lucy. But everyone deserves one. That's what this gives your
-            employee.
+          <p className="text-muted-foreground leading-relaxed text-lg mb-6">
+            When someone on your team has a baby, an operation, or a family
+            emergency, everyone wants to help. So you sign a card, send flowers,
+            point them at the EAP — and quietly hope it's enough. But what they
+            need is dinner handled and the school run covered, for more than a
+            day.
           </p>
-        </motion.div>
-      </section>
-
-      {/* Why this matters */}
-      <section className="py-20 px-6">
-        <div className="max-w-3xl mx-auto">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.45 }}
-            className="max-w-2xl mx-auto text-center mb-12"
-          >
-            <h2 className="font-serif text-3xl font-bold text-foreground mb-5">
-              Why this matters
-            </h2>
-            <p className="text-muted-foreground leading-relaxed text-lg">
-              New parents are navigating one of the most significant transitions
-              of their lives — often while managing financial pressure, physical
-              recovery, sleep deprivation and the emotional weight of a
-              completely new identity. The research is clear that practical
-              support during this period makes a real difference:
-            </p>
-          </motion.div>
-
-          <div className="grid sm:grid-cols-2 gap-6 mb-12">
-            {STATS.map((item, i) => (
-              <motion.div
-                key={item.source}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.4, delay: i * 0.1 }}
-                className="bg-card border border-border/60 rounded-2xl p-7 text-left"
-              >
-                <p className="text-foreground leading-relaxed mb-4">
-                  {item.stat}
-                </p>
-                <p className="text-sm text-muted-foreground italic">
-                  {item.source}
-                </p>
-              </motion.div>
-            ))}
-          </div>
-
-          <motion.p
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.45 }}
-            className="max-w-2xl mx-auto text-center text-muted-foreground leading-relaxed text-lg"
-          >
-            Employees who feel genuinely supported during parental leave are more
-            likely to return, more likely to stay, and more likely to speak well
-            of where they work. The business case is real. But the human case is
-            stronger.
-          </motion.p>
-        </div>
-      </section>
-
-      {/* The feature HR managers love */}
-      <section className="bg-card border-t border-border/50 py-20 px-6">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.45 }}
-          className="max-w-2xl mx-auto text-center"
-        >
-          <p className="text-sm font-medium text-primary uppercase tracking-wide mb-3">
-            The feature HR managers love
-          </p>
-          <h2 className="font-serif text-3xl font-bold text-foreground mb-5">
-            Set up before leave. Launch when it counts.
-          </h2>
-          <p className="text-muted-foreground leading-relaxed text-lg">
-            Most parental support tools assume the person who needs help will
-            organise it. That's the wrong assumption. Aunt Lucy works
-            differently. Your employee receives their gift while they still have
-            capacity — before the baby arrives, before the exhaustion sets in.
-            They set up their support page in their own time: meals, errands,
-            school pickups for older kids, visiting preferences, trusted helpers
-            for sensitive tasks. Everything is ready. Nothing is live. Then when
-            the moment comes — one button. Their network is notified. Eight weeks
-            of coordinated support begins. They don't have to manage a thing.
-            This is the feature that makes Aunt Lucy genuinely useful rather than
-            just thoughtful.
+          <p className="font-serif text-xl text-foreground leading-relaxed">
+            That's Aunt Lucy's job: one page, one link, everything handled.
           </p>
         </motion.div>
       </section>
 
       {/* How it works */}
-      <section className="py-20 px-6">
+      <section className="bg-card border-t border-border/50 py-20 px-6">
         <div className="max-w-3xl mx-auto">
           <h2 className="font-serif text-3xl font-bold text-foreground text-center mb-14">
             How it works
@@ -352,7 +225,7 @@ export default function Employers() {
                 transition={{ duration: 0.4, delay: i * 0.1 }}
                 className="flex flex-col items-center text-center"
               >
-                <div className="w-14 h-14 bg-primary/10 rounded-2xl flex items-center justify-center text-primary font-serif text-xl font-bold mb-5">
+                <div className="w-14 h-14 bg-accent text-accent-foreground rounded-full flex items-center justify-center font-serif text-2xl font-bold mb-5">
                   {i + 1}
                 </div>
                 <h3 className="font-serif text-lg font-semibold text-foreground mb-2">
@@ -366,14 +239,14 @@ export default function Employers() {
       </section>
 
       {/* Real help, not vague offers */}
-      <section className="bg-card border-t border-border/50 py-20 px-6">
+      <section className="py-20 px-6">
         <div className="max-w-3xl mx-auto text-center">
           <h2 className="font-serif text-3xl font-bold text-foreground mb-3">
             Real help, not vague offers
           </h2>
           <p className="text-muted-foreground mb-12">
-            Helpers click one link, see what's needed, and claim a slot. No app.
-            No account. No fuss.
+            Helpers tap one link, see what's needed, and claim a slot. No app. No
+            account. No fuss.
           </p>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
             {SLOT_TYPES.map((type, i) => (
@@ -383,7 +256,7 @@ export default function Employers() {
                 whileInView={{ opacity: 1, scale: 1 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.3, delay: i * 0.05 }}
-                className="bg-background border border-border/60 rounded-2xl p-5 flex flex-col items-center gap-3"
+                className="bg-card border border-border/60 rounded-2xl p-5 flex flex-col items-center gap-3"
               >
                 <div className="w-11 h-11 bg-primary/8 rounded-xl flex items-center justify-center">
                   <type.icon className="w-5 h-5 text-primary" />
@@ -395,75 +268,111 @@ export default function Employers() {
         </div>
       </section>
 
+      {/* Why it's worth it — HR-only business case */}
+      <section className="bg-card border-t border-border/50 py-20 px-6">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.45 }}
+          className="max-w-2xl mx-auto text-center"
+        >
+          <p className="text-sm font-medium text-primary uppercase tracking-wide mb-3">
+            Why it's worth it
+          </p>
+          <h2 className="font-serif text-3xl font-bold text-foreground mb-6">
+            Looking after people is good business.
+          </h2>
+          <p className="text-muted-foreground leading-relaxed text-lg mb-5">
+            How you treat someone in their hardest week is what they remember.
+            Only{" "}
+            <strong className="font-semibold text-foreground">24%</strong> of
+            employees strongly agree their employer cares about their wellbeing —
+            and the ones who do are{" "}
+            <strong className="font-semibold text-foreground">
+              69% less likely to be job-hunting
+            </strong>{" "}
+            and{" "}
+            <strong className="font-semibold text-foreground">
+              five times more likely to recommend
+            </strong>{" "}
+            you <span className="italic">(Gallup)</span>. Replacing someone who
+            leaves costs{" "}
+            <strong className="font-semibold text-foreground">
+              half to twice their salary
+            </strong>{" "}
+            <span className="italic">(SHRM)</span>.
+          </p>
+          <p className="text-muted-foreground leading-relaxed text-lg">
+            It matters most for new parents: up to{" "}
+            <strong className="font-semibold text-foreground">
+              1 in 5 mums and 1 in 10 dads
+            </strong>{" "}
+            face anxiety or depression after a baby{" "}
+            <span className="italic">(PANDA)</span>, and practical support in
+            those early weeks is one of the strongest{" "}
+            <strong className="font-semibold text-foreground">
+              protective factors
+            </strong>{" "}
+            there is.
+          </p>
+        </motion.div>
+      </section>
+
       {/* Pricing */}
       <section className="py-20 px-6">
-        <div className="max-w-4xl mx-auto">
-          <div className="text-center mb-14">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.45 }}
+          className="max-w-3xl mx-auto flex flex-col sm:flex-row items-center gap-10"
+        >
+          <div className="flex-1 text-left">
             <p className="text-sm font-medium text-primary uppercase tracking-wide mb-2">
               Pricing
             </p>
-            <h2 className="font-serif text-3xl font-bold text-foreground mb-3">
-              Choose what fits your team.
+            <h2 className="font-serif text-3xl font-bold text-foreground mb-4">
+              One team member. Eight weeks of real support.
             </h2>
-            <p className="text-muted-foreground">
-              All prices in AUD and include GST.
+            <p className="text-muted-foreground leading-relaxed mb-4">
+              $79 for one Aunt Lucy gift page, valid for 12 months. Eight weeks
+              of coordinated support from the moment they need it. GST included.
+            </p>
+            <p className="text-muted-foreground leading-relaxed">
+              Buying for the whole organisation? We do 5- and 10-packs at a lower
+              per-gift price, set up with you directly so every gift's looked
+              after properly.
             </p>
           </div>
-
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
-            {PRICING.map((tier, i) => (
-              <motion.div
-                key={tier.name}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.4, delay: i * 0.08 }}
-                className={`rounded-2xl p-6 flex flex-col border ${
-                  tier.featured
-                    ? "border-primary/40 bg-card shadow-lg shadow-primary/5"
-                    : "border-border/60 bg-card"
-                }`}
-              >
-                {tier.featured && (
-                  <span className="self-start bg-primary/10 text-primary text-xs font-medium px-3 py-1 rounded-full mb-4">
-                    Popular
-                  </span>
-                )}
-                <h3 className="font-serif text-lg font-semibold text-foreground mb-2">
-                  {tier.name}
-                </h3>
-                <p className="font-serif text-3xl font-bold text-foreground mb-1">
-                  {tier.price}
-                </p>
-                {tier.sub && (
-                  <p className="text-sm text-primary font-medium mb-3">{tier.sub}</p>
-                )}
-                <p className="text-sm text-muted-foreground leading-relaxed flex-1 mb-6">
-                  {tier.detail}
-                </p>
-                <Button
-                  asChild
-                  variant={tier.featured ? "default" : "outline"}
-                  className={`w-full font-serif ${
-                    tier.featured
-                      ? ""
-                      : "border-primary/40 text-primary hover:bg-primary/5"
-                  }`}
-                >
-                  {/* Placeholder — Stripe checkout / booking link added later */}
-                  <a href="#">{tier.cta}</a>
-                </Button>
-              </motion.div>
-            ))}
+          <div className="shrink-0 flex flex-col gap-3">
+            <Button
+              asChild
+              size="lg"
+              variant="outline"
+              className="font-serif text-base border-primary/40 text-primary hover:bg-primary/5"
+            >
+              {/* → /buy, Workplace $79 tier. Placeholder href — see hero note. */}
+              <a href="#">Gift Aunt Lucy — $79</a>
+            </Button>
+            <Button
+              asChild
+              size="lg"
+              variant="ghost"
+              className="font-serif text-base text-muted-foreground hover:text-foreground"
+            >
+              {/* Enquiry only — NOT a pack payment link (packs aren't fulfilled yet). */}
+              <a href={packEnquiryHref}>Enquire about packs</a>
+            </Button>
           </div>
-        </div>
+        </motion.div>
       </section>
 
-      {/* FAQ */}
+      {/* Questions / FAQ */}
       <section className="bg-card border-t border-border/50 py-20 px-6">
         <div className="max-w-2xl mx-auto">
           <h2 className="font-serif text-3xl font-bold text-foreground text-center mb-12">
-            Frequently asked questions
+            Questions
           </h2>
           <div className="flex flex-col gap-3">
             {FAQ.map((item) => (
@@ -484,66 +393,65 @@ export default function Employers() {
         </div>
       </section>
 
-      {/* Footer CTA */}
+      {/* The close */}
       <section className="bg-primary py-20 px-6 text-center">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.5 }}
-          className="max-w-2xl mx-auto"
+          className="max-w-xl mx-auto"
         >
           <h2 className="font-serif text-4xl font-bold text-primary-foreground mb-10">
-            Ready to give your team something that actually helps?
+            Your people deserve more than another bunch of flowers.
           </h2>
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-6">
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <Button
               asChild
               size="lg"
-              className="bg-white text-primary hover:bg-white/90 text-base px-6 py-6 h-auto font-serif shadow-xl"
+              className="bg-white text-primary hover:bg-white/90 text-base px-8 py-6 h-auto font-serif shadow-xl"
             >
-              {/* Placeholder — Stripe checkout link added later */}
-              <a href="#">Gift an individual page — $79</a>
+              {/* → /buy, Workplace $79 tier. Placeholder href — see hero note. */}
+              <a href="#">Gift Aunt Lucy — $79</a>
             </Button>
             <Button
               asChild
               size="lg"
-              className="bg-white/15 text-primary-foreground hover:bg-white/25 text-base px-6 py-6 h-auto font-serif border border-white/30"
+              className="bg-white/15 text-primary-foreground hover:bg-white/25 text-base px-8 py-6 h-auto font-serif border border-white/30"
             >
-              {/* Placeholder — Stripe checkout link added later */}
-              <a href="#">Buy a 5-pack — $329</a>
-            </Button>
-            <Button
-              asChild
-              size="lg"
-              className="bg-white/15 text-primary-foreground hover:bg-white/25 text-base px-6 py-6 h-auto font-serif border border-white/30"
-            >
-              {/* Placeholder — Stripe checkout link added later */}
-              <a href="#">Buy a 10-pack — $549</a>
+              {/* Enquiry only — NOT a pack payment link. */}
+              <a href={packEnquiryHref}>Enquire about packs</a>
             </Button>
           </div>
-          <p className="text-primary-foreground/70 text-sm max-w-lg mx-auto leading-relaxed">
-            Need more than 10, want invoice billing, or want to talk it through?
-            Email{" "}
-            <a
-              href="mailto:hello@auntlucy.com.au"
-              className="underline underline-offset-2 hover:text-primary-foreground transition-colors"
-            >
-              hello@auntlucy.com.au
-            </a>
+          <p className="text-primary-foreground/50 text-sm mt-4">
+            Two minutes to gift · Free for helpers · No app needed
           </p>
         </motion.div>
       </section>
 
-      {/* Footer */}
+      {/* Footer — same tribute as Home */}
       <footer className="border-t border-border/50 py-8 px-6">
+        <p className="max-w-2xl mx-auto text-center text-sm text-muted-foreground leading-relaxed mb-8">
+          Aunt Lucy is named for every warm, capable, quietly brilliant woman
+          who's ever shown up with a casserole, taken the kids for an afternoon,
+          and made everything feel manageable again. This is to honour her — and
+          provide support to everyone who needs her.
+        </p>
         <div className="max-w-4xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
           <div className="flex items-center gap-2">
             <Heart className="w-4 h-4 text-primary fill-primary/20" />
             <span className="font-serif font-semibold text-foreground">Aunt Lucy</span>
             <span>· auntlucy.com.au</span>
           </div>
-          <p>Built in Australia for Australian families.</p>
+          <div className="flex items-center gap-4">
+            <p>© {new Date().getFullYear()} Aunt Lucy. Made with care in Australia.</p>
+            <button
+              onClick={() => setLocation("/privacy")}
+              className="underline underline-offset-2 hover:text-foreground transition-colors"
+            >
+              Privacy policy
+            </button>
+          </div>
         </div>
       </footer>
     </div>
