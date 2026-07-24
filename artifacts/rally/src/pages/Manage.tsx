@@ -204,16 +204,20 @@ export function Manage() {
       )}
 
       {/* Help arriving (Item 8) — the "watch help arrive" payoff. The recipient
-          always sees who claimed, regardless of the helper's public choice.
-          PLACEHOLDER copy — Kate to approve. */}
-      {claimedTasks.length > 0 && (
-        <section className="mb-7">
-          <h2 className="mb-1 font-serif text-[1.15rem] font-semibold text-[#2c2c2c]">
-            Help on the way 💛
-          </h2>
-          <p className="mb-3 text-[0.9rem] text-[#8b7e74]">
-            People who've stepped in — nothing for you to do, just lovely to see.
+          always sees who claimed, regardless of the helper's public choice. */}
+      <section className="mb-7">
+        <h2 className="mb-1 font-serif text-[1.15rem] font-semibold text-[#2c2c2c]">
+          Support is on the way 💛
+        </h2>
+        <p className="mb-3 text-[0.9rem] text-[#8b7e74]">
+          The people who've said yes. Nothing for you to do — just lovely to see.
+        </p>
+        {claimedTasks.length === 0 ? (
+          <p className="rounded-[1rem] border border-dashed border-[#e7ddd0] bg-white px-4 py-4 text-[0.9rem] text-[#8b7e74]">
+            No one's claimed a task just yet — but the moment someone does, they'll
+            appear here, and we'll drop you a little note too.
           </p>
+        ) : (
           <div className="flex flex-col gap-2.5">
             {claimedTasks.map((t) => {
               const when = formatWhen(t.slotDate ?? null, t.slotTime ?? null);
@@ -239,17 +243,18 @@ export function Manage() {
               );
             })}
           </div>
-        </section>
-      )}
+        )}
+      </section>
 
       {/* Where we'll reach you (Item 8) — editable so a recipient who skipped it
-          at activation can add it. PLACEHOLDER copy — Kate to approve. */}
+          at activation can add it. */}
       <section className="mb-7 rounded-[1.1rem] border border-[#e7ddd0] bg-white px-5 py-5">
         <h2 className="mb-1 font-serif text-[1.15rem] font-semibold text-[#2c2c2c]">
-          Where we'll reach you
+          Where should we send updates?
         </h2>
         <p className="mb-3 text-[0.88rem] text-[#8b7e74]">
-          We'll let you know when someone's helped — nothing else.
+          We'll let you know as help arrives — a little note each time someone
+          steps in. Nothing else.
         </p>
         <div className="flex flex-col gap-2.5">
           <input

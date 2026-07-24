@@ -142,7 +142,7 @@ export function ClaimDialog({ slot, recipientName, isOpen, onClose, onSubmit, is
           </p>
         </div>
 
-        {/* Name visibility (Item 7). PLACEHOLDER copy — Kate to approve.
+        {/* Name visibility (Item 7).
             Hidden by default: unchecked means only {recipientName} sees the name;
             other helpers see an ambient "N people helping" count instead. */}
         <label className="flex items-start gap-3 rounded-2xl bg-secondary/40 border border-secondary-border p-4 cursor-pointer">
@@ -152,9 +152,9 @@ export function ClaimDialog({ slot, recipientName, isOpen, onClose, onSubmit, is
             className="mt-0.5 h-4 w-4 accent-primary flex-none"
           />
           <span className="text-sm text-foreground/80 leading-relaxed">
-            <span className="font-medium text-foreground">Show my name to everyone helping</span>
+            <span className="font-medium text-foreground">Happy for the other helpers to see my name</span>
             <br />
-            Otherwise it stays just between you and {recipientName}.
+            Either way, {recipientName} will know it was you. Leave this unticked and your name stays just between the two of you.
           </span>
         </label>
 

@@ -564,11 +564,6 @@ export async function sendHelperInviteEmail(
 //
 // Sent to the RECIPIENT when help arrives — recipient framing, never "organiser".
 // Batched: one email can cover several claims that landed since the last run.
-//
-// ⚠️ PLACEHOLDER COPY — subject and body wording below are placeholders for Kate
-// to approve separately, exactly like the invite copy. The mechanism (batching,
-// what/who/when, the manage CTA) is what's being built here; the words are not
-// final. Do not treat this wording as approved.
 
 export interface RecipientClaimItem {
   helperName: string;
@@ -600,10 +595,9 @@ export function buildRecipientClaimNotificationEmail(
   const { recipientFirstName, manageLink, claims } = params;
   const single = claims.length === 1;
 
-  // PLACEHOLDER subject.
   const subject = single
-    ? "Someone's shown up for you 💛"
-    : "People are showing up for you 💛";
+    ? "Someone's just shown up for you 💛"
+    : "Your people are showing up 💛";
 
   const lineFor = (c: RecipientClaimItem) => {
     const task = c.customLabel || SLOT_TYPE_LABELS[c.slotType] || "Helping out";
@@ -619,18 +613,17 @@ export function buildRecipientClaimNotificationEmail(
     })
     .join("\n");
 
-  // PLACEHOLDER body.
   const contentHtml = `          <p style="margin:0 0 20px;color:#333;font-size:16px;line-height:1.6;">
             Hi ${escapeHtml(recipientFirstName)},
           </p>
           <p style="margin:0 0 16px;color:#333;font-size:16px;line-height:1.6;">
-            A little good news — ${single ? "someone has" : "some of your people have"} stepped in:
+            A little good news — ${single ? "someone's" : "a few of your people have"} stepped in:
           </p>
           <ul style="margin:0 0 24px;padding-left:20px;color:#333;font-size:16px;line-height:1.7;">
 ${itemsHtml}
           </ul>
           <p style="margin:0 0 24px;color:#333;font-size:16px;line-height:1.6;">
-            There's nothing you need to do — we just wanted you to know you're being looked after.
+            There's nothing you need to do. We just wanted you to know you're being looked after.
           </p>
           ${renderButton(manageLink, "See who's helping")}
           <p style="margin:0;color:#2D6A4F;font-size:15px;line-height:1.6;">
@@ -647,11 +640,11 @@ ${itemsHtml}
   const text = [
     `Hi ${recipientFirstName},`,
     ``,
-    `A little good news — ${single ? "someone has" : "some of your people have"} stepped in:`,
+    `A little good news — ${single ? "someone's" : "a few of your people have"} stepped in:`,
     ``,
     textItems,
     ``,
-    `There's nothing you need to do — we just wanted you to know you're being looked after.`,
+    `There's nothing you need to do. We just wanted you to know you're being looked after.`,
     ``,
     `See who's helping: ${manageLink}`,
     ``,
