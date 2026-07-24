@@ -24,28 +24,16 @@ const stagger = {
 
 const STEPS = [
   {
-    title: "You buy it",
-    body: "Purchase an Aunt Lucy page for your friend. Write a personal message and choose when to deliver it — the baby shower, their last day at work, the due date.",
+    title: "You gift it.",
+    body: "Buy an Aunt Lucy page, add a personal note, choose when it arrives.",
   },
   {
-    title: "Your crew signs it",
-    body: "Share a private link with friends before delivery day. Everyone leaves a short warm note. Takes 60 seconds. No account needed.",
+    title: "They add their trusted circle.",
+    body: "When they've got a quiet moment, they tell Aunt Lucy what they'll need and who they trust. Nothing's live yet.",
   },
   {
-    title: "They receive something beautiful",
-    body: "A stunning digital gift — their name, your message, and every note from the people who love them, revealed as they scroll.",
-  },
-  {
-    title: "They set it up while they still have energy",
-    body: "Before baby arrives, they add everything they know they'll need — meals, dog walking, school pickups for older kids, visiting preferences. They decide who they trust with sensitive tasks. Everything is ready. Nothing is live yet.",
-  },
-  {
-    title: "They hit go when the moment comes",
-    body: "When labour starts, when they get home from hospital, when they're ready — one button and their support network is notified. Helpers claim slots. The help begins.",
-  },
-  {
-    title: "Eight weeks of real support",
-    body: "From the moment they launch it, their people show up for eight weeks — the window when new parents need it most and when support usually drops off.",
+    title: "Aunt Lucy takes it from there.",
+    body: "One tap, and the support begins to flow — meals, lifts, whatever's needed, and for weeks, not just the first rushed few days.",
   },
 ];
 
@@ -102,33 +90,7 @@ export default function Home() {
           className="inline-flex items-center gap-2 bg-primary/8 text-primary text-sm font-medium px-4 py-1.5 rounded-full mb-8"
         >
           <Heart className="w-3.5 h-3.5 fill-primary/30" />
-          Free for helpers · No app needed · 8 weeks of support from launch
-        </motion.div>
-
-        <motion.div
-          variants={fadeUp}
-          className="max-w-xl mb-12 text-left sm:text-center"
-        >
-          <p className="text-sm font-medium text-primary uppercase tracking-wide mb-4">
-            Who is Aunt Lucy?
-          </p>
-          <p className="font-serif text-xl text-foreground leading-relaxed mb-4">
-            You know an Aunt Lucy. She's the one who quietly sorted everything
-            when your family needed it most.
-          </p>
-          <p className="text-muted-foreground leading-relaxed mb-4">
-            She brings the food nobody asked for but everyone needed. She takes
-            the older kids for an afternoon without being asked. She handles the
-            awkward "please no visitors today" conversation so nobody else has
-            to.
-          </p>
-          <p className="text-muted-foreground leading-relaxed">
-            Not everyone is lucky enough to have an Aunt Lucy. But everyone
-            deserves one.{" "}
-            <span className="text-foreground font-medium">
-              That's what this is.
-            </span>
-          </p>
+          Free for helpers · No app needed
         </motion.div>
 
         <motion.h1
@@ -141,10 +103,25 @@ export default function Home() {
 
         <motion.p
           variants={fadeUp}
-          className="text-lg text-muted-foreground leading-relaxed max-w-xl mb-10"
+          className="font-serif text-2xl sm:text-3xl text-foreground leading-snug mb-6"
         >
-          Think of it as giving them their own Aunt Lucy — someone who gets
-          everyone organised so the new parents don't have to.
+          Gift them their own Aunt Lucy
+        </motion.p>
+
+        <motion.p
+          variants={fadeUp}
+          className="text-lg text-muted-foreground leading-relaxed max-w-xl mb-4"
+        >
+          Aunt Lucy is the warm, organised friend who takes charge when life gets
+          full-on — sorting the meals, picking up the kids, making endless cups
+          of tea.
+        </motion.p>
+
+        <motion.p
+          variants={fadeUp}
+          className="text-lg text-foreground font-medium leading-relaxed max-w-xl mb-10"
+        >
+          Not everyone has an Aunt Lucy. But everyone deserves one.
         </motion.p>
 
         <motion.div variants={fadeUp} className="flex flex-col items-center gap-4">
@@ -155,16 +132,12 @@ export default function Home() {
             className="text-base px-8 py-6 h-auto font-serif shadow-lg shadow-accent/20 hover:shadow-accent/30 transition-shadow"
           >
             {/* Placeholder — $59 Stripe checkout link added later */}
-            <a href="#">Gift an Aunt Lucy page</a>
+            <a href="#">Gift Aunt Lucy</a>
           </Button>
-          <p className="text-sm text-muted-foreground max-w-md leading-relaxed">
-            Two minutes to buy · They set it up before baby arrives · One button
-            to launch when the moment comes
-          </p>
         </motion.div>
       </motion.section>
 
-      {/* Section 1 — the problem */}
+      {/* The problem — and Aunt Lucy's job */}
       <section className="bg-card border-t border-border/50 py-20 px-6">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -174,40 +147,16 @@ export default function Home() {
           className="max-w-2xl mx-auto text-center"
         >
           <h2 className="font-serif text-3xl font-bold text-foreground mb-5">
-            Everyone means well. Nobody coordinates.
+            Everyone means well. Nobody steps up.
           </h2>
-          <p className="text-muted-foreground leading-relaxed text-lg">
-            When a baby arrives, friends and family want to help. They say "let
-            me know if you need anything" — and they mean it. But the person who
-            needs help is the last person who can organise it. Meals arrive in a
-            rush then stop. Visitors show up at the wrong time. The dog doesn't
-            get walked. And the new parent spends their precious energy managing
-            visitors instead of resting. Aunt Lucy fixes that.
+          <p className="text-muted-foreground leading-relaxed text-lg mb-6">
+            When life turns upside down — a new baby, an operation, an illness —
+            everyone says "let me know if you need anything," and they mean it.
+            But the person in the thick of it is the last one who can organise
+            it.
           </p>
-        </motion.div>
-      </section>
-
-      {/* Section 2 — the solution */}
-      <section className="py-20 px-6">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.45 }}
-          className="max-w-2xl mx-auto text-center"
-        >
-          <h2 className="font-serif text-3xl font-bold text-foreground mb-5">
-            One page. One link. Everything organised.
-          </h2>
-          <p className="text-muted-foreground leading-relaxed text-lg">
-            You give an Aunt Lucy page as a gift. Your friend receives it
-            beautifully — with warm notes from everyone who signed it. While they
-            still have energy, they can set it up exactly how they want: what
-            help they need, who they trust with the kids, when visitors are
-            welcome. Then when the moment comes — labour has started, baby is
-            here, they are finally home — they hit one button. Their support
-            network is notified. The help begins. They don't have to think about
-            it again.
+          <p className="font-serif text-xl text-foreground leading-relaxed">
+            That's Aunt Lucy's job: one page, one link, everything handled.
           </p>
         </motion.div>
       </section>
@@ -249,8 +198,8 @@ export default function Home() {
             Real help, not vague offers
           </h2>
           <p className="text-muted-foreground mb-12">
-            Helpers click one link, see what's needed, and claim a slot. No app.
-            No account. No fuss.
+            Helpers tap one link, see what's needed, and claim a slot. No app. No
+            account. No fuss.
           </p>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
             {SLOT_TYPES.map((type, i) => (
@@ -289,8 +238,8 @@ export default function Home() {
               One price. Eight weeks of real support.
             </h2>
             <p className="text-muted-foreground leading-relaxed mb-4">
-              $59 — one Aunt Lucy gift page. Valid for 12 months from purchase.
-              Eight weeks of coordinated support from the moment they launch.
+              $59 for one Aunt Lucy gift page, valid for 12 months. Eight weeks
+              of coordinated support from the moment they need it.
             </p>
             <a
               href="#"
@@ -307,7 +256,7 @@ export default function Home() {
               className="font-serif text-base border-primary/40 text-primary hover:bg-primary/5"
             >
               {/* Placeholder — $59 Stripe checkout link added later */}
-              <a href="#">Gift an Aunt Lucy page — $59</a>
+              <a href="#">Gift Aunt Lucy — $59</a>
             </Button>
           </div>
         </motion.div>
@@ -323,7 +272,7 @@ export default function Home() {
           className="max-w-xl mx-auto"
         >
           <h2 className="font-serif text-4xl font-bold text-primary-foreground mb-10">
-            The people you love deserve more than another onesie.
+            The people you love deserve more than another bunch of flowers.
           </h2>
           <Button
             asChild
@@ -334,7 +283,7 @@ export default function Home() {
             <a href="#">Give them Aunt Lucy — $59</a>
           </Button>
           <p className="text-primary-foreground/50 text-sm mt-4">
-            Two minutes to buy · Free for helpers · No app needed
+            Two minutes to gift · Free for helpers · No app needed
           </p>
         </motion.div>
       </section>
@@ -342,10 +291,10 @@ export default function Home() {
       {/* Footer */}
       <footer className="border-t border-border/50 py-8 px-6">
         <p className="max-w-2xl mx-auto text-center text-sm text-muted-foreground leading-relaxed mb-8">
-          Aunt Lucy was named for every warm, capable, quietly brilliant woman
-          who has ever shown up with a casserole, taken the kids for an
-          afternoon, and made everything feel manageable again. This is for them.
-          And for everyone who needs one.
+          Aunt Lucy is named for every warm, capable, quietly brilliant woman
+          who's ever shown up with a casserole, taken the kids for an afternoon,
+          and made everything feel manageable again. This is to honour her — and
+          provide support to everyone who needs her.
         </p>
         <div className="max-w-4xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
           <div className="flex items-center gap-2">
