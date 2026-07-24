@@ -1,0 +1,10 @@
+{
+  "name": "Aunt Lucy",
+  "short_name": "Aunt Lucy",
+  "icons": [
+    { "src": "/brand/aunt-lucy-app-icon.svg", "type": "image/svg+xml", "sizes": "any" }
+  ],
+  "theme_color": "#C4614A",
+  "background_color": "#F5F0E8",
+  "display": "standalone"
+}

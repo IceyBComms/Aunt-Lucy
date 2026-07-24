@@ -2,7 +2,7 @@ import { useRoute } from "wouter";
 import { motion } from "framer-motion";
 import { Heart, ChevronDown, ArrowRight, Lock, Loader2 } from "lucide-react";
 import { useGetGift, getGetGiftQueryKey } from "@workspace/api-client-react";
-import { PostmarkMark } from "@/components/PostmarkMark";
+import { TeacupMark } from "@/components/TeacupMark";
 
 // Warm tints cycled through the colleague notes, matching the mockup.
 const NOTE_TINTS = ["#fdf4ee", "#f4f6f0", "#fbf1e8", "#f5f2ea", "#fdf3f0", "#f2f5f1"];
@@ -42,7 +42,7 @@ export default function GiftExperience() {
   if (isError || !data) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-[#faf7f2] p-6 text-center">
-        <PostmarkMark className="mb-6 h-20 w-20 opacity-70" />
+        <TeacupMark className="mb-6 h-20 w-20 opacity-70" />
         <h1 className="mb-3 font-serif text-3xl font-semibold text-[#2c2c2c]">
           This gift link isn't valid
         </h1>
@@ -72,7 +72,7 @@ export default function GiftExperience() {
           animate="animate"
         >
           <motion.div variants={fadeUp} aria-hidden="true">
-            <PostmarkMark className="h-[84px] w-[84px]" />
+            <TeacupMark className="h-[84px] w-[84px]" />
           </motion.div>
 
           <motion.p

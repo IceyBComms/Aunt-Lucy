@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 228" width="320" height="228">
+  <g transform="translate(104 4) scale(1.0)">
+<g fill="none" stroke="#C4614A" stroke-width="3.6" stroke-linejoin="round" stroke-linecap="round">
+  <path d="M50 32 q6 -5 0 -11 q-6 -5 0 -11" stroke="#2D5016"></path>
+  <path d="M61 32 q6 -5 0 -11 q-6 -5 0 -11" stroke="#2D5016"></path>
+  <path d="M28 45 Q55 37 82 45"></path>
+  <path d="M28 45 C28 69 41 81 55 81 C69 81 82 69 82 45"></path>
+  <path d="M82 50 C98 47 98 67 82 64"></path>
+  <path d="M32 85 Q55 91 78 85"></path>
+  <path d="M24 89 Q55 98 86 89"></path>
+</g>
+  </g>
+  <text x="160" y="160" text-anchor="middle" font-family="Newsreader, Georgia, serif" font-weight="500" font-size="52" letter-spacing="-0.5" fill="#2D5016">Aunt Lucy</text>
+  <text x="160" y="190" text-anchor="middle" font-family="Newsreader, Georgia, serif" font-style="italic" font-weight="500" font-size="17" fill="#C4614A">The gift that actually helps.</text>
+</svg>

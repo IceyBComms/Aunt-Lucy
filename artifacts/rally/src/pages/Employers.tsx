@@ -1,7 +1,7 @@
 import { useLocation } from "wouter";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { PostmarkMark } from "@/components/PostmarkMark";
+import { TeacupMark } from "@/components/TeacupMark";
 import {
   Heart,
   Utensils,
@@ -144,7 +144,7 @@ export default function Employers() {
             onClick={() => setLocation("/")}
             className="flex items-center gap-2.5"
           >
-            <PostmarkMark className="w-10 h-10" />
+            <TeacupMark className="w-10 h-10" />
             <span className="font-serif font-bold text-foreground text-lg">Aunt Lucy</span>
           </button>
           <button
