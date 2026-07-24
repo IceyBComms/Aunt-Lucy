@@ -42,6 +42,7 @@ testem.log
 .env
 .env.local
 .env.*.local
+.env.sandbox
 !.env.example
 
 # System Files
