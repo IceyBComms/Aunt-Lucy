@@ -15,14 +15,26 @@ const stripe = stripeSecretKey ? new Stripe(stripeSecretKey) : null;
 /**
  * Postgres unique-violation. A duplicate Stripe event id loses the insert race
  * against the delivery that got there first, which is exactly how we detect it.
+ *
+ * drizzle-orm wraps the driver error in a DrizzleQueryError, so the Postgres
+ * "23505" code sits on `err.cause` (or deeper), not on `err` itself. Walk the
+ * cause chain rather than checking only the top-level error — otherwise a
+ * genuine duplicate is misread as an unknown failure and answered with a 500,
+ * which makes Stripe retry the same event indefinitely.
  */
 function isUniqueViolation(err: unknown): boolean {
-  return (
-    typeof err === "object" &&
-    err !== null &&
-    "code" in err &&
-    (err as { code?: unknown }).code === "23505"
-  );
+  let current: unknown = err;
+  for (let depth = 0; current != null && depth < 5; depth++) {
+    if (
+      typeof current === "object" &&
+      "code" in current &&
+      (current as { code?: unknown }).code === "23505"
+    ) {
+      return true;
+    }
+    current = (current as { cause?: unknown }).cause;
+  }
+  return false;
 }
 
 /**
