@@ -49,6 +49,19 @@ router.post("/slots/:slotId/claim", async (req, res) => {
     return;
   }
 
+  // Trusted-only slots are never claimable through the public door. The trust
+  // gate for these lives entirely on the invite path (POST /invite/:token/claim),
+  // where the token IS the trust check. The public page already omits these slots
+  // from its listing (see routes/pages.ts), but the slot id can leak — a forwarded
+  // invite exposes it via GET /invite/:token — so we must re-check here rather than
+  // rely on the id staying secret. We answer 404 with the same message as a missing
+  // or inactive slot: the public door must not reveal that a trusted slot exists,
+  // exactly as it doesn't appear on the public page. "Trusted only" means trusted only.
+  if (slot.trustedHelpersOnly === true) {
+    res.status(404).json({ error: "This slot doesn't exist." });
+    return;
+  }
+
   // PIN-protected pages require the PIN when claiming
   if (page.privacy === "pin_protected") {
     if (!pin || !(await verifyPin(pin, page.pin))) {
