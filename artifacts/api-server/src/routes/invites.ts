@@ -236,7 +236,13 @@ router.post("/invite/:token/claim", async (req, res) => {
 
   const now = new Date();
 
-  await db
+  // Atomic conditional update: only claim if the slot is still unclaimed, exactly
+  // like the public claim path. The isClaimed read above can go stale between two
+  // near-simultaneous claims (two invites to the same slot, or an invite racing a
+  // public claim); without this guard the second write would silently overwrite
+  // the first helper's name/note. If we lose the race, RETURNING is empty and we
+  // report the 409 rather than stamping the invite as claimed.
+  const claimed = await db
     .update(slotsTable)
     .set({
       isClaimed: true,
@@ -248,7 +254,15 @@ router.post("/invite/:token/claim", async (req, res) => {
       // does.
       claimedNameVisible: showName === true,
     })
-    .where(eq(slotsTable.id, invite.slotId!));
+    .where(and(eq(slotsTable.id, invite.slotId!), eq(slotsTable.isClaimed, false)))
+    .returning();
+
+  if (claimed.length === 0) {
+    res.status(409).json({
+      error: "Sorry — this slot has already been claimed by someone else.",
+    });
+    return;
+  }
 
   await db
     .update(helperInvitesTable)
