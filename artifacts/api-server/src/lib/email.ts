@@ -17,6 +17,7 @@ const FROM_ADDRESS = "Aunt Lucy <noreply@auntlucy.com.au>";
 const SLOT_TYPE_LABELS: Record<string, string> = {
   meal: "Dropping off a meal",
   school_pickup: "School pickup",
+  child_care: "Looking after the kids",
   errand: "Running an errand",
   dog_walking: "Dog walking",
   shopping: "Shopping",
@@ -28,7 +29,11 @@ function isEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
-function formatDate(dateStr: string): string {
+// A slot with no date is a flexible offer rather than an appointment, so it
+// gets words instead of a date. Callers pair this with formatTime only when a
+// real date exists — "Whenever suits you at 3:00 PM" would be nonsense.
+function formatDate(dateStr: string | null): string {
+  if (!dateStr) return "Whenever suits you";
   const date = new Date(dateStr + "T00:00:00");
   return date.toLocaleDateString("en-AU", {
     weekday: "long",
@@ -55,7 +60,7 @@ interface ClaimEmailParams {
   recipientName: string;
   slotType: string;
   customLabel: string | null;
-  slotDate: string;
+  slotDate: string | null;
   slotTime: string | null;
   notes: string | null;
   location: string | null;
@@ -75,7 +80,8 @@ function buildHtml(params: ClaimEmailParams): string {
 
   const typeLabel = customLabel || SLOT_TYPE_LABELS[slotType] || "Helping out";
   const dateFormatted = formatDate(slotDate);
-  const timeFormatted = slotTime ? formatTime(slotTime) : null;
+  // Only pair a time with a real date — an undated task has no clock.
+  const timeFormatted = slotDate && slotTime ? formatTime(slotTime) : null;
   const dateTimeLine = timeFormatted
     ? `${dateFormatted} at ${timeFormatted}`
     : dateFormatted;
@@ -142,7 +148,8 @@ function buildPlainText(params: ClaimEmailParams): string {
 
   const typeLabel = customLabel || SLOT_TYPE_LABELS[slotType] || "Helping out";
   const dateFormatted = formatDate(slotDate);
-  const timeFormatted = slotTime ? formatTime(slotTime) : null;
+  // Only pair a time with a real date — an undated task has no clock.
+  const timeFormatted = slotDate && slotTime ? formatTime(slotTime) : null;
   const dateTimeLine = timeFormatted
     ? `${dateFormatted} at ${timeFormatted}`
     : dateFormatted;
@@ -383,7 +390,7 @@ interface InviteEmailParams {
   helperName: string;
   recipientName: string;
   slotTypeLabel: string;
-  slotDate: string;
+  slotDate: string | null;
   slotTime: string | null;
   inviteUrl: string;
 }
@@ -395,7 +402,8 @@ export async function sendInviteEmail(params: InviteEmailParams): Promise<void> 
   }
 
   const dateFormatted = formatDate(params.slotDate);
-  const timeFormatted = params.slotTime ? formatTime(params.slotTime) : null;
+  const timeFormatted =
+    params.slotDate && params.slotTime ? formatTime(params.slotTime) : null;
   const dateTimeLine = timeFormatted
     ? `${dateFormatted} at ${timeFormatted}`
     : dateFormatted;
@@ -474,6 +482,213 @@ export async function sendInviteEmail(params: InviteEmailParams): Promise<void> 
   }
 
   logger.info({ to: params.to }, "Invite email sent");
+}
+
+// ─── Helper Invite Email (9c) ─────────────────────────────────────────────────
+//
+// The body wording is composed verbatim in inviteCopy.ts. This layer wraps that
+// exact text in the branded HTML chrome (turning the "See how you can help →"
+// line into a button and the unsubscribe line into a link) and sends it. The
+// plain-text part is the canonical copy, unchanged.
+
+export interface HelperInviteEmailParams {
+  to: string;
+  subject: string;
+  /** The verbatim 9c body from inviteCopy.generalInviteEmailText. */
+  text: string;
+  /** The support-page link the CTA points at. */
+  link: string;
+  /** One-tap unsubscribe that genuinely suppresses future sends. */
+  unsubscribeUrl: string;
+  /** The recipient's optional personal opener, shown above the body. */
+  openingLine?: string | null;
+}
+
+export async function sendHelperInviteEmail(
+  params: HelperInviteEmailParams,
+): Promise<boolean> {
+  if (isPlaceholderResendKey) {
+    console.log(
+      `\n📧 Helper invite email for ${params.to} (local dev — sending disabled):\n${params.text}\n`,
+    );
+    return true;
+  }
+  if (!resend) {
+    logger.warn("RESEND_API_KEY not set — skipping helper invite email");
+    return false;
+  }
+
+  const openerHtml = params.openingLine?.trim()
+    ? `<p style="margin:0 0 20px;color:#333;font-size:16px;line-height:1.6;font-style:italic;">${escapeHtml(params.openingLine.trim())}</p>`
+    : "";
+
+  // The body text minus the CTA line and the unsubscribe line, which become a
+  // button and a footer link respectively. Everything else is shown verbatim.
+  const paragraphs = params.text
+    .split("\n\n")
+    .filter(
+      (p) =>
+        !p.startsWith("See how you can help →") &&
+        !p.startsWith("Don't want to receive these emails?"),
+    )
+    .map(
+      (p) =>
+        `<p style="margin:0 0 20px;color:#333;font-size:16px;line-height:1.6;">${escapeHtml(p).replace(/\n/g, "<br>")}</p>`,
+    )
+    .join("\n");
+
+  const contentHtml = `${openerHtml}${paragraphs}
+          ${renderButton(params.link, "See how you can help")}`;
+
+  const { error } = await resend.emails.send({
+    from: FROM_ADDRESS,
+    to: params.to,
+    subject: params.subject,
+    html: renderGiftLayout({
+      preheader: "A gentle, no-pressure way to lend a hand.",
+      contentHtml,
+      footerHtml: `Don't want to receive these emails? <a href="${escapeHtml(params.unsubscribeUrl)}" style="color:#999;">Unsubscribe here</a>.`,
+    }),
+    text: params.text,
+  });
+
+  if (error) {
+    logger.error({ error, to: params.to }, "Failed to send helper invite email");
+    return false;
+  }
+  logger.info({ to: params.to }, "Helper invite email sent");
+  return true;
+}
+
+// ─── Recipient claim notification (Item 8) ────────────────────────────────────
+//
+// Sent to the RECIPIENT when help arrives — recipient framing, never "organiser".
+// Batched: one email can cover several claims that landed since the last run.
+
+export interface RecipientClaimItem {
+  helperName: string;
+  slotType: string;
+  customLabel: string | null;
+  slotDate: string | null;
+  slotTime: string | null;
+  note: string | null;
+}
+
+export interface RecipientClaimNotificationParams {
+  to: string;
+  recipientFirstName: string;
+  /** The recipient's private /manage link — "see who's helping". */
+  manageLink: string;
+  claims: RecipientClaimItem[];
+}
+
+/** "Dropping off a meal, Friday 1 August at 3:00 PM" / "…, whenever suits you". */
+function claimWhenLabel(slotDate: string | null, slotTime: string | null): string {
+  const dateFormatted = formatDate(slotDate);
+  const timeFormatted = slotDate && slotTime ? formatTime(slotTime) : null;
+  return timeFormatted ? `${dateFormatted} at ${timeFormatted}` : dateFormatted;
+}
+
+export function buildRecipientClaimNotificationEmail(
+  params: RecipientClaimNotificationParams,
+): RenderedEmail {
+  const { recipientFirstName, manageLink, claims } = params;
+  const single = claims.length === 1;
+
+  const subject = single
+    ? "Someone's just shown up for you 💛"
+    : "Your people are showing up 💛";
+
+  const lineFor = (c: RecipientClaimItem) => {
+    const task = c.customLabel || SLOT_TYPE_LABELS[c.slotType] || "Helping out";
+    const when = claimWhenLabel(c.slotDate, c.slotTime);
+    const noteBit = c.note ? ` · "${c.note}"` : "";
+    return { task, when, noteBit, helper: c.helperName };
+  };
+
+  const itemsHtml = claims
+    .map((c) => {
+      const l = lineFor(c);
+      return `<li style="margin-bottom:10px;"><strong>${escapeHtml(l.helper)}</strong> is taking care of <strong>${escapeHtml(l.task)}</strong>, ${escapeHtml(l.when)}${l.noteBit ? ` <span style="color:#5a5a5a;">${escapeHtml(l.noteBit)}</span>` : ""}</li>`;
+    })
+    .join("\n");
+
+  const contentHtml = `          <p style="margin:0 0 20px;color:#333;font-size:16px;line-height:1.6;">
+            Hi ${escapeHtml(recipientFirstName)},
+          </p>
+          <p style="margin:0 0 16px;color:#333;font-size:16px;line-height:1.6;">
+            A little good news — ${single ? "someone's" : "a few of your people have"} stepped in:
+          </p>
+          <ul style="margin:0 0 24px;padding-left:20px;color:#333;font-size:16px;line-height:1.7;">
+${itemsHtml}
+          </ul>
+          <p style="margin:0 0 24px;color:#333;font-size:16px;line-height:1.6;">
+            There's nothing you need to do. We just wanted you to know you're being looked after.
+          </p>
+          ${renderButton(manageLink, "See who's helping")}
+          <p style="margin:0;color:#2D6A4F;font-size:15px;line-height:1.6;">
+            — Aunt Lucy
+          </p>`;
+
+  const textItems = claims
+    .map((c) => {
+      const l = lineFor(c);
+      return `• ${l.helper} is taking care of ${l.task}, ${l.when}${l.noteBit}`;
+    })
+    .join("\n");
+
+  const text = [
+    `Hi ${recipientFirstName},`,
+    ``,
+    `A little good news — ${single ? "someone's" : "a few of your people have"} stepped in:`,
+    ``,
+    textItems,
+    ``,
+    `There's nothing you need to do. We just wanted you to know you're being looked after.`,
+    ``,
+    `See who's helping: ${manageLink}`,
+    ``,
+    `— Aunt Lucy`,
+  ].join("\n");
+
+  return {
+    subject,
+    html: renderGiftLayout({
+      preheader: "Someone's lending a hand — nothing for you to do.",
+      contentHtml,
+      footerHtml: `Can't click the button? Copy this link: ${escapeHtml(manageLink)}`,
+    }),
+    text,
+  };
+}
+
+/** Returns true if the email was handed to Resend (or dev-logged), false if not. */
+export async function sendRecipientClaimNotification(
+  params: RecipientClaimNotificationParams,
+): Promise<boolean> {
+  if (isPlaceholderResendKey) {
+    console.log(
+      `\n💛 Recipient claim notification for ${params.to} (local dev — sending disabled):\n${buildRecipientClaimNotificationEmail(params).text}\n`,
+    );
+    return true;
+  }
+  if (!resend) {
+    logger.warn("RESEND_API_KEY not set — skipping recipient claim notification");
+    return false;
+  }
+
+  const { error } = await resend.emails.send({
+    from: FROM_ADDRESS,
+    to: params.to,
+    ...buildRecipientClaimNotificationEmail(params),
+  });
+
+  if (error) {
+    logger.error({ error, to: params.to }, "Failed to send recipient claim notification");
+    return false;
+  }
+  logger.info({ to: params.to, claims: params.claims.length }, "Recipient claim notification sent");
+  return true;
 }
 
 // ─── Gift Fulfilment Emails ───────────────────────────────────────────────────

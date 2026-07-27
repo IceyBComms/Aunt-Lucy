@@ -14,6 +14,7 @@ export type SlotType = (typeof SlotType)[keyof typeof SlotType];
 export const SlotType = {
   meal: "meal",
   school_pickup: "school_pickup",
+  child_care: "child_care",
   errand: "errand",
   dog_walking: "dog_walking",
   shopping: "shopping",
@@ -26,7 +27,8 @@ export interface SlotResponse {
   pageId: string;
   slotType: SlotType;
   customLabel?: string | null;
-  slotDate: string;
+  /** Null means the task has no fixed date — a flexible offer, claimed whenever suits. The date is set when a helper claims it. */
+  slotDate?: string | null;
   slotTime?: string | null;
   notes?: string | null;
   isClaimed: boolean;
@@ -61,6 +63,10 @@ export interface SupportPageWithSlots {
   location?: string | null;
   status: SupportPageWithSlotsStatus;
   privacy: SupportPageWithSlotsPrivacy;
+  /** An optional free-text note from the recipient, shown to every helper. Null when they didn't leave one. */
+  goodToKnow?: string | null;
+  /** Ambient presence — the number of distinct people helping (deduped by claimed contact), for the warm "N people helping" line. Carries the warmth without naming anyone, so it is safe to show to everyone. */
+  helpingCount: number;
   slots: SlotResponse[];
 }
 
@@ -68,6 +74,8 @@ export interface ClaimSlotRequest {
   firstName: string;
   contact: string;
   note?: string | null;
+  /** The helper's opt-in choice: when true, their name is shown to other helpers on the public page; when false or omitted, only the recipient sees it (the public page shows an ambient count instead). Defaults to false — hidden by default, never surprised into being shown. */
+  showName?: boolean | null;
   /** Required when claiming a slot on a PIN-protected page. */
   pin?: string | null;
 }
@@ -81,6 +89,52 @@ export const GiftOccasion = {
   ongoing_support: "ongoing_support",
   other: "other",
 } as const;
+
+export type GiftTierId = (typeof GiftTierId)[keyof typeof GiftTierId];
+
+export const GiftTierId = {
+  consumer_personal: "consumer_personal",
+  workplace_individual: "workplace_individual",
+  workplace_5pack: "workplace_5pack",
+  workplace_10pack: "workplace_10pack",
+} as const;
+
+export interface GiftTier {
+  id: GiftTierId;
+  /** The buyer-facing name of the tier. */
+  label: string;
+  /** One line explaining who the tier is for. */
+  blurb: string;
+  /** GST-inclusive price in cents. */
+  amountCents: number;
+  /** How many separate gift pages the tier buys. */
+  gifts: number;
+  /** False for the pack tiers, which are shown as coming soon until multi-gift fulfilment exists. A display-only tier has no payment link and cannot be purchased. */
+  sellable: boolean;
+}
+
+export interface CreateGiftRequest {
+  tierId: GiftTierId;
+  purchaserName: string;
+  /** Where the receipt and the tax invoice are sent. */
+  purchaserEmail: string;
+  /** True when the buyer is setting the page up for themselves. The recipient fields are then ignored and the buyer's own name and email are used. */
+  forSelf: boolean;
+  /** Required unless forSelf is true. */
+  recipientName?: string | null;
+  /** Where the gift is delivered. Null when the buyer chose to pass the link on themselves — fulfilment then sends the link to the buyer instead and nothing reaches the recipient automatically. */
+  recipientEmail?: string | null;
+  occasion?: GiftOccasion | null;
+  /** The optional "from" note shown on the delivered gift. */
+  giftedByNote?: string | null;
+  /** When the gift should reach the recipient. Null means as soon as the payment clears. */
+  deliverAt?: string | null;
+}
+
+export interface CreateGiftResponse {
+  /** The Stripe payment link with client_reference_id already appended. Redirect to it unchanged. */
+  checkoutUrl: string;
+}
 
 export interface GiftSigningPublic {
   signerName: string;
@@ -97,9 +151,92 @@ export interface GiftExperience {
   signings: GiftSigningPublic[];
 }
 
+/**
+ * A proposed task shown on the review screen. Not persisted — it becomes a slot only if the recipient keeps it and activates.
+ */
+export interface SuggestedTask {
+  key: string;
+  slotType: SlotType;
+  label: string;
+  /** When false the card shows no date at all — a flexible offer. Most suggestions are undated by design. */
+  dated: boolean;
+  trustedHelpersOnly: boolean;
+}
+
+export interface GiftReview {
+  /** True once the recipient has activated. The suggestions list is then empty and slug points at the live page. */
+  activated: boolean;
+  recipientName: string;
+  giftedBy?: string | null;
+  occasion?: GiftOccasion | null;
+  /** False while the gift is unpaid or cancelled. */
+  canActivate?: boolean | null;
+  slug?: string | null;
+  status?: string | null;
+  /** Set when the recipient chose a future go-live date. */
+  scheduledActivateAt?: string | null;
+  /** The default situation line for this occasion, prefilled into the activation UI (editable). Null once activated. */
+  situationLine?: string | null;
+  /** The recipient's email as we already hold it (from the gift), to prefill the "where should we reach you?" field at activation. Null when we hold none — the field is then asked for, not assumed. */
+  recipientEmail?: string | null;
+  /** Present once activated — the private management token. */
+  manageToken?: string | null;
+  suggestions: SuggestedTask[];
+}
+
+export interface ActivateGiftTask {
+  slotType: SlotType;
+  label: string;
+  /** Omit or null for a flexible, undated task. */
+  slotDate?: string | null;
+  notes?: string | null;
+  trustedHelpersOnly?: boolean;
+}
+
+/**
+ * How the recipient is referred to in the helper invite copy. Defaults to they_them so nothing is ever assumed.
+ */
+export type RecipientPronouns =
+  (typeof RecipientPronouns)[keyof typeof RecipientPronouns];
+
+export const RecipientPronouns = {
+  she_her: "she_her",
+  he_him: "he_him",
+  they_them: "they_them",
+} as const;
+
+export interface ActivateGiftRequest {
+  /** The tasks the recipient kept, in the wording they kept them in. */
+  tasks: ActivateGiftTask[];
+  /** Omit to go live now. Supply a future ISO timestamp to create the page as a draft that the scheduler makes visible on that date. */
+  scheduledActivateAt?: string | null;
+  /** Optional free-text note shown to every helper on the live page. Trimmed and capped server-side; omit or null for none. */
+  goodToKnow?: string | null;
+  /** Defaults to they_them when omitted. */
+  recipientPronouns?: RecipientPronouns | null;
+  /** The short, deliberately-vague phrase used in the invite copy ("Sarah's <situationLine>"). Defaults from the occasion when omitted. */
+  situationLine?: string | null;
+  /** Where to reach the recipient about their own page — used for the claim notifications. Captured at activation (prefilled from the gift when held, asked for when not). Omit or null to skip; notifications then don't fire until an email is added via /manage. */
+  recipientEmail?: string | null;
+  /** Optional mobile for future SMS updates. Stored when supplied; no SMS is sent yet. */
+  recipientMobile?: string | null;
+}
+
+export interface ActivatedPage {
+  slug: string;
+  status: string;
+  scheduledActivateAt?: string | null;
+  /** The private per-page management token — the recipient's re-entry credential for adding people and sending invites. Not the public slug or gift link. */
+  manageToken?: string | null;
+}
+
 export interface PinRequiredError {
   error: string;
   pinRequired: boolean;
+}
+
+export interface ValidationError {
+  error: string;
 }
 
 export interface NotFoundError {
@@ -108,6 +245,196 @@ export interface NotFoundError {
 
 export interface ConflictError {
   error: string;
+}
+
+export interface OkResponse {
+  ok: boolean;
+}
+
+export type InviteKind = (typeof InviteKind)[keyof typeof InviteKind];
+
+export const InviteKind = {
+  general: "general",
+  trusted: "trusted",
+  second_wave: "second_wave",
+} as const;
+
+export type InviteChannel = (typeof InviteChannel)[keyof typeof InviteChannel];
+
+export const InviteChannel = {
+  sms: "sms",
+  email: "email",
+} as const;
+
+export interface ManageTaskSummary {
+  id: string;
+  slotType: SlotType;
+  label: string;
+  trustedHelpersOnly: boolean;
+  isClaimed: boolean;
+  /** Who claimed it. Always present to the recipient/manager regardless of the helper's public-visibility choice — this is the "look who showed up" payoff and is safe because it is shown only to the person the help is for. */
+  claimedByName?: string | null;
+  /** The helper's optional message to the recipient, if left. */
+  claimedNote?: string | null;
+  /** When it was claimed (ISO), for the "help arriving" view. */
+  claimedAt?: string | null;
+  slotDate?: string | null;
+  slotTime?: string | null;
+}
+
+export interface ManageContact {
+  id: string;
+  name: string;
+  mobile?: string | null;
+  email?: string | null;
+  trusted: boolean;
+  optedOut: boolean;
+}
+
+export type ManageInviteStatus =
+  (typeof ManageInviteStatus)[keyof typeof ManageInviteStatus];
+
+export const ManageInviteStatus = {
+  queued: "queued",
+  sent: "sent",
+  failed: "failed",
+  cancelled: "cancelled",
+} as const;
+
+export interface ManageInvite {
+  id: string;
+  contactId?: string | null;
+  name: string;
+  kind: InviteKind;
+  channel: InviteChannel;
+  status: ManageInviteStatus;
+  scheduledFor: string;
+  sentAt?: string | null;
+  claimedAt?: string | null;
+}
+
+export type ManageStateRole =
+  (typeof ManageStateRole)[keyof typeof ManageStateRole];
+
+export const ManageStateRole = {
+  recipient: "recipient",
+  manager: "manager",
+} as const;
+
+export interface ManageState {
+  role: ManageStateRole;
+  recipientName: string;
+  slug: string;
+  status: string;
+  occasion?: GiftOccasion | null;
+  recipientPronouns: RecipientPronouns;
+  situationLine?: string | null;
+  /** Where the recipient is notified when help arrives. Editable here so a recipient who skipped it at activation can add it. Null when none. */
+  recipientEmail?: string | null;
+  /** Optional mobile for future SMS updates. Null when none. */
+  recipientMobile?: string | null;
+  /** When true the UI leads with self-share and waves are gated. */
+  bereavement: boolean;
+  shareLink: string;
+  tasks: ManageTaskSummary[];
+  contacts: ManageContact[];
+  invites: ManageInvite[];
+}
+
+export interface ManageDetails {
+  recipientPronouns: RecipientPronouns;
+  situationLine?: string | null;
+  recipientEmail?: string | null;
+  recipientMobile?: string | null;
+}
+
+export interface UpdateDetailsRequest {
+  recipientPronouns?: RecipientPronouns;
+  situationLine?: string | null;
+  /** Set/clear where claim notifications are sent. Send an empty string or null to clear; a non-empty value must look like an email address. */
+  recipientEmail?: string | null;
+  /** Set/clear the optional mobile for future SMS updates. */
+  recipientMobile?: string | null;
+}
+
+export interface AddContactRequest {
+  name: string;
+  mobile?: string | null;
+  email?: string | null;
+  trusted?: boolean;
+}
+
+export interface UpdateContactRequest {
+  name?: string;
+  mobile?: string | null;
+  email?: string | null;
+  trusted?: boolean;
+}
+
+export interface InviteRequestItem {
+  contactId: string;
+  /** Set to ask this person about one sensitive (trusted) task. */
+  slotId?: string | null;
+  /** Inferred when omitted (trusted if slotId is set, else general). */
+  kind?: InviteKind | null;
+  /** The recipient's optional personal opener, shown above the verbatim body. */
+  openingLine?: string | null;
+}
+
+export interface InviteBatchRequest {
+  /** Required true to send/schedule on a bereavement page. */
+  confirmed?: boolean;
+  /** ISO timestamp; used by the schedule endpoint only. */
+  scheduledFor?: string | null;
+  invites: InviteRequestItem[];
+}
+
+export interface InvitePreview {
+  contactId: string;
+  name?: string | null;
+  kind?: InviteKind | null;
+  channel?: InviteChannel | null;
+  subject?: string | null;
+  body?: string | null;
+  error?: string | null;
+}
+
+export interface InvitePreviewResponse {
+  previews: InvitePreview[];
+}
+
+export type InviteResultStatus =
+  (typeof InviteResultStatus)[keyof typeof InviteResultStatus];
+
+export const InviteResultStatus = {
+  sent: "sent",
+  failed: "failed",
+  queued: "queued",
+  skipped: "skipped",
+} as const;
+
+export interface InviteResult {
+  contactId: string;
+  status: InviteResultStatus;
+  error?: string | null;
+}
+
+export type InviteResultsResponseMode =
+  (typeof InviteResultsResponseMode)[keyof typeof InviteResultsResponseMode];
+
+export const InviteResultsResponseMode = {
+  now: "now",
+  schedule: "schedule",
+} as const;
+
+export interface InviteResultsResponse {
+  mode: InviteResultsResponseMode;
+  results: InviteResult[];
+}
+
+export interface BereavementGateError {
+  error: string;
+  message?: string;
 }
 
 export type GetSupportPageParams = {

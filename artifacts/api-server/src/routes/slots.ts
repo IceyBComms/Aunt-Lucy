@@ -8,11 +8,12 @@ const router: IRouter = Router();
 
 router.post("/slots/:slotId/claim", async (req, res) => {
   const { slotId } = req.params;
-  const { firstName, contact, note, pin } = req.body as {
+  const { firstName, contact, note, pin, showName } = req.body as {
     firstName: string;
     contact: string;
     note?: string;
     pin?: string;
+    showName?: boolean;
   };
 
   const firstNameTrimmed = typeof firstName === "string" ? firstName.trim() : "";
@@ -48,6 +49,19 @@ router.post("/slots/:slotId/claim", async (req, res) => {
     return;
   }
 
+  // Trusted-only slots are never claimable through the public door. The trust
+  // gate for these lives entirely on the invite path (POST /invite/:token/claim),
+  // where the token IS the trust check. The public page already omits these slots
+  // from its listing (see routes/pages.ts), but the slot id can leak — a forwarded
+  // invite exposes it via GET /invite/:token — so we must re-check here rather than
+  // rely on the id staying secret. We answer 404 with the same message as a missing
+  // or inactive slot: the public door must not reveal that a trusted slot exists,
+  // exactly as it doesn't appear on the public page. "Trusted only" means trusted only.
+  if (slot.trustedHelpersOnly === true) {
+    res.status(404).json({ error: "This slot doesn't exist." });
+    return;
+  }
+
   // PIN-protected pages require the PIN when claiming
   if (page.privacy === "pin_protected") {
     if (!pin || !(await verifyPin(pin, page.pin))) {
@@ -65,6 +79,11 @@ router.post("/slots/:slotId/claim", async (req, res) => {
       claimedByName: firstNameTrimmed,
       claimedByContact: contactTrimmed,
       claimedNote: note?.trim() ?? null,
+      claimedAt: new Date(),
+      // Opt-in, defaulting false: the name is shown to other helpers on the
+      // public page only if the helper ticked "show my name". The recipient sees
+      // it either way (via /manage), so this flag never hides it from them.
+      claimedNameVisible: showName === true,
     })
     .where(and(eq(slotsTable.id, slot.id), eq(slotsTable.isClaimed, false)))
     .returning();

@@ -16,6 +16,8 @@ tags:
     description: Slot operations
   - name: gifts
     description: Gift experience operations
+  - name: manage
+    description: Token-gated recipient management — contacts and the Aunt Lucy invite/trickle
 paths:
   /healthz:
     get:
@@ -112,6 +114,59 @@ paths:
               schema:
                 $ref: "#/components/schemas/NotFoundError"
 
+  /gift-tiers:
+    get:
+      operationId: listGiftTiers
+      tags: [gifts]
+      summary: List the gift tiers
+      description: >-
+        Returns every tier shown on the purchase page, including the ones that
+        cannot be bought yet. Prices are GST-inclusive cents and come from the
+        server so the buyer-facing price can never drift from what Stripe
+        charges. A tier with sellable=false is display-only — it carries no
+        payment link and POST /gifts refuses it.
+      responses:
+        "200":
+          description: The gift tiers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GiftTier"
+
+  /gifts:
+    post:
+      operationId: createGift
+      tags: [gifts]
+      summary: Start a gift purchase
+      description: >-
+        Creates the gift in `pending` status and returns the Stripe checkout URL
+        to send the buyer to. The URL already carries `client_reference_id` set
+        to the new gift's id — that is the handshake the Stripe webhook uses to
+        match the payment back to this gift, so the caller must redirect to the
+        returned URL unchanged. Nothing is charged and nothing is emailed until
+        the payment completes.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateGiftRequest"
+      responses:
+        "201":
+          description: Gift created and ready for payment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateGiftResponse"
+        "400":
+          description: Missing details, or a tier that cannot be bought
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationError"
+
   /gifts/{redemptionToken}:
     get:
       operationId: getGift
@@ -141,6 +196,334 @@ paths:
               schema:
                 $ref: "#/components/schemas/NotFoundError"
 
+  /gifts/{redemptionToken}/review:
+    get:
+      operationId: getGiftReview
+      tags: [gifts]
+      summary: Get the suggested tasks a recipient can steer before activating
+      description: >-
+        Token-gated, not auth-gated — the recipient has no account. Before
+        activation this returns occasion-aware suggested tasks that are
+        generated on the fly and not persisted. After activation it returns the
+        live page instead, so re-opening the link is always safe.
+      parameters:
+        - name: redemptionToken
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Gift found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GiftReview"
+        "404":
+          description: Gift not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotFoundError"
+
+  /gifts/{redemptionToken}/activate:
+    post:
+      operationId: activateGift
+      tags: [gifts]
+      summary: Turn the kept tasks into a live support page
+      description: >-
+        Creates the support page (with no organiser account), creates the kept
+        tasks as slots, and marks the gift redeemed. Returns the page slug.
+        Calling this again on an already-activated gift returns the existing
+        page rather than an error.
+      parameters:
+        - name: redemptionToken
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ActivateGiftRequest"
+      responses:
+        "200":
+          description: Gift was already activated; the existing page is returned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActivatedPage"
+        "201":
+          description: Support page created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActivatedPage"
+        "404":
+          description: Gift not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotFoundError"
+        "409":
+          description: Gift is not in a state that can be activated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotFoundError"
+
+  /manage/{token}:
+    get:
+      operationId: getManageState
+      tags: [manage]
+      summary: The recipient's management view of their page
+      description: >-
+        Token-gated by the private per-page management token. Returns the page
+        details, tasks, contacts and the state of every invite sent or queued.
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Management state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ManageState"
+        "401":
+          description: Invalid or revoked management token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotFoundError"
+
+  /manage/{token}/details:
+    patch:
+      operationId: updateManageDetails
+      tags: [manage]
+      summary: Update the recipient's pronoun and situation line
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateDetailsRequest"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ManageDetails"
+        "400":
+          description: Nothing to update or invalid value
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotFoundError"
+
+  /manage/{token}/contacts:
+    post:
+      operationId: addContact
+      tags: [manage]
+      summary: Add a contact (name + mobile and/or email, optional trusted tag)
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddContactRequest"
+      responses:
+        "201":
+          description: Contact added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ManageContact"
+        "400":
+          description: Invalid contact
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotFoundError"
+
+  /manage/{token}/contacts/{contactId}:
+    patch:
+      operationId: updateContact
+      tags: [manage]
+      summary: Edit a contact
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: contactId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateContactRequest"
+      responses:
+        "200":
+          description: Contact updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ManageContact"
+        "404":
+          description: Contact not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotFoundError"
+    delete:
+      operationId: deleteContact
+      tags: [manage]
+      summary: Remove a contact
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: contactId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Contact removed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResponse"
+        "404":
+          description: Contact not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotFoundError"
+
+  /manage/{token}/invites/preview:
+    post:
+      operationId: previewInvites
+      tags: [manage]
+      summary: Render the exact invite messages without sending
+      description: >-
+        Returns the rendered message per contact (the verbatim Aunt Lucy copy,
+        with any personal opener) so the recipient can review before sending.
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InviteBatchRequest"
+      responses:
+        "200":
+          description: Rendered previews
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InvitePreviewResponse"
+
+  /manage/{token}/invites/send:
+    post:
+      operationId: sendInvites
+      tags: [manage]
+      summary: Send invites now
+      description: >-
+        Sends immediately. For a bereavement page the request is refused with
+        409 unless `confirmed` is true (self-share is the gentle default).
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InviteBatchRequest"
+      responses:
+        "201":
+          description: Processed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InviteResultsResponse"
+        "409":
+          description: Bereavement confirmation required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BereavementGateError"
+
+  /manage/{token}/invites/schedule:
+    post:
+      operationId: scheduleInvites
+      tags: [manage]
+      summary: Queue invites as a scheduled wave
+      description: >-
+        Queues the invites for the dispatcher to send at scheduledFor. Same
+        bereavement gate as send.
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InviteBatchRequest"
+      responses:
+        "201":
+          description: Queued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InviteResultsResponse"
+        "409":
+          description: Bereavement confirmation required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BereavementGateError"
+
 components:
   schemas:
     HealthStatus:
@@ -156,6 +539,7 @@ components:
       enum:
         - meal
         - school_pickup
+        - child_care
         - errand
         - dog_walking
         - shopping
@@ -176,6 +560,10 @@ components:
           nullable: true
         slotDate:
           type: string
+          nullable: true
+          description: >-
+            Null means the task has no fixed date — a flexible offer, claimed
+            whenever suits. The date is set when a helper claims it.
         slotTime:
           type: string
           nullable: true
@@ -196,7 +584,6 @@ components:
         - id
         - pageId
         - slotType
-        - slotDate
         - isClaimed
         - createdAt
 
@@ -221,6 +608,18 @@ components:
         privacy:
           type: string
           enum: [open, pin_protected]
+        goodToKnow:
+          type: string
+          nullable: true
+          description: >-
+            An optional free-text note from the recipient, shown to every
+            helper. Null when they didn't leave one.
+        helpingCount:
+          type: integer
+          description: >-
+            Ambient presence — the number of distinct people helping (deduped by
+            claimed contact), for the warm "N people helping" line. Carries the
+            warmth without naming anyone, so it is safe to show to everyone.
         slots:
           type: array
           items:
@@ -231,6 +630,7 @@ components:
         - recipientName
         - status
         - privacy
+        - helpingCount
         - slots
 
     ClaimSlotRequest:
@@ -243,6 +643,14 @@ components:
         note:
           type: string
           nullable: true
+        showName:
+          type: boolean
+          nullable: true
+          description: >-
+            The helper's opt-in choice: when true, their name is shown to other
+            helpers on the public page; when false or omitted, only the recipient
+            sees it (the public page shows an ambient count instead). Defaults to
+            false — hidden by default, never surprised into being shown.
         pin:
           type: string
           nullable: true
@@ -259,6 +667,104 @@ components:
         - bereavement
         - ongoing_support
         - other
+
+    GiftTierId:
+      type: string
+      enum:
+        - consumer_personal
+        - workplace_individual
+        - workplace_5pack
+        - workplace_10pack
+
+    GiftTier:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/GiftTierId"
+        label:
+          type: string
+          description: The buyer-facing name of the tier.
+        blurb:
+          type: string
+          description: One line explaining who the tier is for.
+        amountCents:
+          type: integer
+          description: GST-inclusive price in cents.
+        gifts:
+          type: integer
+          description: How many separate gift pages the tier buys.
+        sellable:
+          type: boolean
+          description: >-
+            False for the pack tiers, which are shown as coming soon until
+            multi-gift fulfilment exists. A display-only tier has no payment
+            link and cannot be purchased.
+      required:
+        - id
+        - label
+        - blurb
+        - amountCents
+        - gifts
+        - sellable
+
+    CreateGiftRequest:
+      type: object
+      properties:
+        tierId:
+          $ref: "#/components/schemas/GiftTierId"
+        purchaserName:
+          type: string
+        purchaserEmail:
+          type: string
+          description: Where the receipt and the tax invoice are sent.
+        forSelf:
+          type: boolean
+          description: >-
+            True when the buyer is setting the page up for themselves. The
+            recipient fields are then ignored and the buyer's own name and email
+            are used.
+        recipientName:
+          type: string
+          nullable: true
+          description: Required unless forSelf is true.
+        recipientEmail:
+          type: string
+          nullable: true
+          description: >-
+            Where the gift is delivered. Null when the buyer chose to pass the
+            link on themselves — fulfilment then sends the link to the buyer
+            instead and nothing reaches the recipient automatically.
+        occasion:
+          oneOf:
+            - $ref: "#/components/schemas/GiftOccasion"
+          nullable: true
+        giftedByNote:
+          type: string
+          nullable: true
+          description: The optional "from" note shown on the delivered gift.
+        deliverAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            When the gift should reach the recipient. Null means as soon as the
+            payment clears.
+      required:
+        - tierId
+        - purchaserName
+        - purchaserEmail
+        - forSelf
+
+    CreateGiftResponse:
+      type: object
+      properties:
+        checkoutUrl:
+          type: string
+          description: >-
+            The Stripe payment link with client_reference_id already appended.
+            Redirect to it unchanged.
+      required:
+        - checkoutUrl
 
     GiftSigningPublic:
       type: object
@@ -296,6 +802,188 @@ components:
         - giftedBy
         - signings
 
+    SuggestedTask:
+      type: object
+      description: >-
+        A proposed task shown on the review screen. Not persisted — it becomes a
+        slot only if the recipient keeps it and activates.
+      properties:
+        key:
+          type: string
+        slotType:
+          $ref: "#/components/schemas/SlotType"
+        label:
+          type: string
+        dated:
+          type: boolean
+          description: >-
+            When false the card shows no date at all — a flexible offer. Most
+            suggestions are undated by design.
+        trustedHelpersOnly:
+          type: boolean
+      required:
+        - key
+        - slotType
+        - label
+        - dated
+        - trustedHelpersOnly
+
+    GiftReview:
+      type: object
+      properties:
+        activated:
+          type: boolean
+          description: >-
+            True once the recipient has activated. The suggestions list is then
+            empty and slug points at the live page.
+        recipientName:
+          type: string
+        giftedBy:
+          type: string
+          nullable: true
+        occasion:
+          oneOf:
+            - $ref: "#/components/schemas/GiftOccasion"
+          nullable: true
+        canActivate:
+          type: boolean
+          nullable: true
+          description: False while the gift is unpaid or cancelled.
+        slug:
+          type: string
+          nullable: true
+        status:
+          type: string
+          nullable: true
+        scheduledActivateAt:
+          type: string
+          nullable: true
+          description: Set when the recipient chose a future go-live date.
+        situationLine:
+          type: string
+          nullable: true
+          description: >-
+            The default situation line for this occasion, prefilled into the
+            activation UI (editable). Null once activated.
+        recipientEmail:
+          type: string
+          nullable: true
+          description: >-
+            The recipient's email as we already hold it (from the gift), to
+            prefill the "where should we reach you?" field at activation. Null
+            when we hold none — the field is then asked for, not assumed.
+        manageToken:
+          type: string
+          nullable: true
+          description: Present once activated — the private management token.
+        suggestions:
+          type: array
+          items:
+            $ref: "#/components/schemas/SuggestedTask"
+      required:
+        - activated
+        - recipientName
+        - suggestions
+
+    ActivateGiftTask:
+      type: object
+      properties:
+        slotType:
+          $ref: "#/components/schemas/SlotType"
+        label:
+          type: string
+        slotDate:
+          type: string
+          nullable: true
+          description: Omit or null for a flexible, undated task.
+        notes:
+          type: string
+          nullable: true
+        trustedHelpersOnly:
+          type: boolean
+      required:
+        - slotType
+        - label
+
+    RecipientPronouns:
+      type: string
+      enum:
+        - she_her
+        - he_him
+        - they_them
+      description: >-
+        How the recipient is referred to in the helper invite copy. Defaults to
+        they_them so nothing is ever assumed.
+
+    ActivateGiftRequest:
+      type: object
+      properties:
+        tasks:
+          type: array
+          description: The tasks the recipient kept, in the wording they kept them in.
+          items:
+            $ref: "#/components/schemas/ActivateGiftTask"
+        scheduledActivateAt:
+          type: string
+          nullable: true
+          description: >-
+            Omit to go live now. Supply a future ISO timestamp to create the
+            page as a draft that the scheduler makes visible on that date.
+        goodToKnow:
+          type: string
+          nullable: true
+          description: >-
+            Optional free-text note shown to every helper on the live page.
+            Trimmed and capped server-side; omit or null for none.
+        recipientPronouns:
+          oneOf:
+            - $ref: "#/components/schemas/RecipientPronouns"
+          nullable: true
+          description: Defaults to they_them when omitted.
+        situationLine:
+          type: string
+          nullable: true
+          description: >-
+            The short, deliberately-vague phrase used in the invite copy
+            ("Sarah's <situationLine>"). Defaults from the occasion when omitted.
+        recipientEmail:
+          type: string
+          nullable: true
+          description: >-
+            Where to reach the recipient about their own page — used for the
+            claim notifications. Captured at activation (prefilled from the gift
+            when held, asked for when not). Omit or null to skip; notifications
+            then don't fire until an email is added via /manage.
+        recipientMobile:
+          type: string
+          nullable: true
+          description: >-
+            Optional mobile for future SMS updates. Stored when supplied; no SMS
+            is sent yet.
+      required:
+        - tasks
+
+    ActivatedPage:
+      type: object
+      properties:
+        slug:
+          type: string
+        status:
+          type: string
+        scheduledActivateAt:
+          type: string
+          nullable: true
+        manageToken:
+          type: string
+          nullable: true
+          description: >-
+            The private per-page management token — the recipient's re-entry
+            credential for adding people and sending invites. Not the public
+            slug or gift link.
+      required:
+        - slug
+        - status
+
     PinRequiredError:
       type: object
       properties:
@@ -306,6 +994,14 @@ components:
       required:
         - error
         - pinRequired
+
+    ValidationError:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
 
     NotFoundError:
       type: object
@@ -319,6 +1015,366 @@ components:
       type: object
       properties:
         error:
+          type: string
+      required:
+        - error
+
+    OkResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+      required:
+        - ok
+
+    InviteKind:
+      type: string
+      enum:
+        - general
+        - trusted
+        - second_wave
+
+    InviteChannel:
+      type: string
+      enum:
+        - sms
+        - email
+
+    ManageTaskSummary:
+      type: object
+      properties:
+        id:
+          type: string
+        slotType:
+          $ref: "#/components/schemas/SlotType"
+        label:
+          type: string
+        trustedHelpersOnly:
+          type: boolean
+        isClaimed:
+          type: boolean
+        claimedByName:
+          type: string
+          nullable: true
+          description: >-
+            Who claimed it. Always present to the recipient/manager regardless of
+            the helper's public-visibility choice — this is the "look who showed
+            up" payoff and is safe because it is shown only to the person the
+            help is for.
+        claimedNote:
+          type: string
+          nullable: true
+          description: The helper's optional message to the recipient, if left.
+        claimedAt:
+          type: string
+          nullable: true
+          description: When it was claimed (ISO), for the "help arriving" view.
+        slotDate:
+          type: string
+          nullable: true
+        slotTime:
+          type: string
+          nullable: true
+      required:
+        - id
+        - slotType
+        - label
+        - trustedHelpersOnly
+        - isClaimed
+
+    ManageContact:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        mobile:
+          type: string
+          nullable: true
+        email:
+          type: string
+          nullable: true
+        trusted:
+          type: boolean
+        optedOut:
+          type: boolean
+      required:
+        - id
+        - name
+        - trusted
+        - optedOut
+
+    ManageInvite:
+      type: object
+      properties:
+        id:
+          type: string
+        contactId:
+          type: string
+          nullable: true
+        name:
+          type: string
+        kind:
+          $ref: "#/components/schemas/InviteKind"
+        channel:
+          $ref: "#/components/schemas/InviteChannel"
+        status:
+          type: string
+          enum: [queued, sent, failed, cancelled]
+        scheduledFor:
+          type: string
+        sentAt:
+          type: string
+          nullable: true
+        claimedAt:
+          type: string
+          nullable: true
+      required:
+        - id
+        - name
+        - kind
+        - channel
+        - status
+        - scheduledFor
+
+    ManageState:
+      type: object
+      properties:
+        role:
+          type: string
+          enum: [recipient, manager]
+        recipientName:
+          type: string
+        slug:
+          type: string
+        status:
+          type: string
+        occasion:
+          oneOf:
+            - $ref: "#/components/schemas/GiftOccasion"
+          nullable: true
+        recipientPronouns:
+          $ref: "#/components/schemas/RecipientPronouns"
+        situationLine:
+          type: string
+          nullable: true
+        recipientEmail:
+          type: string
+          nullable: true
+          description: >-
+            Where the recipient is notified when help arrives. Editable here so a
+            recipient who skipped it at activation can add it. Null when none.
+        recipientMobile:
+          type: string
+          nullable: true
+          description: Optional mobile for future SMS updates. Null when none.
+        bereavement:
+          type: boolean
+          description: When true the UI leads with self-share and waves are gated.
+        shareLink:
+          type: string
+        tasks:
+          type: array
+          items:
+            $ref: "#/components/schemas/ManageTaskSummary"
+        contacts:
+          type: array
+          items:
+            $ref: "#/components/schemas/ManageContact"
+        invites:
+          type: array
+          items:
+            $ref: "#/components/schemas/ManageInvite"
+      required:
+        - role
+        - recipientName
+        - slug
+        - status
+        - recipientPronouns
+        - bereavement
+        - shareLink
+        - tasks
+        - contacts
+        - invites
+
+    ManageDetails:
+      type: object
+      properties:
+        recipientPronouns:
+          $ref: "#/components/schemas/RecipientPronouns"
+        situationLine:
+          type: string
+          nullable: true
+        recipientEmail:
+          type: string
+          nullable: true
+        recipientMobile:
+          type: string
+          nullable: true
+      required:
+        - recipientPronouns
+
+    UpdateDetailsRequest:
+      type: object
+      properties:
+        recipientPronouns:
+          $ref: "#/components/schemas/RecipientPronouns"
+        situationLine:
+          type: string
+          nullable: true
+        recipientEmail:
+          type: string
+          nullable: true
+          description: >-
+            Set/clear where claim notifications are sent. Send an empty string or
+            null to clear; a non-empty value must look like an email address.
+        recipientMobile:
+          type: string
+          nullable: true
+          description: Set/clear the optional mobile for future SMS updates.
+
+    AddContactRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        mobile:
+          type: string
+          nullable: true
+        email:
+          type: string
+          nullable: true
+        trusted:
+          type: boolean
+      required:
+        - name
+
+    UpdateContactRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        mobile:
+          type: string
+          nullable: true
+        email:
+          type: string
+          nullable: true
+        trusted:
+          type: boolean
+
+    InviteRequestItem:
+      type: object
+      properties:
+        contactId:
+          type: string
+        slotId:
+          type: string
+          nullable: true
+          description: Set to ask this person about one sensitive (trusted) task.
+        kind:
+          oneOf:
+            - $ref: "#/components/schemas/InviteKind"
+          nullable: true
+          description: Inferred when omitted (trusted if slotId is set, else general).
+        openingLine:
+          type: string
+          nullable: true
+          description: The recipient's optional personal opener, shown above the verbatim body.
+      required:
+        - contactId
+
+    InviteBatchRequest:
+      type: object
+      properties:
+        confirmed:
+          type: boolean
+          description: Required true to send/schedule on a bereavement page.
+        scheduledFor:
+          type: string
+          nullable: true
+          description: ISO timestamp; used by the schedule endpoint only.
+        invites:
+          type: array
+          items:
+            $ref: "#/components/schemas/InviteRequestItem"
+      required:
+        - invites
+
+    InvitePreview:
+      type: object
+      properties:
+        contactId:
+          type: string
+        name:
+          type: string
+          nullable: true
+        kind:
+          oneOf:
+            - $ref: "#/components/schemas/InviteKind"
+          nullable: true
+        channel:
+          oneOf:
+            - $ref: "#/components/schemas/InviteChannel"
+          nullable: true
+        subject:
+          type: string
+          nullable: true
+        body:
+          type: string
+          nullable: true
+        error:
+          type: string
+          nullable: true
+      required:
+        - contactId
+
+    InvitePreviewResponse:
+      type: object
+      properties:
+        previews:
+          type: array
+          items:
+            $ref: "#/components/schemas/InvitePreview"
+      required:
+        - previews
+
+    InviteResult:
+      type: object
+      properties:
+        contactId:
+          type: string
+        status:
+          type: string
+          enum: [sent, failed, queued, skipped]
+        error:
+          type: string
+          nullable: true
+      required:
+        - contactId
+        - status
+
+    InviteResultsResponse:
+      type: object
+      properties:
+        mode:
+          type: string
+          enum: [now, schedule]
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/InviteResult"
+      required:
+        - mode
+        - results
+
+    BereavementGateError:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
           type: string
       required:
         - error

@@ -1,4 +1,4 @@
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { TeacupMark } from "@/components/TeacupMark";
@@ -131,8 +131,7 @@ export default function Home() {
             variant="accent"
             className="text-base px-8 py-6 h-auto font-serif shadow-lg shadow-accent/20 hover:shadow-accent/30 transition-shadow"
           >
-            {/* Placeholder — $59 Stripe checkout link added later */}
-            <a href="#">Gift Aunt Lucy</a>
+            <Link href="/buy">Gift Aunt Lucy</Link>
           </Button>
         </motion.div>
       </motion.section>
@@ -241,12 +240,12 @@ export default function Home() {
               $59 for one Aunt Lucy gift page, valid for 12 months. Eight weeks
               of coordinated support from the moment they need it.
             </p>
-            <a
-              href="#"
+            <Link
+              href="/employers"
               className="text-sm text-primary underline underline-offset-2 hover:text-primary/80 transition-colors"
             >
               Buying for a team or workplace? See employer pricing.
-            </a>
+            </Link>
           </div>
           <div className="shrink-0">
             <Button
@@ -255,8 +254,7 @@ export default function Home() {
               variant="outline"
               className="font-serif text-base border-primary/40 text-primary hover:bg-primary/5"
             >
-              {/* Placeholder — $59 Stripe checkout link added later */}
-              <a href="#">Gift Aunt Lucy — $59</a>
+              <Link href="/buy">Gift Aunt Lucy — $59</Link>
             </Button>
           </div>
         </motion.div>
@@ -279,8 +277,7 @@ export default function Home() {
             size="lg"
             className="bg-white text-primary hover:bg-white/90 text-base px-8 py-6 h-auto font-serif shadow-xl"
           >
-            {/* Placeholder — $59 Stripe checkout link added later */}
-            <a href="#">Give them Aunt Lucy — $59</a>
+            <Link href="/buy">Give them Aunt Lucy — $59</Link>
           </Button>
           <p className="text-primary-foreground/50 text-sm mt-4">
             Two minutes to gift · Free for helpers · No app needed

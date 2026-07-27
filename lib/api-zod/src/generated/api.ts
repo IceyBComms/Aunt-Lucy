@@ -35,6 +35,17 @@ export const GetSupportPageResponse = zod.object({
   location: zod.string().nullish(),
   status: zod.enum(["draft", "pending_approval", "active", "closed"]),
   privacy: zod.enum(["open", "pin_protected"]),
+  goodToKnow: zod
+    .string()
+    .nullish()
+    .describe(
+      "An optional free-text note from the recipient, shown to every helper. Null when they didn't leave one.",
+    ),
+  helpingCount: zod
+    .number()
+    .describe(
+      'Ambient presence — the number of distinct people helping (deduped by claimed contact), for the warm \"N people helping\" line. Carries the warmth without naming anyone, so it is safe to show to everyone.',
+    ),
   slots: zod.array(
     zod.object({
       id: zod.string(),
@@ -42,6 +53,7 @@ export const GetSupportPageResponse = zod.object({
       slotType: zod.enum([
         "meal",
         "school_pickup",
+        "child_care",
         "errand",
         "dog_walking",
         "shopping",
@@ -49,7 +61,12 @@ export const GetSupportPageResponse = zod.object({
         "other",
       ]),
       customLabel: zod.string().nullish(),
-      slotDate: zod.string(),
+      slotDate: zod
+        .string()
+        .nullish()
+        .describe(
+          "Null means the task has no fixed date — a flexible offer, claimed whenever suits. The date is set when a helper claims it.",
+        ),
       slotTime: zod.string().nullish(),
       notes: zod.string().nullish(),
       isClaimed: zod.boolean(),
@@ -72,6 +89,12 @@ export const ClaimSlotBody = zod.object({
   firstName: zod.string(),
   contact: zod.string(),
   note: zod.string().nullish(),
+  showName: zod
+    .boolean()
+    .nullish()
+    .describe(
+      "The helper's opt-in choice: when true, their name is shown to other helpers on the public page; when false or omitted, only the recipient sees it (the public page shows an ambient count instead). Defaults to false — hidden by default, never surprised into being shown.",
+    ),
   pin: zod
     .string()
     .nullish()
@@ -84,6 +107,7 @@ export const ClaimSlotResponse = zod.object({
   slotType: zod.enum([
     "meal",
     "school_pickup",
+    "child_care",
     "errand",
     "dog_walking",
     "shopping",
@@ -91,13 +115,92 @@ export const ClaimSlotResponse = zod.object({
     "other",
   ]),
   customLabel: zod.string().nullish(),
-  slotDate: zod.string(),
+  slotDate: zod
+    .string()
+    .nullish()
+    .describe(
+      "Null means the task has no fixed date — a flexible offer, claimed whenever suits. The date is set when a helper claims it.",
+    ),
   slotTime: zod.string().nullish(),
   notes: zod.string().nullish(),
   isClaimed: zod.boolean(),
   claimedByName: zod.string().nullish(),
   claimedNote: zod.string().nullish(),
   createdAt: zod.string(),
+});
+
+/**
+ * Returns every tier shown on the purchase page, including the ones that cannot be bought yet. Prices are GST-inclusive cents and come from the server so the buyer-facing price can never drift from what Stripe charges. A tier with sellable=false is display-only — it carries no payment link and POST /gifts refuses it.
+ * @summary List the gift tiers
+ */
+export const ListGiftTiersResponseItem = zod.object({
+  id: zod.enum([
+    "consumer_personal",
+    "workplace_individual",
+    "workplace_5pack",
+    "workplace_10pack",
+  ]),
+  label: zod.string().describe("The buyer-facing name of the tier."),
+  blurb: zod.string().describe("One line explaining who the tier is for."),
+  amountCents: zod.number().describe("GST-inclusive price in cents."),
+  gifts: zod.number().describe("How many separate gift pages the tier buys."),
+  sellable: zod
+    .boolean()
+    .describe(
+      "False for the pack tiers, which are shown as coming soon until multi-gift fulfilment exists. A display-only tier has no payment link and cannot be purchased.",
+    ),
+});
+export const ListGiftTiersResponse = zod.array(ListGiftTiersResponseItem);
+
+/**
+ * Creates the gift in `pending` status and returns the Stripe checkout URL to send the buyer to. The URL already carries `client_reference_id` set to the new gift's id — that is the handshake the Stripe webhook uses to match the payment back to this gift, so the caller must redirect to the returned URL unchanged. Nothing is charged and nothing is emailed until the payment completes.
+ * @summary Start a gift purchase
+ */
+export const CreateGiftBody = zod.object({
+  tierId: zod.enum([
+    "consumer_personal",
+    "workplace_individual",
+    "workplace_5pack",
+    "workplace_10pack",
+  ]),
+  purchaserName: zod.string(),
+  purchaserEmail: zod
+    .string()
+    .describe("Where the receipt and the tax invoice are sent."),
+  forSelf: zod
+    .boolean()
+    .describe(
+      "True when the buyer is setting the page up for themselves. The recipient fields are then ignored and the buyer's own name and email are used.",
+    ),
+  recipientName: zod
+    .string()
+    .nullish()
+    .describe("Required unless forSelf is true."),
+  recipientEmail: zod
+    .string()
+    .nullish()
+    .describe(
+      "Where the gift is delivered. Null when the buyer chose to pass the link on themselves — fulfilment then sends the link to the buyer instead and nothing reaches the recipient automatically.",
+    ),
+  occasion: zod
+    .enum([
+      "new_baby",
+      "illness_recovery",
+      "bereavement",
+      "ongoing_support",
+      "other",
+    ])
+    .nullish(),
+  giftedByNote: zod
+    .string()
+    .nullish()
+    .describe('The optional \"from\" note shown on the delivered gift.'),
+  deliverAt: zod
+    .date()
+    .nullish()
+    .describe(
+      "When the gift should reach the recipient. Null means as soon as the payment clears.",
+    ),
 });
 
 /**
@@ -130,6 +233,493 @@ export const GetGiftResponse = zod.object({
     zod.object({
       signerName: zod.string(),
       message: zod.string(),
+    }),
+  ),
+});
+
+/**
+ * Token-gated, not auth-gated — the recipient has no account. Before activation this returns occasion-aware suggested tasks that are generated on the fly and not persisted. After activation it returns the live page instead, so re-opening the link is always safe.
+ * @summary Get the suggested tasks a recipient can steer before activating
+ */
+export const GetGiftReviewParams = zod.object({
+  redemptionToken: zod.coerce.string(),
+});
+
+export const GetGiftReviewResponse = zod.object({
+  activated: zod
+    .boolean()
+    .describe(
+      "True once the recipient has activated. The suggestions list is then empty and slug points at the live page.",
+    ),
+  recipientName: zod.string(),
+  giftedBy: zod.string().nullish(),
+  occasion: zod
+    .enum([
+      "new_baby",
+      "illness_recovery",
+      "bereavement",
+      "ongoing_support",
+      "other",
+    ])
+    .nullish(),
+  canActivate: zod
+    .boolean()
+    .nullish()
+    .describe("False while the gift is unpaid or cancelled."),
+  slug: zod.string().nullish(),
+  status: zod.string().nullish(),
+  scheduledActivateAt: zod
+    .string()
+    .nullish()
+    .describe("Set when the recipient chose a future go-live date."),
+  situationLine: zod
+    .string()
+    .nullish()
+    .describe(
+      "The default situation line for this occasion, prefilled into the activation UI (editable). Null once activated.",
+    ),
+  recipientEmail: zod
+    .string()
+    .nullish()
+    .describe(
+      'The recipient\'s email as we already hold it (from the gift), to prefill the \"where should we reach you?\" field at activation. Null when we hold none — the field is then asked for, not assumed.',
+    ),
+  manageToken: zod
+    .string()
+    .nullish()
+    .describe("Present once activated — the private management token."),
+  suggestions: zod.array(
+    zod
+      .object({
+        key: zod.string(),
+        slotType: zod.enum([
+          "meal",
+          "school_pickup",
+          "child_care",
+          "errand",
+          "dog_walking",
+          "shopping",
+          "visit",
+          "other",
+        ]),
+        label: zod.string(),
+        dated: zod
+          .boolean()
+          .describe(
+            "When false the card shows no date at all — a flexible offer. Most suggestions are undated by design.",
+          ),
+        trustedHelpersOnly: zod.boolean(),
+      })
+      .describe(
+        "A proposed task shown on the review screen. Not persisted — it becomes a slot only if the recipient keeps it and activates.",
+      ),
+  ),
+});
+
+/**
+ * Creates the support page (with no organiser account), creates the kept tasks as slots, and marks the gift redeemed. Returns the page slug. Calling this again on an already-activated gift returns the existing page rather than an error.
+ * @summary Turn the kept tasks into a live support page
+ */
+export const ActivateGiftParams = zod.object({
+  redemptionToken: zod.coerce.string(),
+});
+
+export const ActivateGiftBody = zod.object({
+  tasks: zod
+    .array(
+      zod.object({
+        slotType: zod.enum([
+          "meal",
+          "school_pickup",
+          "child_care",
+          "errand",
+          "dog_walking",
+          "shopping",
+          "visit",
+          "other",
+        ]),
+        label: zod.string(),
+        slotDate: zod
+          .string()
+          .nullish()
+          .describe("Omit or null for a flexible, undated task."),
+        notes: zod.string().nullish(),
+        trustedHelpersOnly: zod.boolean().optional(),
+      }),
+    )
+    .describe(
+      "The tasks the recipient kept, in the wording they kept them in.",
+    ),
+  scheduledActivateAt: zod
+    .string()
+    .nullish()
+    .describe(
+      "Omit to go live now. Supply a future ISO timestamp to create the page as a draft that the scheduler makes visible on that date.",
+    ),
+  goodToKnow: zod
+    .string()
+    .nullish()
+    .describe(
+      "Optional free-text note shown to every helper on the live page. Trimmed and capped server-side; omit or null for none.",
+    ),
+  recipientPronouns: zod
+    .enum(["she_her", "he_him", "they_them"])
+    .describe(
+      "How the recipient is referred to in the helper invite copy. Defaults to they_them so nothing is ever assumed.",
+    )
+    .nullish()
+    .describe("Defaults to they_them when omitted."),
+  situationLine: zod
+    .string()
+    .nullish()
+    .describe(
+      'The short, deliberately-vague phrase used in the invite copy (\"Sarah\'s <situationLine>\"). Defaults from the occasion when omitted.',
+    ),
+  recipientEmail: zod
+    .string()
+    .nullish()
+    .describe(
+      "Where to reach the recipient about their own page — used for the claim notifications. Captured at activation (prefilled from the gift when held, asked for when not). Omit or null to skip; notifications then don't fire until an email is added via \/manage.",
+    ),
+  recipientMobile: zod
+    .string()
+    .nullish()
+    .describe(
+      "Optional mobile for future SMS updates. Stored when supplied; no SMS is sent yet.",
+    ),
+});
+
+export const ActivateGiftResponse = zod.object({
+  slug: zod.string(),
+  status: zod.string(),
+  scheduledActivateAt: zod.string().nullish(),
+  manageToken: zod
+    .string()
+    .nullish()
+    .describe(
+      "The private per-page management token — the recipient's re-entry credential for adding people and sending invites. Not the public slug or gift link.",
+    ),
+});
+
+/**
+ * Token-gated by the private per-page management token. Returns the page details, tasks, contacts and the state of every invite sent or queued.
+ * @summary The recipient's management view of their page
+ */
+export const GetManageStateParams = zod.object({
+  token: zod.coerce.string(),
+});
+
+export const GetManageStateResponse = zod.object({
+  role: zod.enum(["recipient", "manager"]),
+  recipientName: zod.string(),
+  slug: zod.string(),
+  status: zod.string(),
+  occasion: zod
+    .enum([
+      "new_baby",
+      "illness_recovery",
+      "bereavement",
+      "ongoing_support",
+      "other",
+    ])
+    .nullish(),
+  recipientPronouns: zod
+    .enum(["she_her", "he_him", "they_them"])
+    .describe(
+      "How the recipient is referred to in the helper invite copy. Defaults to they_them so nothing is ever assumed.",
+    ),
+  situationLine: zod.string().nullish(),
+  recipientEmail: zod
+    .string()
+    .nullish()
+    .describe(
+      "Where the recipient is notified when help arrives. Editable here so a recipient who skipped it at activation can add it. Null when none.",
+    ),
+  recipientMobile: zod
+    .string()
+    .nullish()
+    .describe("Optional mobile for future SMS updates. Null when none."),
+  bereavement: zod
+    .boolean()
+    .describe("When true the UI leads with self-share and waves are gated."),
+  shareLink: zod.string(),
+  tasks: zod.array(
+    zod.object({
+      id: zod.string(),
+      slotType: zod.enum([
+        "meal",
+        "school_pickup",
+        "child_care",
+        "errand",
+        "dog_walking",
+        "shopping",
+        "visit",
+        "other",
+      ]),
+      label: zod.string(),
+      trustedHelpersOnly: zod.boolean(),
+      isClaimed: zod.boolean(),
+      claimedByName: zod
+        .string()
+        .nullish()
+        .describe(
+          'Who claimed it. Always present to the recipient\/manager regardless of the helper\'s public-visibility choice — this is the \"look who showed up\" payoff and is safe because it is shown only to the person the help is for.',
+        ),
+      claimedNote: zod
+        .string()
+        .nullish()
+        .describe("The helper's optional message to the recipient, if left."),
+      claimedAt: zod
+        .string()
+        .nullish()
+        .describe('When it was claimed (ISO), for the \"help arriving\" view.'),
+      slotDate: zod.string().nullish(),
+      slotTime: zod.string().nullish(),
+    }),
+  ),
+  contacts: zod.array(
+    zod.object({
+      id: zod.string(),
+      name: zod.string(),
+      mobile: zod.string().nullish(),
+      email: zod.string().nullish(),
+      trusted: zod.boolean(),
+      optedOut: zod.boolean(),
+    }),
+  ),
+  invites: zod.array(
+    zod.object({
+      id: zod.string(),
+      contactId: zod.string().nullish(),
+      name: zod.string(),
+      kind: zod.enum(["general", "trusted", "second_wave"]),
+      channel: zod.enum(["sms", "email"]),
+      status: zod.enum(["queued", "sent", "failed", "cancelled"]),
+      scheduledFor: zod.string(),
+      sentAt: zod.string().nullish(),
+      claimedAt: zod.string().nullish(),
+    }),
+  ),
+});
+
+/**
+ * @summary Update the recipient's pronoun and situation line
+ */
+export const UpdateManageDetailsParams = zod.object({
+  token: zod.coerce.string(),
+});
+
+export const UpdateManageDetailsBody = zod.object({
+  recipientPronouns: zod
+    .enum(["she_her", "he_him", "they_them"])
+    .optional()
+    .describe(
+      "How the recipient is referred to in the helper invite copy. Defaults to they_them so nothing is ever assumed.",
+    ),
+  situationLine: zod.string().nullish(),
+  recipientEmail: zod
+    .string()
+    .nullish()
+    .describe(
+      "Set\/clear where claim notifications are sent. Send an empty string or null to clear; a non-empty value must look like an email address.",
+    ),
+  recipientMobile: zod
+    .string()
+    .nullish()
+    .describe("Set\/clear the optional mobile for future SMS updates."),
+});
+
+export const UpdateManageDetailsResponse = zod.object({
+  recipientPronouns: zod
+    .enum(["she_her", "he_him", "they_them"])
+    .describe(
+      "How the recipient is referred to in the helper invite copy. Defaults to they_them so nothing is ever assumed.",
+    ),
+  situationLine: zod.string().nullish(),
+  recipientEmail: zod.string().nullish(),
+  recipientMobile: zod.string().nullish(),
+});
+
+/**
+ * @summary Add a contact (name + mobile and/or email, optional trusted tag)
+ */
+export const AddContactParams = zod.object({
+  token: zod.coerce.string(),
+});
+
+export const AddContactBody = zod.object({
+  name: zod.string(),
+  mobile: zod.string().nullish(),
+  email: zod.string().nullish(),
+  trusted: zod.boolean().optional(),
+});
+
+/**
+ * @summary Edit a contact
+ */
+export const UpdateContactParams = zod.object({
+  token: zod.coerce.string(),
+  contactId: zod.coerce.string(),
+});
+
+export const UpdateContactBody = zod.object({
+  name: zod.string().optional(),
+  mobile: zod.string().nullish(),
+  email: zod.string().nullish(),
+  trusted: zod.boolean().optional(),
+});
+
+export const UpdateContactResponse = zod.object({
+  id: zod.string(),
+  name: zod.string(),
+  mobile: zod.string().nullish(),
+  email: zod.string().nullish(),
+  trusted: zod.boolean(),
+  optedOut: zod.boolean(),
+});
+
+/**
+ * @summary Remove a contact
+ */
+export const DeleteContactParams = zod.object({
+  token: zod.coerce.string(),
+  contactId: zod.coerce.string(),
+});
+
+export const DeleteContactResponse = zod.object({
+  ok: zod.boolean(),
+});
+
+/**
+ * Returns the rendered message per contact (the verbatim Aunt Lucy copy, with any personal opener) so the recipient can review before sending.
+ * @summary Render the exact invite messages without sending
+ */
+export const PreviewInvitesParams = zod.object({
+  token: zod.coerce.string(),
+});
+
+export const PreviewInvitesBody = zod.object({
+  confirmed: zod
+    .boolean()
+    .optional()
+    .describe("Required true to send\/schedule on a bereavement page."),
+  scheduledFor: zod
+    .string()
+    .nullish()
+    .describe("ISO timestamp; used by the schedule endpoint only."),
+  invites: zod.array(
+    zod.object({
+      contactId: zod.string(),
+      slotId: zod
+        .string()
+        .nullish()
+        .describe("Set to ask this person about one sensitive (trusted) task."),
+      kind: zod
+        .enum(["general", "trusted", "second_wave"])
+        .nullish()
+        .describe(
+          "Inferred when omitted (trusted if slotId is set, else general).",
+        ),
+      openingLine: zod
+        .string()
+        .nullish()
+        .describe(
+          "The recipient's optional personal opener, shown above the verbatim body.",
+        ),
+    }),
+  ),
+});
+
+export const PreviewInvitesResponse = zod.object({
+  previews: zod.array(
+    zod.object({
+      contactId: zod.string(),
+      name: zod.string().nullish(),
+      kind: zod.enum(["general", "trusted", "second_wave"]).nullish(),
+      channel: zod.enum(["sms", "email"]).nullish(),
+      subject: zod.string().nullish(),
+      body: zod.string().nullish(),
+      error: zod.string().nullish(),
+    }),
+  ),
+});
+
+/**
+ * Sends immediately. For a bereavement page the request is refused with 409 unless `confirmed` is true (self-share is the gentle default).
+ * @summary Send invites now
+ */
+export const SendInvitesParams = zod.object({
+  token: zod.coerce.string(),
+});
+
+export const SendInvitesBody = zod.object({
+  confirmed: zod
+    .boolean()
+    .optional()
+    .describe("Required true to send\/schedule on a bereavement page."),
+  scheduledFor: zod
+    .string()
+    .nullish()
+    .describe("ISO timestamp; used by the schedule endpoint only."),
+  invites: zod.array(
+    zod.object({
+      contactId: zod.string(),
+      slotId: zod
+        .string()
+        .nullish()
+        .describe("Set to ask this person about one sensitive (trusted) task."),
+      kind: zod
+        .enum(["general", "trusted", "second_wave"])
+        .nullish()
+        .describe(
+          "Inferred when omitted (trusted if slotId is set, else general).",
+        ),
+      openingLine: zod
+        .string()
+        .nullish()
+        .describe(
+          "The recipient's optional personal opener, shown above the verbatim body.",
+        ),
+    }),
+  ),
+});
+
+/**
+ * Queues the invites for the dispatcher to send at scheduledFor. Same bereavement gate as send.
+ * @summary Queue invites as a scheduled wave
+ */
+export const ScheduleInvitesParams = zod.object({
+  token: zod.coerce.string(),
+});
+
+export const ScheduleInvitesBody = zod.object({
+  confirmed: zod
+    .boolean()
+    .optional()
+    .describe("Required true to send\/schedule on a bereavement page."),
+  scheduledFor: zod
+    .string()
+    .nullish()
+    .describe("ISO timestamp; used by the schedule endpoint only."),
+  invites: zod.array(
+    zod.object({
+      contactId: zod.string(),
+      slotId: zod
+        .string()
+        .nullish()
+        .describe("Set to ask this person about one sensitive (trusted) task."),
+      kind: zod
+        .enum(["general", "trusted", "second_wave"])
+        .nullish()
+        .describe(
+          "Inferred when omitted (trusted if slotId is set, else general).",
+        ),
+      openingLine: zod
+        .string()
+        .nullish()
+        .describe(
+          "The recipient's optional personal opener, shown above the verbatim body.",
+        ),
     }),
   ),
 });

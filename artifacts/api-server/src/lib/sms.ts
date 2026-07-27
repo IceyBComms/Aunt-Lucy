@@ -12,6 +12,35 @@ if (!client) {
   logger.warn("Twilio credentials not set — SMS sending disabled");
 }
 
+/**
+ * Sends an already-rendered SMS body. The invite copy is composed in
+ * inviteCopy.ts (verbatim templates), so this layer only transmits — it never
+ * builds the wording. Returns true if the message was handed to Twilio.
+ *
+ * Failures are logged and swallowed for the batch dispatcher's benefit (one bad
+ * number must not abort a wave); callers that need the outcome use the return.
+ */
+export async function sendSms({
+  to,
+  body,
+}: {
+  to: string;
+  body: string;
+}): Promise<boolean> {
+  if (!client || !fromNumber) {
+    logger.warn({ to }, "SMS not sent — Twilio not configured");
+    return false;
+  }
+  try {
+    await client.messages.create({ body, from: fromNumber, to });
+    logger.info({ to }, "SMS sent");
+    return true;
+  } catch (err) {
+    logger.error({ err, to }, "Failed to send SMS");
+    return false;
+  }
+}
+
 export async function sendInviteSms({
   to,
   recipientName,
@@ -24,7 +53,7 @@ export async function sendInviteSms({
   to: string;
   recipientName: string;
   slotTypeLabel: string;
-  slotDate: string;
+  slotDate: string | null;
   slotTime: string | null;
   helperName: string;
   inviteUrl: string;
@@ -34,9 +63,12 @@ export async function sendInviteSms({
     return;
   }
 
-  const timeStr = slotTime ? ` at ${formatTime(slotTime)}` : "";
+  // An undated task takes "whenever suits" in place of "on <date>", so the
+  // sentence stays a sentence rather than reading "on whenever suits".
+  const timeStr = slotDate && slotTime ? ` at ${formatTime(slotTime)}` : "";
+  const whenStr = slotDate ? `on ${formatDate(slotDate)}${timeStr}` : formatDate(null);
   const body =
-    `Hi ${helperName}, you've been personally invited to help ${recipientName} with a ${slotTypeLabel} on ${formatDate(slotDate)}${timeStr}. ` +
+    `Hi ${helperName}, you've been personally invited to help ${recipientName} with a ${slotTypeLabel} ${whenStr}. ` +
     `Tap to confirm: ${inviteUrl}`;
 
   try {
@@ -47,7 +79,9 @@ export async function sendInviteSms({
   }
 }
 
-function formatDate(dateStr: string): string {
+// Undated slots are flexible offers — see the note in email.ts.
+function formatDate(dateStr: string | null): string {
+  if (!dateStr) return "whenever suits";
   const [y, m, d] = dateStr.split("-").map(Number);
   const date = new Date(y, m - 1, d);
   return date.toLocaleDateString("en-AU", {
