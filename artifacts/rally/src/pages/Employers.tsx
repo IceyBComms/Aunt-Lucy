@@ -1,4 +1,4 @@
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { TeacupMark } from "@/components/TeacupMark";
@@ -175,10 +175,7 @@ export default function Employers() {
             variant="accent"
             className="text-base px-8 py-6 h-auto font-serif shadow-lg shadow-accent/20 hover:shadow-accent/30 transition-shadow"
           >
-            {/* → /buy, Workplace $79 tier. Placeholder href — the app's per-tier
-                Stripe payment links (Item 2) aren't wired yet; there's no /buy
-                route. Matches the existing placeholder convention on Home. */}
-            <a href="#">Gift Aunt Lucy</a>
+            <Link href="/buy/workplace_individual">Gift Aunt Lucy</Link>
           </Button>
         </motion.div>
       </motion.section>
@@ -352,8 +349,7 @@ export default function Employers() {
               variant="outline"
               className="font-serif text-base border-primary/40 text-primary hover:bg-primary/5"
             >
-              {/* → /buy, Workplace $79 tier. Placeholder href — see hero note. */}
-              <a href="#">Gift Aunt Lucy — $79</a>
+              <Link href="/buy/workplace_individual">Gift Aunt Lucy — $79</Link>
             </Button>
             <Button
               asChild
@@ -411,8 +407,7 @@ export default function Employers() {
               size="lg"
               className="bg-white text-primary hover:bg-white/90 text-base px-8 py-6 h-auto font-serif shadow-xl"
             >
-              {/* → /buy, Workplace $79 tier. Placeholder href — see hero note. */}
-              <a href="#">Gift Aunt Lucy — $79</a>
+              <Link href="/buy/workplace_individual">Gift Aunt Lucy — $79</Link>
             </Button>
             <Button
               asChild
