@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import crypto from "crypto";
 import { db, giftsTable, giftSigningsTable, supportPagesTable, slotsTable, pageGrantsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { suggestionsFor, type SuggestedTask } from "../lib/occasionSuggestions";
 import { uniqueSlug } from "../lib/slug";
 import { defaultSituationLine, type RecipientPronouns } from "../lib/inviteCopy";
@@ -172,10 +172,33 @@ router.post("/gifts", async (req, res) => {
     return !!existing;
   });
 
+  // Workplace card tiers carry a team card. Mint its two public tokens now, at
+  // purchase, so the organiser share email at fulfilment already has the signing
+  // link. A consumer gift has no card and both stay null. Each is checked for
+  // collision against its own column, exactly like the redemption token.
+  let signingToken: string | null = null;
+  let organiserToken: string | null = null;
+  if (tier.hasCard) {
+    signingToken = await uniqueToken(async (token) => {
+      const existing = await db.query.giftsTable.findFirst({
+        where: eq(giftsTable.signingToken, token),
+      });
+      return !!existing;
+    });
+    organiserToken = await uniqueToken(async (token) => {
+      const existing = await db.query.giftsTable.findFirst({
+        where: eq(giftsTable.organiserToken, token),
+      });
+      return !!existing;
+    });
+  }
+
   const [gift] = await db
     .insert(giftsTable)
     .values({
       redemptionToken,
+      signingToken,
+      organiserToken,
       purchaserName,
       purchaserEmail,
       recipientName,
@@ -221,10 +244,22 @@ router.get("/gifts/:redemptionToken", async (req, res) => {
   // The gift experience is a read-only keepsake and is shown even before it
   // has been delivered (delivered_at may still be null) — we deliberately do
   // not gate on delivery here.
-  const signings = await db.query.giftSigningsTable.findMany({
-    where: eq(giftSigningsTable.giftId, gift.id),
-    orderBy: (s, { asc }) => [asc(s.createdAt)],
-  });
+  //
+  // Two rules on the notes, though:
+  //   • Only `visible` notes — a note the organiser soft-removed never shows.
+  //   • For a card gift, notes appear only once the card is sealed. Delivery is
+  //     gated on the seal, so the recipient shouldn't arrive early anyway, but
+  //     this guarantees they never glimpse a half-signed card even if they do.
+  const cardHidden = !!gift.signingToken && !gift.cardSealedAt;
+  const signings = cardHidden
+    ? []
+    : await db.query.giftSigningsTable.findMany({
+        where: and(
+          eq(giftSigningsTable.giftId, gift.id),
+          eq(giftSigningsTable.status, "visible"),
+        ),
+        orderBy: (s, { asc }) => [asc(s.createdAt)],
+      });
 
   res.json({
     recipientName: gift.recipientName,

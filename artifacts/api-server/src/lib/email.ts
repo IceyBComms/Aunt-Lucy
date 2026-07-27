@@ -756,6 +756,91 @@ function renderButton(url: string, label: string): string {
           </table>`;
 }
 
+// ─── 0. Organiser team-card share (workplace) ────────────────────────────────
+
+export interface OrganiserCardShareParams {
+  to: string;
+  organiserFirstName: string;
+  recipientFirstName: string;
+  /** The public "sign the card" link to share with the whole team. */
+  signingLink: string;
+  /** The organiser's private review/seal link. Null only if somehow unminted. */
+  organiserLink: string | null;
+}
+
+export function buildOrganiserCardShareEmail(
+  params: OrganiserCardShareParams,
+): RenderedEmail {
+  const reviewLine = params.organiserLink
+    ? `          <p style="margin:0 0 24px;color:#333;font-size:15px;line-height:1.6;">
+            When the notes are in, <a href="${escapeHtml(params.organiserLink)}" style="color:#2D6A4F;">come back to review and send it</a>. No rush — the card waits for you.
+          </p>`
+    : `          <p style="margin:0 0 24px;color:#333;font-size:15px;line-height:1.6;">
+            When the notes are in, come back to review and send it. No rush — the card waits for you.
+          </p>`;
+
+  const contentHtml = `          <p style="margin:0 0 20px;color:#333;font-size:16px;line-height:1.6;">
+            Hi ${escapeHtml(params.organiserFirstName)},
+          </p>
+          <p style="margin:0 0 20px;color:#333;font-size:16px;line-height:1.6;">
+            ${escapeHtml(params.recipientFirstName)}'s gift is set up. Before it's sent, invite the team to sign the card — one link, no accounts, a few seconds each.
+          </p>
+          ${renderButton(params.signingLink, "Share the signing link")}
+          <p style="margin:0 0 20px;color:#5a5a5a;font-size:13px;line-height:1.6;word-break:break-all;">
+            Or copy this link: ${escapeHtml(params.signingLink)}
+          </p>
+${reviewLine}
+          <p style="margin:0;color:#2D6A4F;font-size:15px;line-height:1.6;">
+            — The Aunt Lucy team
+          </p>`;
+
+  const text = [
+    `Hi ${params.organiserFirstName},`,
+    ``,
+    `${params.recipientFirstName}'s gift is set up. Before it's sent, invite the team to sign the card — one link, no accounts, a few seconds each:`,
+    ``,
+    params.signingLink,
+    ``,
+    params.organiserLink
+      ? `When the notes are in, come back to review and send it: ${params.organiserLink}. No rush — the card waits for you.`
+      : `When the notes are in, come back to review and send it. No rush — the card waits for you.`,
+    ``,
+    `— The Aunt Lucy team`,
+  ].join("\n");
+
+  return {
+    subject: "Your Aunt Lucy team card — share the link",
+    html: renderGiftLayout({
+      preheader: "One link, no accounts — invite the team to sign the card.",
+      contentHtml,
+      footerHtml: "auntlucy.com.au",
+    }),
+    text,
+  };
+}
+
+export async function sendOrganiserCardShare(
+  params: OrganiserCardShareParams,
+): Promise<void> {
+  if (!resend) {
+    logger.warn("RESEND_API_KEY not set — skipping organiser card-share email");
+    return;
+  }
+
+  const { error } = await resend.emails.send({
+    from: FROM_ADDRESS,
+    to: params.to,
+    ...buildOrganiserCardShareEmail(params),
+  });
+
+  if (error) {
+    logger.error({ error, to: params.to }, "Failed to send organiser card-share email");
+    throw new Error(`Resend error: ${error.message}`);
+  }
+
+  logger.info({ to: params.to }, "Organiser card-share email sent");
+}
+
 // ─── 1. Buyer confirmation + tax receipt ─────────────────────────────────────
 
 export interface BuyerConfirmationParams {

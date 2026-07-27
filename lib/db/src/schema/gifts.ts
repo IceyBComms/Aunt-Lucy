@@ -31,6 +31,24 @@ export const giftsTable = pgTable("gifts", {
   }),
   // Unguessable public token the recipient uses to redeem — never expose the id.
   redemptionToken: text("redemption_token").notNull().unique(),
+  // Workplace team-card tokens, minted at purchase only for a card-bearing tier
+  // (null for a plain consumer gift). Both are unguessable and distinct from the
+  // redemption token, which must never reach a signer or the organiser.
+  //   • signing_token   — the public "sign the card" link shared with the whole
+  //                        team. Anyone with it can add a note; no account.
+  //   • organiser_token — the buyer's private link to review, remove notes and
+  //                        seal ("send") the card. Never shared with signers.
+  signingToken: text("signing_token").unique(),
+  organiserToken: text("organiser_token").unique(),
+  // When the organiser sealed ("sent") the card. Null = still open for signing;
+  // set = no more notes accepted and the card has been (or is being) delivered.
+  // Delivery of a card gift is gated on this, so the recipient never opens a
+  // half-signed card.
+  cardSealedAt: timestamp("card_sealed_at"),
+  // The signing team's organisation ("everyone at {org}"), shown on the card.
+  // Not captured at purchase — the organiser sets it on their review page — so
+  // it is nullable and the signing copy degrades gracefully when it is absent.
+  organisationName: text("organisation_name"),
   purchaserName: text("purchaser_name").notNull(),
   purchaserEmail: text("purchaser_email").notNull(),
   recipientName: text("recipient_name").notNull(),

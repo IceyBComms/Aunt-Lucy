@@ -18,6 +18,7 @@ import InviteClaim from "@/pages/InviteClaim";
 import Manage from "@/pages/Manage";
 import GiftExperience from "@/pages/GiftExperience";
 import GiftSigning from "@/pages/GiftSigning";
+import CardReview from "@/pages/CardReview";
 import BuyChooseTier from "@/pages/BuyChooseTier";
 import BuyDetails from "@/pages/BuyDetails";
 import PilotApply from "@/pages/PilotApply";
@@ -53,8 +54,13 @@ function Router() {
       <Route path="/buy" component={BuyChooseTier} />
       <Route path="/buy/:tierId" component={BuyDetails} />
 
-      {/* Gift experience + colleague signing */}
-      <Route path="/gift/:giftId/sign" component={GiftSigning} />
+      {/* Workplace team card — colleagues sign (public signing_token), the
+          organiser reviews + seals (private organiser_token). Both keyed by a
+          token distinct from the recipient's redemption token. */}
+      <Route path="/sign/:signingToken" component={GiftSigning} />
+      <Route path="/card/:organiserToken" component={CardReview} />
+
+      {/* Gift experience — the recipient's keepsake (redemption_token) */}
       <Route path="/gift/:giftId" component={GiftExperience} />
 
       {/* Pilot application */}
