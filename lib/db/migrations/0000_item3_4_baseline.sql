@@ -1,15 +1,26 @@
--- Item 3 + 4 baseline — the go-live schema that shipped to production via
--- drizzle-kit push BEFORE numbered migrations existed. This file captures those
--- changes so a freshly-branched database (which inherits an older snapshot) can
--- be brought up to the same baseline before 0001/0002 are applied.
+-- Item 3 + 4 baseline — the go-live schema for the Item 3 fulfilment + Item 4
+-- activate work. This file captures those changes so a database that predates
+-- them can be brought up to the same baseline before 0001/0002 are applied.
 --
--- Named 0000 because it logically precedes 0001, though on an existing sandbox
--- it is simply applied whenever. Fully idempotent (IF NOT EXISTS / DROP NOT NULL
--- is a no-op when already nullable), and safe to run against production, where
--- every statement is already satisfied and does nothing.
+-- ⚠️ CORRECTED 2026-07-26 (comment only — SQL unchanged): an earlier version of
+-- this header claimed Item 3 had "shipped to production via drizzle-kit push"
+-- and that this file was therefore "a no-op" on prod. Stage 1 of the go-live
+-- audit DISPROVED that. A read-only photocopy of real production confirmed prod
+-- is still at the PRE-Item-3 baseline — it is missing gifts.deliver_at, the
+-- stripe_webhook_events table, support_pages.good_to_know / scheduled_activate_at,
+-- and slots.slot_date is still NOT NULL. So on production this file does REAL
+-- work and MUST NOT be skipped. (The Item 3 changes only ever reached the
+-- rehearsal sandboxes, via drizzle-kit push, which is why the old assumption
+-- looked true from the sandbox side.)
 --
--- Hand-applied to the sandbox; Kate applies to production via the normal
--- PR/merge process (a no-op there, since prod already has all of this).
+-- Note also: this file does NOT add the gift_message_type enum values
+-- 'gift_delivery' / 'activation_reminder' — prod lacks those too. They are added
+-- separately by 0003_enum_catchup.sql, which must be applied alongside this file.
+--
+-- Named 0000 because it logically precedes 0001. Fully idempotent (IF NOT EXISTS
+-- / DROP NOT NULL is a no-op when already nullable), so it is safe to re-run and
+-- safe on any DB that already has some of it. Hand-applied; Kate applies to
+-- production as part of the go-live runbook.
 
 BEGIN;
 
