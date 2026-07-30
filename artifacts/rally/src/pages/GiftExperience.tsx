@@ -55,7 +55,7 @@ export default function GiftExperience() {
     );
   }
 
-  const { recipientName, organisationMessage, giftedBy, signings } = data;
+  const { recipientName, organisationMessage, giftedBy, signings, isTeamCard } = data;
   const paragraphs = (organisationMessage ?? "")
     .split(/\n{2,}/)
     .map((p) => p.trim())
@@ -170,7 +170,7 @@ export default function GiftExperience() {
           <>
             <div className="px-6 pt-[2.2rem] pb-[0.4rem] text-center">
               <p className="text-[0.72rem] font-semibold uppercase tracking-[0.22em] text-[#d15b3e]">
-                Signed with love
+                {isTeamCard ? "Signed by your team" : "Signed with love"}
               </p>
               <h2 className="mt-2 font-serif text-[1.7rem] font-semibold text-[#2c2c2c]">
                 What everyone wanted to say

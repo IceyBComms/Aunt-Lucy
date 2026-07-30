@@ -992,6 +992,12 @@ components:
           oneOf:
             - $ref: "#/components/schemas/GiftOccasion"
           nullable: true
+        isTeamCard:
+          type: boolean
+          description: >-
+            True for a workplace team card, false for a consumer gift. Derived
+            from the gift's signing token — no new stored field. Lets the
+            keepsake word its notes section for the right audience.
         signings:
           type: array
           items:
@@ -999,6 +1005,7 @@ components:
       required:
         - recipientName
         - giftedBy
+        - isTeamCard
         - signings
 
     SignCardContext:

@@ -148,6 +148,8 @@ export interface GiftExperience {
   /** Who the gift is from (the purchaser's name). */
   giftedBy: string;
   occasion?: GiftOccasion | null;
+  /** True for a workplace team card, false for a consumer gift. Derived from the gift's signing token — no new stored field. Lets the keepsake word its notes section for the right audience. */
+  isTeamCard: boolean;
   signings: GiftSigningPublic[];
 }
 

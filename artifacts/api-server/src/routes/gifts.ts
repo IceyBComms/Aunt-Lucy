@@ -266,6 +266,11 @@ router.get("/gifts/:redemptionToken", async (req, res) => {
     organisationMessage: gift.giftedByNote ?? null,
     giftedBy: gift.purchaserName,
     occasion: gift.occasion ?? null,
+    // A workplace team card carries a signing token; a consumer gift never does.
+    // Derived from an existing column — no new field — so the keepsake can word
+    // the notes section for the right audience ("Signed by your team" vs
+    // "Signed with love").
+    isTeamCard: !!gift.signingToken,
     signings: signings.map((s) => ({
       signerName: s.signerName,
       message: s.message,

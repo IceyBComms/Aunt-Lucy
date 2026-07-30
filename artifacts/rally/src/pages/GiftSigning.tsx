@@ -152,7 +152,7 @@ export default function GiftSigning() {
           <Check className="h-[34px] w-[34px] text-white" strokeWidth={2.5} />
         </motion.div>
         <p className="text-[0.72rem] font-semibold uppercase tracking-[0.22em] text-[#d15b3e]">
-          Signed &amp; sealed 💛
+          Your note's in 💛
         </p>
         <h2 className="font-serif text-[1.8rem] font-semibold text-[#2c2c2c]">
           Your note's on the card.

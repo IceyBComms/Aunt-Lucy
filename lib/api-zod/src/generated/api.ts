@@ -229,6 +229,11 @@ export const GetGiftResponse = zod.object({
       "other",
     ])
     .nullish(),
+  isTeamCard: zod
+    .boolean()
+    .describe(
+      "True for a workplace team card, false for a consumer gift. Derived from the gift's signing token — no new stored field. Lets the keepsake word its notes section for the right audience.",
+    ),
   signings: zod.array(
     zod.object({
       signerName: zod.string(),
