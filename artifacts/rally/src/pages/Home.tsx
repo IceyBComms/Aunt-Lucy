@@ -166,8 +166,8 @@ export default function Home() {
             Everyone means well. Nobody coordinates.
           </h2>
           <p className="text-muted-foreground leading-relaxed text-lg">
-            Twenty people say "let me know if you need anything." Nobody knows
-            what to do or when. Aunt Lucy does — she gathers your people, works
+            Twenty people say, "Let me know if you need anything". Nobody knows
+            what to do, or when. Aunt Lucy does — she gathers your people, works
             out what's needed, and asks the right person at the right time.
           </p>
         </motion.div>
