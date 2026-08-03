@@ -175,6 +175,21 @@ export function Manage() {
         </p>
       </header>
 
+      {/* See your card — the sealed workplace team-card keepsake, if any */}
+      {data.cardKeepsakeUrl && (
+        <a
+          href={data.cardKeepsakeUrl}
+          className="mb-7 flex items-center justify-between gap-3 rounded-[1.1rem] border border-[#e7ddd0] bg-white px-5 py-4 shadow-[0_10px_30px_-22px_rgba(74,58,42,0.5)] transition hover:-translate-y-0.5"
+        >
+          <span className="text-[0.97rem] font-semibold text-[#2c2c2c]">
+            See your card 💛
+          </span>
+          <span className="text-[0.85rem] text-[#8b7e74]">
+            The notes your team left you →
+          </span>
+        </a>
+      )}
+
       {/* Bereavement: lead with self-share */}
       {data.bereavement && (
         <section className="mb-7 rounded-[1.1rem] border border-[#e7ddd0] bg-[#fbf3ee] px-5 py-4">

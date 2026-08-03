@@ -38,9 +38,16 @@ import type {
   ManageState,
   NotFoundError,
   OkResponse,
+  OrganiserCardView,
   PinRequiredError,
+  SealCardResponse,
+  SignCardContext,
+  SignCardRequest,
+  SignCardResult,
   SlotResponse,
   SupportPageWithSlots,
+  UpdateCardOrganisationRequest,
+  UpdateCardOrganisationResponse,
   UpdateContactRequest,
   UpdateDetailsRequest,
   ValidationError,
@@ -750,6 +757,542 @@ export const useActivateGift = <
   TContext
 > => {
   return useMutation(getActivateGiftMutationOptions(options));
+};
+
+/**
+ * Keyed by the workplace card's public signing token. Returns the recipient's first name only, the organiser's name, the organisation name (if the organiser has set it), the ambient count of visible signings, and whether the card has been sealed (closed to new notes).
+ * @summary The card context for the signing page (public, no account)
+ */
+export const getGetSignCardUrl = (signingToken: string) => {
+  return `/api/sign/${signingToken}`;
+};
+
+export const getSignCard = async (
+  signingToken: string,
+  options?: RequestInit,
+): Promise<SignCardContext> => {
+  return customFetch<SignCardContext>(getGetSignCardUrl(signingToken), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetSignCardQueryKey = (signingToken: string) => {
+  return [`/api/sign/${signingToken}`] as const;
+};
+
+export const getGetSignCardQueryOptions = <
+  TData = Awaited<ReturnType<typeof getSignCard>>,
+  TError = ErrorType<NotFoundError>,
+>(
+  signingToken: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getSignCard>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetSignCardQueryKey(signingToken);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getSignCard>>> = ({
+    signal,
+  }) => getSignCard(signingToken, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!signingToken,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getSignCard>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetSignCardQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getSignCard>>
+>;
+export type GetSignCardQueryError = ErrorType<NotFoundError>;
+
+/**
+ * @summary The card context for the signing page (public, no account)
+ */
+
+export function useGetSignCard<
+  TData = Awaited<ReturnType<typeof getSignCard>>,
+  TError = ErrorType<NotFoundError>,
+>(
+  signingToken: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getSignCard>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetSignCardQueryOptions(signingToken, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Creates a visible signing. Rejects a blank name, an empty or over-long message, a sealed card, and anything past the anti-abuse signer cap.
+ * @summary Add a note to the card (public, no account)
+ */
+export const getSignCardUrl = (signingToken: string) => {
+  return `/api/sign/${signingToken}`;
+};
+
+export const signCard = async (
+  signingToken: string,
+  signCardRequest: SignCardRequest,
+  options?: RequestInit,
+): Promise<SignCardResult> => {
+  return customFetch<SignCardResult>(getSignCardUrl(signingToken), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(signCardRequest),
+  });
+};
+
+export const getSignCardMutationOptions = <
+  TError = ErrorType<ValidationError | NotFoundError | ConflictError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof signCard>>,
+    TError,
+    { signingToken: string; data: BodyType<SignCardRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof signCard>>,
+  TError,
+  { signingToken: string; data: BodyType<SignCardRequest> },
+  TContext
+> => {
+  const mutationKey = ["signCard"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof signCard>>,
+    { signingToken: string; data: BodyType<SignCardRequest> }
+  > = (props) => {
+    const { signingToken, data } = props ?? {};
+
+    return signCard(signingToken, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SignCardMutationResult = NonNullable<
+  Awaited<ReturnType<typeof signCard>>
+>;
+export type SignCardMutationBody = BodyType<SignCardRequest>;
+export type SignCardMutationError = ErrorType<
+  ValidationError | NotFoundError | ConflictError
+>;
+
+/**
+ * @summary Add a note to the card (public, no account)
+ */
+export const useSignCard = <
+  TError = ErrorType<ValidationError | NotFoundError | ConflictError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof signCard>>,
+    TError,
+    { signingToken: string; data: BodyType<SignCardRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof signCard>>,
+  TError,
+  { signingToken: string; data: BodyType<SignCardRequest> },
+  TContext
+> => {
+  return useMutation(getSignCardMutationOptions(options));
+};
+
+/**
+ * Keyed by the private organiser token. Lists the visible notes, the share link to copy, and whether the card is sealed.
+ * @summary The organiser's review view of the card
+ */
+export const getGetOrganiserCardUrl = (organiserToken: string) => {
+  return `/api/card/${organiserToken}`;
+};
+
+export const getOrganiserCard = async (
+  organiserToken: string,
+  options?: RequestInit,
+): Promise<OrganiserCardView> => {
+  return customFetch<OrganiserCardView>(
+    getGetOrganiserCardUrl(organiserToken),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetOrganiserCardQueryKey = (organiserToken: string) => {
+  return [`/api/card/${organiserToken}`] as const;
+};
+
+export const getGetOrganiserCardQueryOptions = <
+  TData = Awaited<ReturnType<typeof getOrganiserCard>>,
+  TError = ErrorType<NotFoundError>,
+>(
+  organiserToken: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getOrganiserCard>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetOrganiserCardQueryKey(organiserToken);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getOrganiserCard>>
+  > = ({ signal }) =>
+    getOrganiserCard(organiserToken, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!organiserToken,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getOrganiserCard>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetOrganiserCardQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getOrganiserCard>>
+>;
+export type GetOrganiserCardQueryError = ErrorType<NotFoundError>;
+
+/**
+ * @summary The organiser's review view of the card
+ */
+
+export function useGetOrganiserCard<
+  TData = Awaited<ReturnType<typeof getOrganiserCard>>,
+  TError = ErrorType<NotFoundError>,
+>(
+  organiserToken: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getOrganiserCard>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetOrganiserCardQueryOptions(organiserToken, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Set the organisation name shown on the card
+ */
+export const getUpdateCardOrganisationUrl = (organiserToken: string) => {
+  return `/api/card/${organiserToken}`;
+};
+
+export const updateCardOrganisation = async (
+  organiserToken: string,
+  updateCardOrganisationRequest: UpdateCardOrganisationRequest,
+  options?: RequestInit,
+): Promise<UpdateCardOrganisationResponse> => {
+  return customFetch<UpdateCardOrganisationResponse>(
+    getUpdateCardOrganisationUrl(organiserToken),
+    {
+      ...options,
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(updateCardOrganisationRequest),
+    },
+  );
+};
+
+export const getUpdateCardOrganisationMutationOptions = <
+  TError = ErrorType<NotFoundError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateCardOrganisation>>,
+    TError,
+    { organiserToken: string; data: BodyType<UpdateCardOrganisationRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateCardOrganisation>>,
+  TError,
+  { organiserToken: string; data: BodyType<UpdateCardOrganisationRequest> },
+  TContext
+> => {
+  const mutationKey = ["updateCardOrganisation"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateCardOrganisation>>,
+    { organiserToken: string; data: BodyType<UpdateCardOrganisationRequest> }
+  > = (props) => {
+    const { organiserToken, data } = props ?? {};
+
+    return updateCardOrganisation(organiserToken, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateCardOrganisationMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateCardOrganisation>>
+>;
+export type UpdateCardOrganisationMutationBody =
+  BodyType<UpdateCardOrganisationRequest>;
+export type UpdateCardOrganisationMutationError = ErrorType<NotFoundError>;
+
+/**
+ * @summary Set the organisation name shown on the card
+ */
+export const useUpdateCardOrganisation = <
+  TError = ErrorType<NotFoundError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateCardOrganisation>>,
+    TError,
+    { organiserToken: string; data: BodyType<UpdateCardOrganisationRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateCardOrganisation>>,
+  TError,
+  { organiserToken: string; data: BodyType<UpdateCardOrganisationRequest> },
+  TContext
+> => {
+  return useMutation(getUpdateCardOrganisationMutationOptions(options));
+};
+
+/**
+ * Sets the note's status to removed — the row is kept for audit but never shows on the card or counts. Idempotent and scoped to this card.
+ * @summary Soft-remove a note from the card (organiser only)
+ */
+export const getRemoveSigningUrl = (organiserToken: string, id: string) => {
+  return `/api/card/${organiserToken}/signings/${id}/remove`;
+};
+
+export const removeSigning = async (
+  organiserToken: string,
+  id: string,
+  options?: RequestInit,
+): Promise<OkResponse> => {
+  return customFetch<OkResponse>(getRemoveSigningUrl(organiserToken, id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getRemoveSigningMutationOptions = <
+  TError = ErrorType<NotFoundError | ConflictError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof removeSigning>>,
+    TError,
+    { organiserToken: string; id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof removeSigning>>,
+  TError,
+  { organiserToken: string; id: string },
+  TContext
+> => {
+  const mutationKey = ["removeSigning"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof removeSigning>>,
+    { organiserToken: string; id: string }
+  > = (props) => {
+    const { organiserToken, id } = props ?? {};
+
+    return removeSigning(organiserToken, id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RemoveSigningMutationResult = NonNullable<
+  Awaited<ReturnType<typeof removeSigning>>
+>;
+
+export type RemoveSigningMutationError = ErrorType<
+  NotFoundError | ConflictError
+>;
+
+/**
+ * @summary Soft-remove a note from the card (organiser only)
+ */
+export const useRemoveSigning = <
+  TError = ErrorType<NotFoundError | ConflictError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof removeSigning>>,
+    TError,
+    { organiserToken: string; id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof removeSigning>>,
+  TError,
+  { organiserToken: string; id: string },
+  TContext
+> => {
+  return useMutation(getRemoveSigningMutationOptions(options));
+};
+
+/**
+ * Seals the card to new notes and triggers delivery of the keepsake to the recipient (now, or on the buyer's chosen delivery date). Idempotent — a card already sealed answers cleanly rather than delivering twice.
+ * @summary Send the card — seal it and deliver the keepsake
+ */
+export const getSealCardUrl = (organiserToken: string) => {
+  return `/api/card/${organiserToken}/seal`;
+};
+
+export const sealCard = async (
+  organiserToken: string,
+  options?: RequestInit,
+): Promise<SealCardResponse> => {
+  return customFetch<SealCardResponse>(getSealCardUrl(organiserToken), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getSealCardMutationOptions = <
+  TError = ErrorType<NotFoundError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof sealCard>>,
+    TError,
+    { organiserToken: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof sealCard>>,
+  TError,
+  { organiserToken: string },
+  TContext
+> => {
+  const mutationKey = ["sealCard"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof sealCard>>,
+    { organiserToken: string }
+  > = (props) => {
+    const { organiserToken } = props ?? {};
+
+    return sealCard(organiserToken, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SealCardMutationResult = NonNullable<
+  Awaited<ReturnType<typeof sealCard>>
+>;
+
+export type SealCardMutationError = ErrorType<NotFoundError>;
+
+/**
+ * @summary Send the card — seal it and deliver the keepsake
+ */
+export const useSealCard = <
+  TError = ErrorType<NotFoundError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof sealCard>>,
+    TError,
+    { organiserToken: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof sealCard>>,
+  TError,
+  { organiserToken: string },
+  TContext
+> => {
+  return useMutation(getSealCardMutationOptions(options));
 };
 
 /**

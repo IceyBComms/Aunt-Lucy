@@ -148,7 +148,75 @@ export interface GiftExperience {
   /** Who the gift is from (the purchaser's name). */
   giftedBy: string;
   occasion?: GiftOccasion | null;
+  /** True for a workplace team card, false for a consumer gift. Derived from the gift's signing token — no new stored field. Lets the keepsake word its notes section for the right audience. */
+  isTeamCard: boolean;
   signings: GiftSigningPublic[];
+}
+
+export interface SignCardContext {
+  recipientFirstName: string;
+  organiserName: string;
+  organisationName: string | null;
+  signedCount: number;
+  /** True once the card is sealed — no more notes accepted. */
+  closed: boolean;
+}
+
+export interface SignCardRequest {
+  /** Required. A person or a group label like "the Finance team". */
+  signerName: string;
+  /** Required. Capped at ~500 characters server-side. */
+  message: string;
+}
+
+export interface SignCardResult {
+  signedCount: number;
+}
+
+export interface OrganiserCardSigning {
+  id: string;
+  signerName: string;
+  message: string;
+  createdAt: string;
+}
+
+export interface OrganiserCardView {
+  recipientFirstName: string;
+  organisationName: string | null;
+  signingLink: string;
+  sealed: boolean;
+  sealedAt: string | null;
+  signings: OrganiserCardSigning[];
+}
+
+export interface UpdateCardOrganisationRequest {
+  organisationName: string;
+}
+
+export interface UpdateCardOrganisationResponse {
+  organisationName: string | null;
+}
+
+/**
+ * How the keepsake was delivered. Absent when already sealed.
+ */
+export type SealCardResponseDelivery =
+  | (typeof SealCardResponseDelivery)[keyof typeof SealCardResponseDelivery]
+  | null;
+
+export const SealCardResponseDelivery = {
+  sent: "sent",
+  scheduled: "scheduled",
+  manual: "manual",
+} as const;
+
+export interface SealCardResponse {
+  sealed: boolean;
+  alreadySealed: boolean;
+  /** How the keepsake was delivered. Absent when already sealed. */
+  delivery?: SealCardResponseDelivery;
+  /** The recipient's gift link, returned only when there was no recipient email and the organiser must pass it on by hand. */
+  giftLink?: string | null;
 }
 
 /**
@@ -336,6 +404,8 @@ export interface ManageState {
   /** When true the UI leads with self-share and waves are gated. */
   bereavement: boolean;
   shareLink: string;
+  /** The "See your card 💛" re-entry link to the sealed workplace team card keepsake. Null unless this page came from a sealed card gift. */
+  cardKeepsakeUrl?: string | null;
   tasks: ManageTaskSummary[];
   contacts: ManageContact[];
   invites: ManageInvite[];

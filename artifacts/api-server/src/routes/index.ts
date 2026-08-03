@@ -9,6 +9,7 @@ import manageRouter from "./manage";
 import optoutRouter from "./optout";
 import pilotRouter from "./pilot";
 import giftsRouter from "./gifts";
+import giftCardsRouter from "./giftCards";
 import stripeRouter from "./stripe";
 import internalRouter from "./internal";
 import devRouter from "./dev";
@@ -25,6 +26,7 @@ router.use(manageRouter);
 router.use(optoutRouter);
 router.use(pilotRouter);
 router.use(giftsRouter);
+router.use(giftCardsRouter);
 router.use(stripeRouter);
 router.use(internalRouter);
 

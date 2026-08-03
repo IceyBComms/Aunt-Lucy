@@ -6,6 +6,7 @@ import {
   slotsTable,
   contactsTable,
   helperInvitesTable,
+  giftsTable,
   type SupportPage,
   type Contact,
 } from "@workspace/db";
@@ -64,9 +65,22 @@ router.get("/manage/:token", requireManagementToken as any, async (req, res) => 
     return;
   }
 
+  // If this page came from a sealed workplace team card, surface a re-entry to
+  // the keepsake. The gift row (and its notes) persists for the gift's 12-month
+  // life, so this link keeps working long after activation.
+  const gift = await db.query.giftsTable.findFirst({
+    where: eq(giftsTable.pageId, pageId),
+  });
+  const cardKeepsakeUrl =
+    gift?.cardSealedAt && gift.redemptionToken
+      ? `${getAppBaseUrl()}/gift/${gift.redemptionToken}`
+      : null;
+
   res.json({
     role: grantRole,
     recipientName: page.recipientName,
+    // Present only for a sealed team card — the "See your card 💛" entry point.
+    cardKeepsakeUrl,
     slug: page.slug,
     status: page.status,
     occasion: page.occasion ?? null,

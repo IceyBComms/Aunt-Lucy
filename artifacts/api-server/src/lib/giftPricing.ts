@@ -45,6 +45,13 @@ export type GiftTier = {
    * POST /gifts, so it cannot be bought even by a hand-crafted request.
    */
   sellable: boolean;
+  /**
+   * Whether this tier comes with a workplace team card — the "everyone signs the
+   * card" promise. When true, POST /gifts mints a signing_token + organiser_token
+   * and delivery is gated on the organiser sealing the card. The consumer tier
+   * has no card, so nothing about the signing flow ever touches it.
+   */
+  hasCard?: boolean;
   /** The Stripe payment link. Only ever present on a sellable tier. */
   paymentLink?: string;
 };
@@ -133,6 +140,7 @@ export const TIERS: readonly GiftTier[] = [
     amountCents: 7900,
     gifts: 1,
     sellable: true,
+    hasCard: true,
     paymentLink: WORKPLACE_INDIVIDUAL_LINK,
   },
   {
@@ -143,6 +151,7 @@ export const TIERS: readonly GiftTier[] = [
     amountCents: 32900,
     gifts: 5,
     sellable: false,
+    hasCard: true,
   },
   {
     id: "workplace_10pack",
@@ -152,6 +161,7 @@ export const TIERS: readonly GiftTier[] = [
     amountCents: 54900,
     gifts: 10,
     sellable: false,
+    hasCard: true,
   },
 ];
 
