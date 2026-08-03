@@ -1,3 +1,7 @@
+// LEGACY — snapshot of the pre-"bold cut" consumer homepage (persona-forward
+// version), preserved verbatim so no removed copy is lost. Not routed anywhere.
+// Kept recoverable per the bold-cut task brief; safe to delete once the new
+// Home.tsx copy is settled. See Home.tsx for the live page.
 import { useLocation, Link } from "wouter";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -24,16 +28,16 @@ const stagger = {
 
 const STEPS = [
   {
-    title: "Gift it",
-    body: "Buy Aunt Lucy for someone with a lot on. We hand her over gently.",
+    title: "You gift it.",
+    body: "Buy an Aunt Lucy page, add a personal note, choose when it arrives.",
   },
   {
-    title: "They set up when ready",
-    body: "No pressure, no deadline. It starts when they say so.",
+    title: "They add their trusted circle.",
+    body: "When they've got a quiet moment, they tell Aunt Lucy what they'll need and who they trust. Nothing's live yet.",
   },
   {
-    title: "Help arrives",
-    body: "Their people get one link — no app, no account. They tap what they'll do, and it's done.",
+    title: "Aunt Lucy takes it from there.",
+    body: "One tap, and the support begins to flow — meals, lifts, whatever's needed, and for weeks, not just the first rushed few days.",
   },
 ];
 
@@ -47,7 +51,7 @@ const SLOT_TYPES = [
   { icon: BellOff, label: "\"No visitors this week\"" },
 ];
 
-export default function Home() {
+export default function HomeLegacy() {
   const [, setLocation] = useLocation();
 
   return (
@@ -78,7 +82,7 @@ export default function Home() {
         </div>
       </nav>
 
-      {/* Hero — one CTA, nothing else above the fold */}
+      {/* Hero */}
       <motion.section
         className="flex-1 flex flex-col items-center justify-center text-center px-6 pt-12 pb-20"
         variants={stagger}
@@ -103,10 +107,25 @@ export default function Home() {
 
         <motion.p
           variants={fadeUp}
-          className="text-lg text-muted-foreground leading-relaxed max-w-xl mb-10"
+          className="font-serif text-2xl sm:text-3xl text-foreground leading-snug mb-6"
         >
-          Gift Aunt Lucy — she quietly organises the meals, lifts and everything
-          else, so the people you love can just rest.
+          Gift them their own Aunt Lucy
+        </motion.p>
+
+        <motion.p
+          variants={fadeUp}
+          className="text-lg text-muted-foreground leading-relaxed max-w-xl mb-4"
+        >
+          Aunt Lucy is the warm, organised friend who takes charge when life gets
+          full-on — sorting the meals, picking up the kids, making endless cups
+          of tea.
+        </motion.p>
+
+        <motion.p
+          variants={fadeUp}
+          className="text-lg text-foreground font-medium leading-relaxed max-w-xl mb-10"
+        >
+          Not everyone has an Aunt Lucy. But everyone deserves one.
         </motion.p>
 
         <motion.div variants={fadeUp} className="flex flex-col items-center gap-4">
@@ -121,39 +140,7 @@ export default function Home() {
         </motion.div>
       </motion.section>
 
-      {/* The story — why we're called Aunt Lucy (moved below the hero) */}
-      <section className="bg-card border-t border-border/50 py-20 px-6">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.45 }}
-          className="max-w-xl mx-auto text-left sm:text-center"
-        >
-          <p className="text-sm font-medium text-primary uppercase tracking-wide mb-4">
-            Why we're called Aunt Lucy
-          </p>
-          <p className="font-serif text-xl text-foreground leading-relaxed mb-4">
-            You know an Aunt Lucy. She's the one who quietly sorted everything
-            when your family needed it most.
-          </p>
-          <p className="text-muted-foreground leading-relaxed mb-4">
-            She brings the food nobody asked for but everyone needed. She takes
-            the older kids for an afternoon without being asked. She handles the
-            awkward "please no visitors today" conversation so nobody else has
-            to.
-          </p>
-          <p className="text-muted-foreground leading-relaxed">
-            Not everyone is lucky enough to have an Aunt Lucy. But everyone
-            deserves one.{" "}
-            <span className="text-foreground font-medium">
-              That's what this is.
-            </span>
-          </p>
-        </motion.div>
-      </section>
-
-      {/* Problem + solution, one beat */}
+      {/* The problem — and Aunt Lucy's job */}
       <section className="bg-card border-t border-border/50 py-20 px-6">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -163,17 +150,21 @@ export default function Home() {
           className="max-w-2xl mx-auto text-center"
         >
           <h2 className="font-serif text-3xl font-bold text-foreground mb-5">
-            Everyone means well. Nobody coordinates.
+            Everyone means well. Nobody steps up.
           </h2>
-          <p className="text-muted-foreground leading-relaxed text-lg">
-            Twenty people say "let me know if you need anything." Nobody knows
-            what to do or when. Aunt Lucy does — she gathers your people, works
-            out what's needed, and asks the right person at the right time.
+          <p className="text-muted-foreground leading-relaxed text-lg mb-6">
+            When life turns upside down — a new baby, an operation, an illness —
+            everyone says "let me know if you need anything," and they mean it.
+            But the person in the thick of it is the last one who can organise
+            it.
+          </p>
+          <p className="font-serif text-xl text-foreground leading-relaxed">
+            That's Aunt Lucy's job: one page, one link, everything handled.
           </p>
         </motion.div>
       </section>
 
-      {/* How it works — three steps */}
+      {/* How it works */}
       <section className="bg-card border-t border-border/50 py-20 px-6">
         <div className="max-w-3xl mx-auto">
           <h2 className="font-serif text-3xl font-bold text-foreground text-center mb-14">
@@ -210,9 +201,8 @@ export default function Home() {
             Real help, not vague offers
           </h2>
           <p className="text-muted-foreground mb-12">
-            Meals with the right dietary notes. School pickups with the right
-            time. Lifts, errands, dog walks — real tasks, claimed by real
-            people.
+            Helpers tap one link, see what's needed, and claim a slot. No app. No
+            account. No fuss.
           </p>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
             {SLOT_TYPES.map((type, i) => (
@@ -272,22 +262,6 @@ export default function Home() {
             </Button>
           </div>
         </motion.div>
-      </section>
-
-      {/* The quiet line — the free crisis path: present, never sold */}
-      <section className="py-12 px-6">
-        <div className="max-w-xl mx-auto text-center">
-          <p className="text-sm text-muted-foreground leading-relaxed">
-            Going through a loss or a sudden illness right now? Aunt Lucy is free
-            for the hardest times — always. No card, no catch.{" "}
-            <button
-              onClick={() => setLocation("/organise")}
-              className="text-primary underline underline-offset-2 hover:text-primary/80 transition-colors"
-            >
-              Start free
-            </button>
-          </p>
-        </div>
       </section>
 
       {/* Bottom CTA */}
