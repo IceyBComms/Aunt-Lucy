@@ -104,6 +104,8 @@ router.post("/slots/:slotId/claim", async (req, res) => {
     slotDate: row.slotDate,
     slotTime: row.slotTime,
     notes: row.notes,
+    dietaryNotes: row.dietaryNotes,
+    headcount: row.headcount,
     location: page.location,
   });
 
@@ -115,6 +117,8 @@ router.post("/slots/:slotId/claim", async (req, res) => {
     slotDate: row.slotDate,
     slotTime: row.slotTime ?? null,
     notes: row.notes ?? null,
+    dietaryNotes: row.dietaryNotes ?? null,
+    headcount: row.headcount ?? null,
     isClaimed: row.isClaimed,
     claimedByName: row.claimedByName ?? null,
     claimedNote: row.claimedNote ?? null,

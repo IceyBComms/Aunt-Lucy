@@ -31,6 +31,10 @@ export interface SlotResponse {
   slotDate?: string | null;
   slotTime?: string | null;
   notes?: string | null;
+  /** Meal slots only (bug #006): allergies / dietary preferences a helper needs before cooking. Null on every other slot type. */
+  dietaryNotes?: string | null;
+  /** Meal slots only (bug #006): how many people the meal should feed. Null on every other slot type. */
+  headcount?: number | null;
   isClaimed: boolean;
   claimedByName?: string | null;
   claimedNote?: string | null;
@@ -257,7 +261,13 @@ export interface ActivateGiftTask {
   label: string;
   /** Omit or null for a flexible, undated task. */
   slotDate?: string | null;
+  /** Time of day (HH:MM), reusing the existing slot_time column. The activation review flow captures it mainly for school pickups (bug #005), where the time is the whole point; omit or null otherwise. */
+  slotTime?: string | null;
   notes?: string | null;
+  /** Meal tasks only (bug #006): allergies / dietary preferences. Ignored server-side for non-meal types. */
+  dietaryNotes?: string | null;
+  /** Meal tasks only (bug #006): how many people the meal should feed. Ignored server-side for non-meal types. */
+  headcount?: number | null;
   trustedHelpersOnly?: boolean;
 }
 
@@ -348,6 +358,10 @@ export interface ManageTaskSummary {
   claimedAt?: string | null;
   slotDate?: string | null;
   slotTime?: string | null;
+  /** Meal slots only (bug */
+  dietaryNotes?: string | null;
+  /** Meal slots only (bug */
+  headcount?: number | null;
 }
 
 export interface ManageContact {

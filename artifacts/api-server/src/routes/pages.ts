@@ -58,6 +58,8 @@ router.get("/pages/:slug", async (req, res) => {
     slotDate: slot.slotDate,
     slotTime: slot.slotTime,
     notes: slot.notes,
+    dietaryNotes: slot.dietaryNotes,
+    headcount: slot.headcount,
     isClaimed: slot.isClaimed,
     // Name is shown to other helpers ONLY if the claimer opted in. Everyone else
     // sees the ambient count below instead — hidden by default, never surprised

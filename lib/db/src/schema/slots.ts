@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, boolean, date, time, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, boolean, date, time, integer, pgEnum } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { supportPagesTable } from "./supportPages";
@@ -31,6 +31,15 @@ export const slotsTable = pgTable("slots", {
   slotDate: date("slot_date"),
   slotTime: time("slot_time"),
   notes: text("notes"),
+  // Meal-specific, both nullable. A meal slot with no dietary notes and no
+  // headcount is a perfectly valid flexible offer — these are encouraged, never
+  // required, so a recipient or organiser in a hurry is never blocked (bug #006).
+  // Left null on every non-meal slot type; only the meal setup UI collects them.
+  //   • dietaryNotes — free text: allergies, "vegetarian household", etc. A
+  //     helper cooking blind is exactly the problem this removes.
+  //   • headcount — how many people the meal needs to feed.
+  dietaryNotes: text("dietary_notes"),
+  headcount: integer("headcount"),
   trustedHelpersOnly: boolean("trusted_helpers_only").notNull().default(false),
   isClaimed: boolean("is_claimed").notNull().default(false),
   claimedByName: text("claimed_by_name"),

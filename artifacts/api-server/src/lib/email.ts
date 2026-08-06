@@ -63,6 +63,10 @@ interface ClaimEmailParams {
   slotDate: string | null;
   slotTime: string | null;
   notes: string | null;
+  // Meal-only detail a helper needs before cooking (bug #006). Null on every
+  // other slot type, in which case neither row is rendered.
+  dietaryNotes: string | null;
+  headcount: number | null;
   location: string | null;
 }
 
@@ -75,6 +79,8 @@ function buildHtml(params: ClaimEmailParams): string {
     slotDate,
     slotTime,
     notes,
+    dietaryNotes,
+    headcount,
     location,
   } = params;
 
@@ -85,6 +91,16 @@ function buildHtml(params: ClaimEmailParams): string {
   const dateTimeLine = timeFormatted
     ? `${dateFormatted} at ${timeFormatted}`
     : dateFormatted;
+
+  // Meal detail (bug #006). Rendered only when present, so non-meal slots and
+  // meals with nothing to add both stay clean.
+  const headcountBlock = headcount
+    ? `<tr><td style="padding:8px 0;color:#5a5a5a;font-size:14px;"><strong>Feeding:</strong> ${escapeHtml(String(headcount))} ${headcount === 1 ? "person" : "people"}</td></tr>`
+    : "";
+
+  const dietaryBlock = dietaryNotes
+    ? `<tr><td style="padding:8px 0;color:#5a5a5a;font-size:14px;"><strong>Dietary needs:</strong> ${escapeHtml(dietaryNotes)}</td></tr>`
+    : "";
 
   const notesBlock = notes
     ? `<tr><td style="padding:8px 0;color:#5a5a5a;font-size:14px;"><strong>Notes:</strong> ${escapeHtml(notes)}</td></tr>`
@@ -114,6 +130,8 @@ function buildHtml(params: ClaimEmailParams): string {
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#F3F6F2;border-radius:8px;padding:20px;margin:0 0 24px;">
             <tr><td style="padding:8px 0;color:#5a5a5a;font-size:14px;"><strong>What:</strong> ${escapeHtml(typeLabel)}</td></tr>
             <tr><td style="padding:8px 0;color:#5a5a5a;font-size:14px;"><strong>When:</strong> ${escapeHtml(dateTimeLine)}</td></tr>
+            ${headcountBlock}
+            ${dietaryBlock}
             ${locationBlock}
             ${notesBlock}
           </table>
@@ -143,6 +161,8 @@ function buildPlainText(params: ClaimEmailParams): string {
     slotDate,
     slotTime,
     notes,
+    dietaryNotes,
+    headcount,
     location,
   } = params;
 
@@ -159,6 +179,8 @@ function buildPlainText(params: ClaimEmailParams): string {
   text += `Here's what you've signed up for:\n\n`;
   text += `What: ${typeLabel}\n`;
   text += `When: ${dateTimeLine}\n`;
+  if (headcount) text += `Feeding: ${headcount} ${headcount === 1 ? "person" : "people"}\n`;
+  if (dietaryNotes) text += `Dietary needs: ${dietaryNotes}\n`;
   if (location) text += `Location: ${location}\n`;
   if (notes) text += `Notes: ${notes}\n`;
   text += `\nIf anything changes, just get in touch with the organiser directly.\n\n`;

@@ -5,6 +5,7 @@ import {
   Calendar,
   CalendarClock,
   Check,
+  Clock,
   Copy,
   Loader2,
   Lock,
@@ -12,6 +13,8 @@ import {
   Plus,
   ShieldCheck,
   Undo2,
+  Users,
+  Utensils,
   X,
 } from "lucide-react";
 import {
@@ -29,6 +32,15 @@ interface DraftTask {
   label: string;
   /** Undated is the norm — a flexible offer claimed whenever suits. */
   slotDate: string | null;
+  /**
+   * Time of day (HH:MM). Captured mainly for school pickups (bug #005), where
+   * the time is the whole point and this flow previously had no way to set one.
+   * Null everywhere else.
+   */
+  slotTime: string | null;
+  /** Meal-only detail (bug #006). Null on every other type. */
+  dietaryNotes: string | null;
+  headcount: number | null;
   trustedHelpersOnly: boolean;
   /** Killed tasks stay in the list so "undo" is one tap away. */
   kept: boolean;
@@ -58,6 +70,16 @@ function prettyDate(iso: string): string {
     day: "numeric",
     month: "long",
   });
+}
+
+/** "15:00" → "3:00 PM". Tolerant of a stored HH:MM:SS. */
+function prettyTime(hhmm: string): string {
+  const [hStr, mStr] = hhmm.split(":");
+  const h = parseInt(hStr, 10);
+  if (Number.isNaN(h)) return hhmm;
+  const ampm = h >= 12 ? "PM" : "AM";
+  const h12 = h % 12 || 12;
+  return `${h12}:${(mStr ?? "00").padStart(2, "0")} ${ampm}`;
 }
 
 /** Resolve {poss}/{obj} pronoun tokens in an occasion line for display. */
@@ -118,6 +140,9 @@ export function GiftActivation({ token }: { token: string }) {
           slotType: s.slotType,
           label: s.label,
           slotDate: null,
+          slotTime: null,
+          dietaryNotes: null,
+          headcount: null,
           trustedHelpersOnly: s.trustedHelpersOnly,
           kept: true,
         })),
@@ -300,6 +325,8 @@ export function GiftActivation({ token }: { token: string }) {
           {tasks.map((task) => {
             const locked = ALWAYS_TRUSTED.includes(task.slotType);
             const editing = editingKey === task.key;
+            const isMeal = task.slotType === "meal";
+            const isSchoolPickup = task.slotType === "school_pickup";
 
             // ── Killed: a quiet strip with one-tap undo, no explanation asked ──
             if (!task.kept) {
@@ -387,6 +414,85 @@ export function GiftActivation({ token }: { token: string }) {
                       works.
                     </p>
 
+                    {/* Pickup time (bug #005). School pickup is the one task
+                        where the time is the whole point — "3pm or 3:30pm?" —
+                        so the recipient can set it here. */}
+                    {isSchoolPickup && (
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[0.82rem] font-medium text-[#52493f]">
+                          Pickup time
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="time"
+                            value={task.slotTime ?? ""}
+                            onChange={(e) =>
+                              update(task.key, { slotTime: e.target.value || null })
+                            }
+                            className="rounded-[0.7rem] border border-[#e0d6c8] bg-[#faf7f2] px-3 py-2 text-[0.9rem] text-[#2c2c2c] focus:border-[#2d6a4f] focus:outline-none"
+                            aria-label="Pickup time"
+                          />
+                          {task.slotTime && (
+                            <button
+                              type="button"
+                              onClick={() => update(task.key, { slotTime: null })}
+                              className="text-[0.82rem] font-semibold text-[#8b7e74] underline underline-offset-2"
+                            >
+                              Clear time
+                            </button>
+                          )}
+                        </div>
+                        <p className="text-[0.8rem] text-[#8b7e74]">
+                          So your helper knows exactly when to be there.
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Meal detail (bug #006) — how many, and any dietary needs.
+                        Both optional; a helper cooking blind is the problem. */}
+                    {isMeal && (
+                      <div className="flex flex-col gap-2">
+                        <div className="flex flex-col gap-1">
+                          <label className="text-[0.82rem] font-medium text-[#52493f]">
+                            How many to feed
+                          </label>
+                          <input
+                            type="number"
+                            min={1}
+                            max={100}
+                            inputMode="numeric"
+                            placeholder="e.g. 4"
+                            value={task.headcount ?? ""}
+                            onChange={(e) =>
+                              update(task.key, {
+                                headcount: e.target.value
+                                  ? Number(e.target.value)
+                                  : null,
+                              })
+                            }
+                            className="w-32 rounded-[0.7rem] border border-[#e0d6c8] bg-[#faf7f2] px-3 py-2 text-[0.9rem] text-[#2c2c2c] focus:border-[#2d6a4f] focus:outline-none"
+                            aria-label="How many people to feed"
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <label className="text-[0.82rem] font-medium text-[#52493f]">
+                            Dietary needs
+                          </label>
+                          <input
+                            value={task.dietaryNotes ?? ""}
+                            placeholder="e.g. no nuts, vegetarian"
+                            onChange={(e) =>
+                              update(task.key, {
+                                dietaryNotes: e.target.value || null,
+                              })
+                            }
+                            className="rounded-[0.7rem] border border-[#e0d6c8] bg-[#faf7f2] px-3 py-2 text-[0.9rem] text-[#2c2c2c] focus:border-[#2d6a4f] focus:outline-none"
+                            aria-label="Dietary needs"
+                          />
+                        </div>
+                      </div>
+                    )}
+
                     <button
                       type="button"
                       onClick={() => setEditingKey(null)}
@@ -423,6 +529,26 @@ export function GiftActivation({ token }: { token: string }) {
                           <span className="inline-flex items-center gap-1 text-[0.78rem] text-[#8b7e74]">
                             <Calendar className="h-3.5 w-3.5" />
                             {prettyDate(task.slotDate)}
+                          </span>
+                        )}
+                        {/* Pickup time (#005) and meal detail (#006), shown back
+                            so the recipient sees what they set at a glance. */}
+                        {isSchoolPickup && task.slotTime && (
+                          <span className="inline-flex items-center gap-1 text-[0.78rem] text-[#8b7e74]">
+                            <Clock className="h-3.5 w-3.5" />
+                            {prettyTime(task.slotTime)}
+                          </span>
+                        )}
+                        {isMeal && task.headcount && (
+                          <span className="inline-flex items-center gap-1 text-[0.78rem] text-[#8b7e74]">
+                            <Users className="h-3.5 w-3.5" />
+                            Feeds {task.headcount}
+                          </span>
+                        )}
+                        {isMeal && task.dietaryNotes && (
+                          <span className="inline-flex items-center gap-1 text-[0.78rem] text-[#8b7e74]">
+                            <Utensils className="h-3.5 w-3.5" />
+                            {task.dietaryNotes}
                           </span>
                         )}
                       </div>
@@ -629,6 +755,11 @@ export function GiftActivation({ token }: { token: string }) {
                     slotType: t.slotType,
                     label: t.label.trim(),
                     slotDate: t.slotDate,
+                    // #005 pickup time + #006 meal detail. Server ignores each
+                    // on the types they don't apply to.
+                    slotTime: t.slotType === "school_pickup" ? t.slotTime : null,
+                    dietaryNotes: t.slotType === "meal" ? t.dietaryNotes : null,
+                    headcount: t.slotType === "meal" ? t.headcount : null,
                     trustedHelpersOnly: t.trustedHelpersOnly,
                   })),
                 scheduledActivateAt:
@@ -736,6 +867,9 @@ function AddTaskForm({
               slotType,
               label: label.trim(),
               slotDate: null,
+              slotTime: null,
+              dietaryNotes: null,
+              headcount: null,
               trustedHelpersOnly: locked || trusted,
               kept: true,
             })

@@ -1,7 +1,7 @@
 import type { SlotResponse } from "@workspace/api-client-react";
 import { Button } from "./ui/button";
 import { format, parseISO } from "date-fns";
-import { CheckCircle2, Clock, ClipboardList } from "lucide-react";
+import { CheckCircle2, Clock, ClipboardList, Users, Utensils } from "lucide-react";
 import { motion } from "framer-motion";
 
 interface SlotCardProps {
@@ -26,6 +26,27 @@ const getSlotDetails = (type: string) => {
 
 export function SlotCard({ slot, onClaim, index }: SlotCardProps) {
   const details = getSlotDetails(slot.slotType);
+  // Meal detail a helper needs before cooking (bug #006). Meal-only; null on
+  // everything else, so the pills simply don't render.
+  const hasMealDetail =
+    slot.slotType === "meal" && (!!slot.headcount || !!slot.dietaryNotes);
+
+  const mealDetail = hasMealDetail ? (
+    <div className="mb-4 flex flex-wrap gap-2">
+      {!!slot.headcount && (
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary/70 px-3 py-1 text-xs font-medium text-foreground/80">
+          <Users className="w-3.5 h-3.5" />
+          Feeds {slot.headcount}
+        </span>
+      )}
+      {slot.dietaryNotes && (
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary/70 px-3 py-1 text-xs font-medium text-foreground/80">
+          <Utensils className="w-3.5 h-3.5" />
+          {slot.dietaryNotes}
+        </span>
+      )}
+    </div>
+  ) : null;
   // A slot with no date is a flexible offer — the helper picks the day when
   // they claim it. Say so in words rather than showing an empty "when".
   const formattedDate = slot.slotDate
@@ -68,6 +89,8 @@ export function SlotCard({ slot, onClaim, index }: SlotCardProps) {
           </div>
         </div>
         
+        {mealDetail}
+
         <div className="mt-auto pt-4 border-t border-border/50">
           <p className="text-sm font-medium text-primary flex items-center gap-2">
             <CheckCircle2 className="w-4 h-4" />
@@ -100,6 +123,8 @@ export function SlotCard({ slot, onClaim, index }: SlotCardProps) {
         </div>
       </div>
       
+      {mealDetail}
+
       {slot.notes && (
         <div className="mb-6 rounded-2xl bg-primary/5 border border-primary/10 p-4">
           <p className="text-xs font-semibold uppercase tracking-wide text-primary/70 flex items-center gap-1.5 mb-2">
@@ -111,7 +136,7 @@ export function SlotCard({ slot, onClaim, index }: SlotCardProps) {
           </p>
         </div>
       )}
-      
+
       <div className="mt-auto">
         <Button 
           variant="accent" 
