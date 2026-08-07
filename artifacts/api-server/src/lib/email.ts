@@ -68,6 +68,10 @@ interface ClaimEmailParams {
   dietaryNotes: string | null;
   headcount: number | null;
   location: string | null;
+  // The helper's private "Can't make it? Release this slot" link. Unique to this
+  // claim, so it needs no account. Optional so older callers still compile; when
+  // absent the email simply omits the release line.
+  releaseUrl?: string | null;
 }
 
 function buildHtml(params: ClaimEmailParams): string {
@@ -82,6 +86,7 @@ function buildHtml(params: ClaimEmailParams): string {
     dietaryNotes,
     headcount,
     location,
+    releaseUrl,
   } = params;
 
   const typeLabel = customLabel || SLOT_TYPE_LABELS[slotType] || "Helping out";
@@ -91,6 +96,14 @@ function buildHtml(params: ClaimEmailParams): string {
   const dateTimeLine = timeFormatted
     ? `${dateFormatted} at ${timeFormatted}`
     : dateFormatted;
+
+  // A gentle, no-guilt way out if plans change. Rendered only when a release
+  // link is present.
+  const releaseBlock = releaseUrl
+    ? `<p style="margin:0 0 8px;color:#333;font-size:16px;line-height:1.6;">
+            Can't make it after all? No worries at all — <a href="${escapeHtml(releaseUrl)}" style="color:#7C9A72;font-weight:600;">release this slot</a> and someone else can pick it up.
+          </p>`
+    : "";
 
   // Meal detail (bug #006). Rendered only when present, so non-meal slots and
   // meals with nothing to add both stay clean.
@@ -138,6 +151,7 @@ function buildHtml(params: ClaimEmailParams): string {
           <p style="margin:0 0 8px;color:#333;font-size:16px;line-height:1.6;">
             If anything changes, just get in touch with the organiser directly.
           </p>
+          ${releaseBlock}
           <p style="margin:24px 0 0;color:#7C9A72;font-size:15px;line-height:1.6;">
             Warmly,<br>The Aunt Lucy Team
           </p>
@@ -164,6 +178,7 @@ function buildPlainText(params: ClaimEmailParams): string {
     dietaryNotes,
     headcount,
     location,
+    releaseUrl,
   } = params;
 
   const typeLabel = customLabel || SLOT_TYPE_LABELS[slotType] || "Helping out";
@@ -183,8 +198,11 @@ function buildPlainText(params: ClaimEmailParams): string {
   if (dietaryNotes) text += `Dietary needs: ${dietaryNotes}\n`;
   if (location) text += `Location: ${location}\n`;
   if (notes) text += `Notes: ${notes}\n`;
-  text += `\nIf anything changes, just get in touch with the organiser directly.\n\n`;
-  text += `Warmly,\nThe Aunt Lucy Team\n`;
+  text += `\nIf anything changes, just get in touch with the organiser directly.\n`;
+  if (releaseUrl) {
+    text += `\nCan't make it after all? No worries at all — release this slot so someone else can pick it up:\n${releaseUrl}\n`;
+  }
+  text += `\nWarmly,\nThe Aunt Lucy Team\n`;
   return text;
 }
 
@@ -710,6 +728,105 @@ export async function sendRecipientClaimNotification(
     return false;
   }
   logger.info({ to: params.to, claims: params.claims.length }, "Recipient claim notification sent");
+  return true;
+}
+
+// ─── Slot released notification ───────────────────────────────────────────────
+//
+// The counterpart to the claim notification: a helper who'd claimed a slot can
+// no longer make it, so it's open again. Sent to the same place claim news goes
+// (the page's recipient_email) and framed the same warm way — a heads-up, never
+// a guilt trip. The recipient never has to keep re-checking the page to notice a
+// drop-out.
+
+export interface SlotReleasedNotificationParams {
+  to: string;
+  recipientFirstName: string;
+  /** Who let go of the slot; may be null for a pre-existing claim with no name. */
+  helperName: string | null;
+  slotType: string;
+  customLabel: string | null;
+  slotDate: string | null;
+  slotTime: string | null;
+  /** The recipient's private /manage link — "see who's helping". */
+  manageLink: string;
+}
+
+export function buildSlotReleasedNotificationEmail(
+  params: SlotReleasedNotificationParams,
+): RenderedEmail {
+  const { recipientFirstName, helperName, slotType, customLabel, slotDate, slotTime, manageLink } =
+    params;
+
+  const task = customLabel || SLOT_TYPE_LABELS[slotType] || "a task";
+  const when = claimWhenLabel(slotDate, slotTime);
+  // "Someone" keeps it warm when a name isn't on the claim (e.g. a pre-existing
+  // one). With a name, we lead with the person.
+  const who = helperName ? escapeHtml(helperName) : "Someone";
+
+  const contentHtml = `          <p style="margin:0 0 20px;color:#333;font-size:16px;line-height:1.6;">
+            Hi ${escapeHtml(recipientFirstName)},
+          </p>
+          <p style="margin:0 0 16px;color:#333;font-size:16px;line-height:1.6;">
+            Just a quick heads-up — ${who} can no longer make <strong>${escapeHtml(task)}</strong> (${escapeHtml(when)}), so it's open again for someone else to pick up.
+          </p>
+          <p style="margin:0 0 24px;color:#333;font-size:16px;line-height:1.6;">
+            There's nothing you need to do — Aunt Lucy will keep it in front of your people.
+          </p>
+          ${renderButton(manageLink, "See who's helping")}
+          <p style="margin:0;color:#2D6A4F;font-size:15px;line-height:1.6;">
+            — Aunt Lucy
+          </p>`;
+
+  const text = [
+    `Hi ${recipientFirstName},`,
+    ``,
+    `Just a quick heads-up — ${helperName ?? "someone"} can no longer make ${task} (${when}), so it's open again for someone else to pick up.`,
+    ``,
+    `There's nothing you need to do — Aunt Lucy will keep it in front of your people.`,
+    ``,
+    `See who's helping: ${manageLink}`,
+    ``,
+    `— Aunt Lucy`,
+  ].join("\n");
+
+  return {
+    subject: "A slot's just opened back up",
+    html: renderGiftLayout({
+      preheader: "A helper can't make it — the slot's open again. Nothing for you to do.",
+      contentHtml,
+      footerHtml: `Can't click the button? Copy this link: ${escapeHtml(manageLink)}`,
+    }),
+    text,
+  };
+}
+
+/** Returns true if the email was handed to Resend (or dev-logged), false if not. */
+export async function sendSlotReleasedNotification(
+  params: SlotReleasedNotificationParams,
+): Promise<boolean> {
+  if (isPlaceholderResendKey) {
+    console.log(
+      `\n🔁 Slot released notification for ${params.to} (local dev — sending disabled):\n${buildSlotReleasedNotificationEmail(params).text}\n`,
+    );
+    return true;
+  }
+  if (!resend) {
+    logger.warn("RESEND_API_KEY not set — skipping slot released notification");
+    return false;
+  }
+
+  const { error } = await resend.emails.send({
+    from: FROM_ADDRESS,
+    to: params.to,
+    ...buildSlotReleasedNotificationEmail(params),
+  });
+
+  if (error) {
+    logger.error({ error, to: params.to }, "Failed to send slot released notification");
+    return false;
+  }
+  logger.info({ to: params.to }, "Slot released notification sent");
   return true;
 }
 
