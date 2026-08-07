@@ -64,6 +64,9 @@ router.post("/organiser/pages", requireAuth as any, async (req, res) => {
       privacy: (privacy === "pin_protected" ? "pin_protected" : "open") as "open" | "pin_protected",
       pin: hashedPin,
       status: "draft",
+      // Ledger marker (Item 14): a wizard-built page, distinct from a
+      // crisis-free or gift-redeemed page. Additive — not the paid path.
+      origin: "organiser",
     })
     .returning();
 
