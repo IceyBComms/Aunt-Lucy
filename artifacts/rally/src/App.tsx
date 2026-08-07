@@ -15,11 +15,14 @@ import OrganiseAddSlots from "@/pages/OrganiseAddSlots";
 import OrganisePublish from "@/pages/OrganisePublish";
 import OrganiseDashboard from "@/pages/OrganiseDashboard";
 import InviteClaim from "@/pages/InviteClaim";
+import ReleaseSlot from "@/pages/ReleaseSlot";
 import Manage from "@/pages/Manage";
 import GiftExperience from "@/pages/GiftExperience";
 import GiftSigning from "@/pages/GiftSigning";
+import CardReview from "@/pages/CardReview";
 import BuyChooseTier from "@/pages/BuyChooseTier";
 import BuyDetails from "@/pages/BuyDetails";
+import HardestTimes from "@/pages/HardestTimes";
 import PilotApply from "@/pages/PilotApply";
 import OrganisePilotApplications from "@/pages/OrganisePilotApplications";
 import PrivacyPolicy from "@/pages/PrivacyPolicy";
@@ -31,6 +34,11 @@ function Router() {
     <Switch>
       <Route path="/" component={Home} />
       <Route path="/employers" component={Employers} />
+
+      {/* The free self-serve crisis path (Item 14) — reached from the
+          homepage's quiet line. No purchase, ever. */}
+      <Route path="/hardest-times" component={HardestTimes} />
+
       <Route path="/s/:slug" component={SupportPage} />
 
       {/* Organiser flow */}
@@ -45,6 +53,10 @@ function Router() {
       {/* Trusted helper invite claim */}
       <Route path="/invite/:token" component={InviteClaim} />
 
+      {/* Helper releases a slot they can no longer make (cancel_token from the
+          claim-confirmation email). No account — the token is the key. */}
+      <Route path="/release/:token" component={ReleaseSlot} />
+
       {/* Recipient management — add people, send the Aunt Lucy invites */}
       <Route path="/manage/:token" component={Manage} />
 
@@ -53,8 +65,13 @@ function Router() {
       <Route path="/buy" component={BuyChooseTier} />
       <Route path="/buy/:tierId" component={BuyDetails} />
 
-      {/* Gift experience + colleague signing */}
-      <Route path="/gift/:giftId/sign" component={GiftSigning} />
+      {/* Workplace team card — colleagues sign (public signing_token), the
+          organiser reviews + seals (private organiser_token). Both keyed by a
+          token distinct from the recipient's redemption token. */}
+      <Route path="/sign/:signingToken" component={GiftSigning} />
+      <Route path="/card/:organiserToken" component={CardReview} />
+
+      {/* Gift experience — the recipient's keepsake (redemption_token) */}
       <Route path="/gift/:giftId" component={GiftExperience} />
 
       {/* Pilot application */}

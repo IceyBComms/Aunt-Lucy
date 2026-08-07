@@ -63,7 +63,15 @@ interface ClaimEmailParams {
   slotDate: string | null;
   slotTime: string | null;
   notes: string | null;
+  // Meal-only detail a helper needs before cooking (bug #006). Null on every
+  // other slot type, in which case neither row is rendered.
+  dietaryNotes: string | null;
+  headcount: number | null;
   location: string | null;
+  // The helper's private "Can't make it? Release this slot" link. Unique to this
+  // claim, so it needs no account. Optional so older callers still compile; when
+  // absent the email simply omits the release line.
+  releaseUrl?: string | null;
 }
 
 function buildHtml(params: ClaimEmailParams): string {
@@ -75,7 +83,10 @@ function buildHtml(params: ClaimEmailParams): string {
     slotDate,
     slotTime,
     notes,
+    dietaryNotes,
+    headcount,
     location,
+    releaseUrl,
   } = params;
 
   const typeLabel = customLabel || SLOT_TYPE_LABELS[slotType] || "Helping out";
@@ -85,6 +96,24 @@ function buildHtml(params: ClaimEmailParams): string {
   const dateTimeLine = timeFormatted
     ? `${dateFormatted} at ${timeFormatted}`
     : dateFormatted;
+
+  // A gentle, no-guilt way out if plans change. Rendered only when a release
+  // link is present.
+  const releaseBlock = releaseUrl
+    ? `<p style="margin:0 0 8px;color:#333;font-size:16px;line-height:1.6;">
+            Can't make it after all? No worries at all — <a href="${escapeHtml(releaseUrl)}" style="color:#7C9A72;font-weight:600;">release this slot</a> and someone else can pick it up.
+          </p>`
+    : "";
+
+  // Meal detail (bug #006). Rendered only when present, so non-meal slots and
+  // meals with nothing to add both stay clean.
+  const headcountBlock = headcount
+    ? `<tr><td style="padding:8px 0;color:#5a5a5a;font-size:14px;"><strong>Feeding:</strong> ${escapeHtml(String(headcount))} ${headcount === 1 ? "person" : "people"}</td></tr>`
+    : "";
+
+  const dietaryBlock = dietaryNotes
+    ? `<tr><td style="padding:8px 0;color:#5a5a5a;font-size:14px;"><strong>Dietary needs:</strong> ${escapeHtml(dietaryNotes)}</td></tr>`
+    : "";
 
   const notesBlock = notes
     ? `<tr><td style="padding:8px 0;color:#5a5a5a;font-size:14px;"><strong>Notes:</strong> ${escapeHtml(notes)}</td></tr>`
@@ -114,12 +143,15 @@ function buildHtml(params: ClaimEmailParams): string {
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#F3F6F2;border-radius:8px;padding:20px;margin:0 0 24px;">
             <tr><td style="padding:8px 0;color:#5a5a5a;font-size:14px;"><strong>What:</strong> ${escapeHtml(typeLabel)}</td></tr>
             <tr><td style="padding:8px 0;color:#5a5a5a;font-size:14px;"><strong>When:</strong> ${escapeHtml(dateTimeLine)}</td></tr>
+            ${headcountBlock}
+            ${dietaryBlock}
             ${locationBlock}
             ${notesBlock}
           </table>
           <p style="margin:0 0 8px;color:#333;font-size:16px;line-height:1.6;">
             If anything changes, just get in touch with the organiser directly.
           </p>
+          ${releaseBlock}
           <p style="margin:24px 0 0;color:#7C9A72;font-size:15px;line-height:1.6;">
             Warmly,<br>The Aunt Lucy Team
           </p>
@@ -143,7 +175,10 @@ function buildPlainText(params: ClaimEmailParams): string {
     slotDate,
     slotTime,
     notes,
+    dietaryNotes,
+    headcount,
     location,
+    releaseUrl,
   } = params;
 
   const typeLabel = customLabel || SLOT_TYPE_LABELS[slotType] || "Helping out";
@@ -159,10 +194,15 @@ function buildPlainText(params: ClaimEmailParams): string {
   text += `Here's what you've signed up for:\n\n`;
   text += `What: ${typeLabel}\n`;
   text += `When: ${dateTimeLine}\n`;
+  if (headcount) text += `Feeding: ${headcount} ${headcount === 1 ? "person" : "people"}\n`;
+  if (dietaryNotes) text += `Dietary needs: ${dietaryNotes}\n`;
   if (location) text += `Location: ${location}\n`;
   if (notes) text += `Notes: ${notes}\n`;
-  text += `\nIf anything changes, just get in touch with the organiser directly.\n\n`;
-  text += `Warmly,\nThe Aunt Lucy Team\n`;
+  text += `\nIf anything changes, just get in touch with the organiser directly.\n`;
+  if (releaseUrl) {
+    text += `\nCan't make it after all? No worries at all — release this slot so someone else can pick it up:\n${releaseUrl}\n`;
+  }
+  text += `\nWarmly,\nThe Aunt Lucy Team\n`;
   return text;
 }
 
@@ -580,6 +620,12 @@ export interface RecipientClaimNotificationParams {
   /** The recipient's private /manage link — "see who's helping". */
   manageLink: string;
   claims: RecipientClaimItem[];
+  /**
+   * The page's occasion (gift_occasion enum value), used only to soften the
+   * register for a bereavement page. Optional/null on every other occasion, and
+   * then the original celebratory wording is unchanged.
+   */
+  occasion?: string | null;
 }
 
 /** "Dropping off a meal, Friday 1 August at 3:00 PM" / "…, whenever suits you". */
@@ -595,9 +641,21 @@ export function buildRecipientClaimNotificationEmail(
   const { recipientFirstName, manageLink, claims } = params;
   const single = claims.length === 1;
 
-  const subject = single
-    ? "Someone's just shown up for you 💛"
-    : "Your people are showing up 💛";
+  // A bereavement page gets a quieter register — the celebratory "good news"
+  // framing jars for someone grieving. Every other occasion is unchanged.
+  const bereavement = params.occasion === "bereavement";
+
+  const subject = bereavement
+    ? single
+      ? "Someone's looking after you 💛"
+      : "Your people are here 💛"
+    : single
+      ? "Someone's just shown up for you 💛"
+      : "Your people are showing up 💛";
+
+  // Only the lead-in softens; the rest of the sentence and the claim list stay
+  // identical across occasions.
+  const opener = bereavement ? "A gentle note — " : "A little good news — ";
 
   const lineFor = (c: RecipientClaimItem) => {
     const task = c.customLabel || SLOT_TYPE_LABELS[c.slotType] || "Helping out";
@@ -617,7 +675,7 @@ export function buildRecipientClaimNotificationEmail(
             Hi ${escapeHtml(recipientFirstName)},
           </p>
           <p style="margin:0 0 16px;color:#333;font-size:16px;line-height:1.6;">
-            A little good news — ${single ? "someone's" : "a few of your people have"} stepped in:
+            ${opener}${single ? "someone's" : "a few of your people have"} stepped in:
           </p>
           <ul style="margin:0 0 24px;padding-left:20px;color:#333;font-size:16px;line-height:1.7;">
 ${itemsHtml}
@@ -640,7 +698,7 @@ ${itemsHtml}
   const text = [
     `Hi ${recipientFirstName},`,
     ``,
-    `A little good news — ${single ? "someone's" : "a few of your people have"} stepped in:`,
+    `${opener}${single ? "someone's" : "a few of your people have"} stepped in:`,
     ``,
     textItems,
     ``,
@@ -688,6 +746,105 @@ export async function sendRecipientClaimNotification(
     return false;
   }
   logger.info({ to: params.to, claims: params.claims.length }, "Recipient claim notification sent");
+  return true;
+}
+
+// ─── Slot released notification ───────────────────────────────────────────────
+//
+// The counterpart to the claim notification: a helper who'd claimed a slot can
+// no longer make it, so it's open again. Sent to the same place claim news goes
+// (the page's recipient_email) and framed the same warm way — a heads-up, never
+// a guilt trip. The recipient never has to keep re-checking the page to notice a
+// drop-out.
+
+export interface SlotReleasedNotificationParams {
+  to: string;
+  recipientFirstName: string;
+  /** Who let go of the slot; may be null for a pre-existing claim with no name. */
+  helperName: string | null;
+  slotType: string;
+  customLabel: string | null;
+  slotDate: string | null;
+  slotTime: string | null;
+  /** The recipient's private /manage link — "see who's helping". */
+  manageLink: string;
+}
+
+export function buildSlotReleasedNotificationEmail(
+  params: SlotReleasedNotificationParams,
+): RenderedEmail {
+  const { recipientFirstName, helperName, slotType, customLabel, slotDate, slotTime, manageLink } =
+    params;
+
+  const task = customLabel || SLOT_TYPE_LABELS[slotType] || "a task";
+  const when = claimWhenLabel(slotDate, slotTime);
+  // "Someone" keeps it warm when a name isn't on the claim (e.g. a pre-existing
+  // one). With a name, we lead with the person.
+  const who = helperName ? escapeHtml(helperName) : "Someone";
+
+  const contentHtml = `          <p style="margin:0 0 20px;color:#333;font-size:16px;line-height:1.6;">
+            Hi ${escapeHtml(recipientFirstName)},
+          </p>
+          <p style="margin:0 0 16px;color:#333;font-size:16px;line-height:1.6;">
+            Just a quick heads-up — ${who} can no longer make <strong>${escapeHtml(task)}</strong> (${escapeHtml(when)}), so it's open again for someone else to pick up.
+          </p>
+          <p style="margin:0 0 24px;color:#333;font-size:16px;line-height:1.6;">
+            There's nothing you need to do — Aunt Lucy will keep it in front of your people.
+          </p>
+          ${renderButton(manageLink, "See who's helping")}
+          <p style="margin:0;color:#2D6A4F;font-size:15px;line-height:1.6;">
+            — Aunt Lucy
+          </p>`;
+
+  const text = [
+    `Hi ${recipientFirstName},`,
+    ``,
+    `Just a quick heads-up — ${helperName ?? "someone"} can no longer make ${task} (${when}), so it's open again for someone else to pick up.`,
+    ``,
+    `There's nothing you need to do — Aunt Lucy will keep it in front of your people.`,
+    ``,
+    `See who's helping: ${manageLink}`,
+    ``,
+    `— Aunt Lucy`,
+  ].join("\n");
+
+  return {
+    subject: "A slot's just opened back up",
+    html: renderGiftLayout({
+      preheader: "A helper can't make it — the slot's open again. Nothing for you to do.",
+      contentHtml,
+      footerHtml: `Can't click the button? Copy this link: ${escapeHtml(manageLink)}`,
+    }),
+    text,
+  };
+}
+
+/** Returns true if the email was handed to Resend (or dev-logged), false if not. */
+export async function sendSlotReleasedNotification(
+  params: SlotReleasedNotificationParams,
+): Promise<boolean> {
+  if (isPlaceholderResendKey) {
+    console.log(
+      `\n🔁 Slot released notification for ${params.to} (local dev — sending disabled):\n${buildSlotReleasedNotificationEmail(params).text}\n`,
+    );
+    return true;
+  }
+  if (!resend) {
+    logger.warn("RESEND_API_KEY not set — skipping slot released notification");
+    return false;
+  }
+
+  const { error } = await resend.emails.send({
+    from: FROM_ADDRESS,
+    to: params.to,
+    ...buildSlotReleasedNotificationEmail(params),
+  });
+
+  if (error) {
+    logger.error({ error, to: params.to }, "Failed to send slot released notification");
+    return false;
+  }
+  logger.info({ to: params.to }, "Slot released notification sent");
   return true;
 }
 
@@ -754,6 +911,91 @@ function renderButton(url: string, label: string): string {
               <a href="${escapeHtml(url)}" style="display:inline-block;padding:14px 32px;color:#ffffff;font-size:16px;font-weight:600;text-decoration:none;border-radius:8px;">${escapeHtml(label)}</a>
             </td></tr>
           </table>`;
+}
+
+// ─── 0. Organiser team-card share (workplace) ────────────────────────────────
+
+export interface OrganiserCardShareParams {
+  to: string;
+  organiserFirstName: string;
+  recipientFirstName: string;
+  /** The public "sign the card" link to share with the whole team. */
+  signingLink: string;
+  /** The organiser's private review/seal link. Null only if somehow unminted. */
+  organiserLink: string | null;
+}
+
+export function buildOrganiserCardShareEmail(
+  params: OrganiserCardShareParams,
+): RenderedEmail {
+  const reviewLine = params.organiserLink
+    ? `          <p style="margin:0 0 24px;color:#333;font-size:15px;line-height:1.6;">
+            When the notes are in, <a href="${escapeHtml(params.organiserLink)}" style="color:#2D6A4F;">come back to review and send it</a>. No rush — the card waits for you.
+          </p>`
+    : `          <p style="margin:0 0 24px;color:#333;font-size:15px;line-height:1.6;">
+            When the notes are in, come back to review and send it. No rush — the card waits for you.
+          </p>`;
+
+  const contentHtml = `          <p style="margin:0 0 20px;color:#333;font-size:16px;line-height:1.6;">
+            Hi ${escapeHtml(params.organiserFirstName)},
+          </p>
+          <p style="margin:0 0 20px;color:#333;font-size:16px;line-height:1.6;">
+            ${escapeHtml(params.recipientFirstName)}'s gift is set up. Before it's sent, invite the team to sign the card — one link, no accounts, a few seconds each.
+          </p>
+          ${renderButton(params.signingLink, "Share the signing link")}
+          <p style="margin:0 0 20px;color:#5a5a5a;font-size:13px;line-height:1.6;word-break:break-all;">
+            Or copy this link: ${escapeHtml(params.signingLink)}
+          </p>
+${reviewLine}
+          <p style="margin:0;color:#2D6A4F;font-size:15px;line-height:1.6;">
+            — The Aunt Lucy team
+          </p>`;
+
+  const text = [
+    `Hi ${params.organiserFirstName},`,
+    ``,
+    `${params.recipientFirstName}'s gift is set up. Before it's sent, invite the team to sign the card — one link, no accounts, a few seconds each:`,
+    ``,
+    params.signingLink,
+    ``,
+    params.organiserLink
+      ? `When the notes are in, come back to review and send it: ${params.organiserLink}. No rush — the card waits for you.`
+      : `When the notes are in, come back to review and send it. No rush — the card waits for you.`,
+    ``,
+    `— The Aunt Lucy team`,
+  ].join("\n");
+
+  return {
+    subject: "Your Aunt Lucy team card — share the link",
+    html: renderGiftLayout({
+      preheader: "One link, no accounts — invite the team to sign the card.",
+      contentHtml,
+      footerHtml: "auntlucy.com.au",
+    }),
+    text,
+  };
+}
+
+export async function sendOrganiserCardShare(
+  params: OrganiserCardShareParams,
+): Promise<void> {
+  if (!resend) {
+    logger.warn("RESEND_API_KEY not set — skipping organiser card-share email");
+    return;
+  }
+
+  const { error } = await resend.emails.send({
+    from: FROM_ADDRESS,
+    to: params.to,
+    ...buildOrganiserCardShareEmail(params),
+  });
+
+  if (error) {
+    logger.error({ error, to: params.to }, "Failed to send organiser card-share email");
+    throw new Error(`Resend error: ${error.message}`);
+  }
+
+  logger.info({ to: params.to }, "Organiser card-share email sent");
 }
 
 // ─── 1. Buyer confirmation + tax receipt ─────────────────────────────────────
@@ -1048,6 +1290,98 @@ export async function sendActivationReminder(
   }
 
   logger.info({ to: params.to }, "Activation reminder email sent");
+}
+
+// ─── Crisis: safety-net "keep this link" email (Item 14) ──────────────────────
+//
+// The ONLY unprompted email a crisis page ever sends: a one-time, plain bookmark
+// so the setup person can get back to their page from any device. Deliberately
+// neutral — NOT a gift-flavoured template, no CTA-button-hunt, no follow-up
+// sequence, no tracking extras. Sent only on the frictionless creation path,
+// never on the magic-link fallback. Reuses the shared branded chrome
+// (renderGiftLayout is the generic Aunt Lucy layout, also used by the warm
+// recipient notifications — nothing gift-specific about it).
+
+export interface CrisisPageSavedParams {
+  to: string;
+  name: string;
+  /** Where they get back to their page (their organiser dashboard). */
+  pageLink: string;
+}
+
+export function buildCrisisPageSavedEmail(
+  params: CrisisPageSavedParams,
+): RenderedEmail {
+  const firstNameOnly =
+    params.name.trim().split(/\s+/)[0] || params.name.trim();
+
+  const contentHtml = `          <p style="margin:0 0 20px;color:#333;font-size:16px;line-height:1.6;">
+            Hi ${escapeHtml(firstNameOnly)},
+          </p>
+          <p style="margin:0 0 16px;color:#333;font-size:16px;line-height:1.6;">
+            Here's your page, so you can get back to it any time, from any device:
+          </p>
+          <p style="margin:0 0 24px;font-size:16px;line-height:1.6;">
+            <a href="${escapeHtml(params.pageLink)}" style="color:#2D6A4F;font-weight:600;word-break:break-all;">${escapeHtml(params.pageLink)}</a>
+          </p>
+          <p style="margin:0 0 24px;color:#333;font-size:16px;line-height:1.6;">
+            There's nothing you need to do right now. Set things up whenever
+            you're ready — Aunt Lucy will take it from there.
+          </p>
+          <p style="margin:0;color:#2D6A4F;font-size:15px;line-height:1.6;">
+            — Aunt Lucy
+          </p>`;
+
+  const text = [
+    `Hi ${firstNameOnly},`,
+    ``,
+    `Here's your page, so you can get back to it any time, from any device:`,
+    ``,
+    params.pageLink,
+    ``,
+    `There's nothing you need to do right now. Set things up whenever you're ready — Aunt Lucy will take it from there.`,
+    ``,
+    `— Aunt Lucy`,
+  ].join("\n");
+
+  return {
+    subject: "Your Aunt Lucy page — keep this link",
+    html: renderGiftLayout({
+      preheader: "Keep this link — your page is here whenever you're ready.",
+      contentHtml,
+      footerHtml: `Can't click the link? Copy this: ${escapeHtml(params.pageLink)}`,
+    }),
+    text,
+  };
+}
+
+/** Fire-and-forget from the crisis route — never throws, so it can't fail a
+ * page. Dev-logs instead of sending when the Resend key is a placeholder. */
+export async function sendCrisisPageSaved(
+  params: CrisisPageSavedParams,
+): Promise<void> {
+  if (isPlaceholderResendKey) {
+    console.log(
+      `\n📌 Crisis page-saved email for ${params.to} (local dev — sending disabled):\n${buildCrisisPageSavedEmail(params).text}\n`,
+    );
+    return;
+  }
+  if (!resend) {
+    logger.warn("RESEND_API_KEY not set — skipping crisis page-saved email");
+    return;
+  }
+
+  const { error } = await resend.emails.send({
+    from: FROM_ADDRESS,
+    to: params.to,
+    ...buildCrisisPageSavedEmail(params),
+  });
+
+  if (error) {
+    logger.error({ error, to: params.to }, "Failed to send crisis page-saved email");
+    return;
+  }
+  logger.info({ to: params.to }, "Crisis page-saved email sent");
 }
 
 /**

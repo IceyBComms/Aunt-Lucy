@@ -9,7 +9,7 @@ import { Input } from "./ui/input";
 import { Textarea } from "./ui/textarea";
 import { Label } from "./ui/label";
 import { format, parseISO } from "date-fns";
-import { ClipboardList } from "lucide-react";
+import { ClipboardList, Users, Utensils } from "lucide-react";
 
 const claimSchema = z.object({
   firstName: z.string().min(2, "Please enter your first name"),
@@ -80,6 +80,24 @@ export function ClaimDialog({ slot, recipientName, isOpen, onClose, onSubmit, is
           )}
         </DialogDescription>
       </DialogHeader>
+
+      {/* Meal detail (bug #006) — what the helper needs before saying yes. */}
+      {slot.slotType === "meal" && (!!slot.headcount || !!slot.dietaryNotes) && (
+        <div className="flex flex-wrap gap-2 -mt-1">
+          {!!slot.headcount && (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary/70 px-3 py-1 text-xs font-medium text-foreground/80">
+              <Users className="w-3.5 h-3.5" />
+              Feeds {slot.headcount}
+            </span>
+          )}
+          {slot.dietaryNotes && (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary/70 px-3 py-1 text-xs font-medium text-foreground/80">
+              <Utensils className="w-3.5 h-3.5" />
+              {slot.dietaryNotes}
+            </span>
+          )}
+        </div>
+      )}
 
       {slot.notes && (
         <div className="rounded-2xl bg-primary/5 border border-primary/10 p-4 -mt-1">

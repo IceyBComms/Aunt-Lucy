@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import crypto from "crypto";
 import { db, giftsTable, giftSigningsTable, supportPagesTable, slotsTable, pageGrantsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { suggestionsFor, type SuggestedTask } from "../lib/occasionSuggestions";
 import { uniqueSlug } from "../lib/slug";
 import { defaultSituationLine, type RecipientPronouns } from "../lib/inviteCopy";
@@ -89,6 +89,31 @@ function asSlotDate(value: unknown): string | null {
   return Number.isNaN(new Date(raw).getTime()) ? null : raw;
 }
 
+/**
+ * A time of day (HH:MM, 24-hour), optional but real if supplied. Reuses the
+ * existing slot_time column — this is the whole of the #005 fix on the
+ * activation path, which previously had no way to capture a time at all (it
+ * matters most for a school pickup, where "3pm or 3:30pm?" is the point).
+ * Normalised to HH:MM:00 to match the Postgres `time` column format.
+ */
+function asSlotTime(value: unknown): string | null {
+  const raw = trimmed(value);
+  if (!raw) return null;
+  const m = /^([01]?\d|2[0-3]):([0-5]\d)$/.exec(raw);
+  if (!m) return null;
+  return `${m[1].padStart(2, "0")}:${m[2]}:00`;
+}
+
+/** A meal headcount: a positive integer, capped, or null. See organiser.ts. */
+function asHeadcount(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  const n = typeof value === "number" ? value : parseInt(String(value), 10);
+  if (!Number.isFinite(n) || Number.isNaN(n)) return null;
+  const rounded = Math.floor(n);
+  if (rounded < 1) return null;
+  return Math.min(rounded, 100);
+}
+
 // GET /api/gift-tiers — what can be bought, and for how much.
 //
 // The price lives on the server so the buyer-facing figure can never drift from
@@ -172,10 +197,33 @@ router.post("/gifts", async (req, res) => {
     return !!existing;
   });
 
+  // Workplace card tiers carry a team card. Mint its two public tokens now, at
+  // purchase, so the organiser share email at fulfilment already has the signing
+  // link. A consumer gift has no card and both stay null. Each is checked for
+  // collision against its own column, exactly like the redemption token.
+  let signingToken: string | null = null;
+  let organiserToken: string | null = null;
+  if (tier.hasCard) {
+    signingToken = await uniqueToken(async (token) => {
+      const existing = await db.query.giftsTable.findFirst({
+        where: eq(giftsTable.signingToken, token),
+      });
+      return !!existing;
+    });
+    organiserToken = await uniqueToken(async (token) => {
+      const existing = await db.query.giftsTable.findFirst({
+        where: eq(giftsTable.organiserToken, token),
+      });
+      return !!existing;
+    });
+  }
+
   const [gift] = await db
     .insert(giftsTable)
     .values({
       redemptionToken,
+      signingToken,
+      organiserToken,
       purchaserName,
       purchaserEmail,
       recipientName,
@@ -221,16 +269,33 @@ router.get("/gifts/:redemptionToken", async (req, res) => {
   // The gift experience is a read-only keepsake and is shown even before it
   // has been delivered (delivered_at may still be null) — we deliberately do
   // not gate on delivery here.
-  const signings = await db.query.giftSigningsTable.findMany({
-    where: eq(giftSigningsTable.giftId, gift.id),
-    orderBy: (s, { asc }) => [asc(s.createdAt)],
-  });
+  //
+  // Two rules on the notes, though:
+  //   • Only `visible` notes — a note the organiser soft-removed never shows.
+  //   • For a card gift, notes appear only once the card is sealed. Delivery is
+  //     gated on the seal, so the recipient shouldn't arrive early anyway, but
+  //     this guarantees they never glimpse a half-signed card even if they do.
+  const cardHidden = !!gift.signingToken && !gift.cardSealedAt;
+  const signings = cardHidden
+    ? []
+    : await db.query.giftSigningsTable.findMany({
+        where: and(
+          eq(giftSigningsTable.giftId, gift.id),
+          eq(giftSigningsTable.status, "visible"),
+        ),
+        orderBy: (s, { asc }) => [asc(s.createdAt)],
+      });
 
   res.json({
     recipientName: gift.recipientName,
     organisationMessage: gift.giftedByNote ?? null,
     giftedBy: gift.purchaserName,
     occasion: gift.occasion ?? null,
+    // A workplace team card carries a signing token; a consumer gift never does.
+    // Derived from an existing column — no new field — so the keepsake can word
+    // the notes section for the right audience ("Signed by your team" vs
+    // "Signed with love").
+    isTeamCard: !!gift.signingToken,
     signings: signings.map((s) => ({
       signerName: s.signerName,
       message: s.message,
@@ -420,6 +485,10 @@ router.post("/gifts/:redemptionToken/activate", async (req, res) => {
       const trustedHelpersOnly =
         ALWAYS_TRUSTED.includes(slotType) || t.trustedHelpersOnly === true;
 
+      // Meal detail fields (#006) are meal-only; anything sent on another type
+      // is dropped rather than stored, matching the organiser path.
+      const isMeal = slotType === "meal";
+
       return {
         slotType,
         // The label carries the recipient's own wording, so it goes in
@@ -427,7 +496,14 @@ router.post("/gifts/:redemptionToken/activate", async (req, res) => {
         // not a generic enum name.
         customLabel: label.slice(0, 120),
         slotDate: asSlotDate(t.slotDate),
+        // A time on the existing slot_time column (#005). Kept even when the
+        // task is undated — an undated slot with a time reads as "whenever
+        // suits, but pickup is at 3pm"; the display layer only pairs a clock
+        // with a real date, so a stray time never renders oddly.
+        slotTime: asSlotTime(t.slotTime),
         notes: trimmed(t.notes).slice(0, 500) || null,
+        dietaryNotes: isMeal ? trimmed(t.dietaryNotes).slice(0, 500) || null : null,
+        headcount: isMeal ? asHeadcount(t.headcount) : null,
         trustedHelpersOnly,
       };
     })
@@ -472,7 +548,10 @@ router.post("/gifts/:redemptionToken/activate", async (req, res) => {
           customLabel: t.customLabel,
           // Null is the common case: a flexible offer, dated when claimed.
           slotDate: t.slotDate,
+          slotTime: t.slotTime,
           notes: t.notes,
+          dietaryNotes: t.dietaryNotes,
+          headcount: t.headcount,
           trustedHelpersOnly: t.trustedHelpersOnly,
         })),
       );

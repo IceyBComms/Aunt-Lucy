@@ -2,6 +2,7 @@ import { Router, type IRouter, type Request, type Response } from "express";
 import { timingSafeEqual } from "node:crypto";
 import {
   db,
+  ensureDbAwake,
   giftsTable,
   giftMessagesTable,
   supportPagesTable,
@@ -10,9 +11,9 @@ import {
   helperInvitesTable,
   contactsTable,
 } from "@workspace/db";
-import { and, eq, inArray, isNull, isNotNull, lte, ne } from "drizzle-orm";
+import { and, eq, inArray, isNull, isNotNull, lte, ne, sql } from "drizzle-orm";
 import { logger } from "../lib/logger";
-import { firstName, giftLinkFor } from "../lib/giftFulfilment";
+import { firstName, giftLinkFor, sealCard } from "../lib/giftFulfilment";
 import {
   sendActivationReminder,
   sendGiftDelivery,
@@ -83,6 +84,10 @@ function cronAuthorised(req: Request, res: Response): boolean {
  */
 router.post("/internal/dispatch-scheduled", async (req, res) => {
   if (!cronAuthorised(req, res)) return;
+
+  // Wake Neon (scale-to-zero) and confirm a live connection before any work, so
+  // a cold-start hiccup becomes a short retry rather than a failed cron run.
+  await ensureDbAwake();
 
   const now = new Date();
 
@@ -178,9 +183,54 @@ router.post("/internal/dispatch-scheduled", async (req, res) => {
     }
   }
 
-  logger.info({ claimed: claimed.length, sent, failed, cancelled }, "Dispatch run complete");
-  res.json({ claimed: claimed.length, sent, failed, cancelled });
+  // Same cron, one more job: auto-seal any workplace card the organiser never
+  // sent, so its keepsake still reaches the recipient. Kept here rather than on
+  // a separate endpoint to avoid wiring a new cron for a rare, low-volume sweep.
+  const autoSealed = await autoSealDueCards(now);
+
+  logger.info(
+    { claimed: claimed.length, sent, failed, cancelled, autoSealed },
+    "Dispatch run complete",
+  );
+  res.json({ claimed: claimed.length, sent, failed, cancelled, autoSealed });
 });
+
+/**
+ * Seals ("sends") any workplace card that was never sealed by its deadline, so
+ * a forgotten card still reaches the recipient rather than sitting undelivered
+ * forever. The deadline is the buyer's chosen delivery date, or 14 days after
+ * purchase when they chose none.
+ *
+ * Delivery itself is handled by sealCard(), which is idempotent — so a card a
+ * distracted organiser seals in the same minute this runs can't be sent twice.
+ */
+async function autoSealDueCards(now: Date): Promise<number> {
+  const due = await db
+    .select()
+    .from(giftsTable)
+    .where(
+      and(
+        isNotNull(giftsTable.signingToken),
+        isNull(giftsTable.cardSealedAt),
+        eq(giftsTable.status, "paid"),
+        lte(
+          sql`COALESCE(${giftsTable.deliverAt}, ${giftsTable.createdAt} + interval '14 days')`,
+          now,
+        ),
+      ),
+    )
+    .limit(BATCH_LIMIT);
+
+  let sealed = 0;
+  for (const gift of due) {
+    const result = await sealCard({ gift, now, reason: "auto" });
+    if (result.sealed) {
+      sealed += 1;
+      logger.info({ giftId: gift.id }, "Card auto-sealed at its delivery deadline");
+    }
+  }
+  return sealed;
+}
 
 /**
  * POST /api/internal/activate-scheduled-pages — the delayed go-live.
@@ -196,6 +246,10 @@ router.post("/internal/dispatch-scheduled", async (req, res) => {
  */
 router.post("/internal/activate-scheduled-pages", async (req, res) => {
   if (!cronAuthorised(req, res)) return;
+
+  // Wake Neon (scale-to-zero) and confirm a live connection before any work, so
+  // a cold-start hiccup becomes a short retry rather than a failed cron run.
+  await ensureDbAwake();
 
   const due = await db
     .select({ id: supportPagesTable.id, slug: supportPagesTable.slug })
@@ -243,6 +297,10 @@ router.post("/internal/activate-scheduled-pages", async (req, res) => {
  */
 router.post("/internal/dispatch-invites", async (req, res) => {
   if (!cronAuthorised(req, res)) return;
+
+  // Wake Neon (scale-to-zero) and confirm a live connection before any work, so
+  // a cold-start hiccup becomes a short retry rather than a failed cron run.
+  await ensureDbAwake();
 
   const now = new Date();
 
@@ -374,6 +432,10 @@ router.post("/internal/dispatch-invites", async (req, res) => {
 router.post("/internal/dispatch-claim-notifications", async (req, res) => {
   if (!cronAuthorised(req, res)) return;
 
+  // Wake Neon (scale-to-zero) and confirm a live connection before any work, so
+  // a cold-start hiccup becomes a short retry rather than a failed cron run.
+  await ensureDbAwake();
+
   const base = getAppBaseUrl();
 
   // Pages with at least one un-notified claim AND somewhere to send it.
@@ -445,6 +507,7 @@ router.post("/internal/dispatch-claim-notifications", async (req, res) => {
       recipientFirstName: firstName(page.recipientName),
       manageLink,
       claims,
+      occasion: page.occasion ?? null,
     });
 
     if (ok) {

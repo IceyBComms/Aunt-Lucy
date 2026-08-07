@@ -45,6 +45,10 @@ interface SlotDraft {
   slotDate: string;
   slotTime: string;
   notes: string;
+  // Meal-only detail (bug #006). Kept as strings for the inputs; sent only when
+  // the slot is a meal, coerced server-side.
+  dietaryNotes: string;
+  headcount: string;
   repeatDays: number;
   trustedHelpersOnly: boolean;
   trustedHelpers: TrustedHelper[];
@@ -62,6 +66,8 @@ function emptySlot(): SlotDraft {
     slotDate: today(),
     slotTime: "18:00",
     notes: "",
+    dietaryNotes: "",
+    headcount: "",
     repeatDays: 1,
     trustedHelpersOnly: false,
     trustedHelpers: [],
@@ -127,6 +133,8 @@ function SlotForm({
   const sel = SLOT_TYPES.find((t) => t.value === slot.slotType) ?? SLOT_TYPES[0];
   const isSensitiveType = SENSITIVE_TYPES.has(slot.slotType);
   const isTrusted = isSensitiveType || slot.trustedHelpersOnly;
+  const isMeal = slot.slotType === "meal";
+  const isSchoolPickup = slot.slotType === "school_pickup";
 
   function addHelper(h: TrustedHelper) {
     onChange({ ...slot, trustedHelpers: [...slot.trustedHelpers, h] });
@@ -184,6 +192,13 @@ function SlotForm({
                   trustedHelpersOnly: SENSITIVE_TYPES.has(t.value)
                     ? true
                     : slot.trustedHelpersOnly,
+                  // Nudge the time toward a school-pickup-shaped default when
+                  // switching to a pickup, but only if it's still the untouched
+                  // meal default — never stomp a time the organiser chose.
+                  slotTime:
+                    t.value === "school_pickup" && slot.slotTime === "18:00"
+                      ? "15:00"
+                      : slot.slotTime,
                 })
               }
               className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-sm transition-colors text-left ${
@@ -249,7 +264,7 @@ function SlotForm({
         </div>
         <div className="space-y-1.5">
           <Label className="text-foreground/80 pl-1 text-sm">
-            Time{" "}
+            {isSchoolPickup ? "Pickup time" : "Time"}{" "}
             <span className="font-normal text-muted-foreground">(optional)</span>
           </Label>
           <Input
@@ -259,6 +274,45 @@ function SlotForm({
           />
         </div>
       </div>
+
+      {isSchoolPickup && (
+        <p className="-mt-2 text-xs text-muted-foreground pl-1">
+          Set the pickup time so your helper knows exactly when to be there.
+        </p>
+      )}
+
+      {/* Meal detail (bug #006) — headcount + dietary needs, both encouraged,
+          neither required. Only shown for meals. */}
+      {isMeal && (
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <Label className="text-foreground/80 pl-1 text-sm">
+              Feeding how many?{" "}
+              <span className="font-normal text-muted-foreground">(optional)</span>
+            </Label>
+            <Input
+              type="number"
+              min={1}
+              max={100}
+              inputMode="numeric"
+              placeholder="e.g. 4"
+              value={slot.headcount}
+              onChange={(e) => onChange({ ...slot, headcount: e.target.value })}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-foreground/80 pl-1 text-sm">
+              Dietary needs{" "}
+              <span className="font-normal text-muted-foreground">(optional)</span>
+            </Label>
+            <Input
+              placeholder="e.g. no nuts, vego"
+              value={slot.dietaryNotes}
+              onChange={(e) => onChange({ ...slot, dietaryNotes: e.target.value })}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Task instructions */}
       <div className="space-y-1.5">
@@ -420,6 +474,13 @@ export default function OrganiseAddSlots() {
                 slotTime: slot.slotTime || null,
                 notes: slot.notes || null,
                 trustedHelpersOnly: isTrusted,
+                // Meal-only (bug #006); the server ignores these on other types.
+                dietaryNotes:
+                  slot.slotType === "meal" ? slot.dietaryNotes.trim() || null : null,
+                headcount:
+                  slot.slotType === "meal" && slot.headcount.trim()
+                    ? Number(slot.headcount)
+                    : null,
               }),
               token: token!,
             },

@@ -274,6 +274,205 @@ paths:
               schema:
                 $ref: "#/components/schemas/NotFoundError"
 
+  /sign/{signingToken}:
+    get:
+      operationId: getSignCard
+      tags: [cards]
+      summary: The card context for the signing page (public, no account)
+      description: >-
+        Keyed by the workplace card's public signing token. Returns the
+        recipient's first name only, the organiser's name, the organisation
+        name (if the organiser has set it), the ambient count of visible
+        signings, and whether the card has been sealed (closed to new notes).
+      parameters:
+        - name: signingToken
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Card found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SignCardContext"
+        "404":
+          description: Signing link not valid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotFoundError"
+    post:
+      operationId: signCard
+      tags: [cards]
+      summary: Add a note to the card (public, no account)
+      description: >-
+        Creates a visible signing. Rejects a blank name, an empty or over-long
+        message, a sealed card, and anything past the anti-abuse signer cap.
+      parameters:
+        - name: signingToken
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SignCardRequest"
+      responses:
+        "201":
+          description: Note added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SignCardResult"
+        "400":
+          description: Name or message failed validation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationError"
+        "404":
+          description: Signing link not valid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotFoundError"
+        "409":
+          description: Card is sealed or full
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConflictError"
+
+  /card/{organiserToken}:
+    get:
+      operationId: getOrganiserCard
+      tags: [cards]
+      summary: The organiser's review view of the card
+      description: >-
+        Keyed by the private organiser token. Lists the visible notes, the share
+        link to copy, and whether the card is sealed.
+      parameters:
+        - name: organiserToken
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Card found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrganiserCardView"
+        "404":
+          description: Card link not valid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotFoundError"
+    patch:
+      operationId: updateCardOrganisation
+      tags: [cards]
+      summary: Set the organisation name shown on the card
+      parameters:
+        - name: organiserToken
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateCardOrganisationRequest"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UpdateCardOrganisationResponse"
+        "404":
+          description: Card link not valid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotFoundError"
+
+  /card/{organiserToken}/signings/{id}/remove:
+    post:
+      operationId: removeSigning
+      tags: [cards]
+      summary: Soft-remove a note from the card (organiser only)
+      description: >-
+        Sets the note's status to removed — the row is kept for audit but never
+        shows on the card or counts. Idempotent and scoped to this card.
+      parameters:
+        - name: organiserToken
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Note removed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResponse"
+        "404":
+          description: Card link or note not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotFoundError"
+        "409":
+          description: Card already sealed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConflictError"
+
+  /card/{organiserToken}/seal:
+    post:
+      operationId: sealCard
+      tags: [cards]
+      summary: Send the card — seal it and deliver the keepsake
+      description: >-
+        Seals the card to new notes and triggers delivery of the keepsake to the
+        recipient (now, or on the buyer's chosen delivery date). Idempotent — a
+        card already sealed answers cleanly rather than delivering twice.
+      parameters:
+        - name: organiserToken
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Card sealed (or already sealed)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SealCardResponse"
+        "404":
+          description: Card link not valid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotFoundError"
+
   /manage/{token}:
     get:
       operationId: getManageState
@@ -570,6 +769,18 @@ components:
         notes:
           type: string
           nullable: true
+        dietaryNotes:
+          type: string
+          nullable: true
+          description: >-
+            Meal slots only (bug #006): allergies / dietary preferences a helper
+            needs before cooking. Null on every other slot type.
+        headcount:
+          type: integer
+          nullable: true
+          description: >-
+            Meal slots only (bug #006): how many people the meal should feed.
+            Null on every other slot type.
         isClaimed:
           type: boolean
         claimedByName:
@@ -793,6 +1004,12 @@ components:
           oneOf:
             - $ref: "#/components/schemas/GiftOccasion"
           nullable: true
+        isTeamCard:
+          type: boolean
+          description: >-
+            True for a workplace team card, false for a consumer gift. Derived
+            from the gift's signing token — no new stored field. Lets the
+            keepsake word its notes section for the right audience.
         signings:
           type: array
           items:
@@ -800,7 +1017,136 @@ components:
       required:
         - recipientName
         - giftedBy
+        - isTeamCard
         - signings
+
+    SignCardContext:
+      type: object
+      properties:
+        recipientFirstName:
+          type: string
+        organiserName:
+          type: string
+        organisationName:
+          type: string
+          nullable: true
+        signedCount:
+          type: integer
+        closed:
+          type: boolean
+          description: True once the card is sealed — no more notes accepted.
+      required:
+        - recipientFirstName
+        - organiserName
+        - organisationName
+        - signedCount
+        - closed
+
+    SignCardRequest:
+      type: object
+      properties:
+        signerName:
+          type: string
+          description: Required. A person or a group label like "the Finance team".
+        message:
+          type: string
+          description: Required. Capped at ~500 characters server-side.
+      required:
+        - signerName
+        - message
+
+    SignCardResult:
+      type: object
+      properties:
+        signedCount:
+          type: integer
+      required:
+        - signedCount
+
+    OrganiserCardSigning:
+      type: object
+      properties:
+        id:
+          type: string
+        signerName:
+          type: string
+        message:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - signerName
+        - message
+        - createdAt
+
+    OrganiserCardView:
+      type: object
+      properties:
+        recipientFirstName:
+          type: string
+        organisationName:
+          type: string
+          nullable: true
+        signingLink:
+          type: string
+        sealed:
+          type: boolean
+        sealedAt:
+          type: string
+          format: date-time
+          nullable: true
+        signings:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrganiserCardSigning"
+      required:
+        - recipientFirstName
+        - organisationName
+        - signingLink
+        - sealed
+        - sealedAt
+        - signings
+
+    UpdateCardOrganisationRequest:
+      type: object
+      properties:
+        organisationName:
+          type: string
+      required:
+        - organisationName
+
+    UpdateCardOrganisationResponse:
+      type: object
+      properties:
+        organisationName:
+          type: string
+          nullable: true
+      required:
+        - organisationName
+
+    SealCardResponse:
+      type: object
+      properties:
+        sealed:
+          type: boolean
+        alreadySealed:
+          type: boolean
+        delivery:
+          type: string
+          nullable: true
+          enum: [sent, scheduled, manual]
+          description: How the keepsake was delivered. Absent when already sealed.
+        giftLink:
+          type: string
+          nullable: true
+          description: >-
+            The recipient's gift link, returned only when there was no recipient
+            email and the organiser must pass it on by hand.
+      required:
+        - sealed
+        - alreadySealed
 
     SuggestedTask:
       type: object
@@ -896,9 +1242,28 @@ components:
           type: string
           nullable: true
           description: Omit or null for a flexible, undated task.
+        slotTime:
+          type: string
+          nullable: true
+          description: >-
+            Time of day (HH:MM), reusing the existing slot_time column. The
+            activation review flow captures it mainly for school pickups (bug
+            #005), where the time is the whole point; omit or null otherwise.
         notes:
           type: string
           nullable: true
+        dietaryNotes:
+          type: string
+          nullable: true
+          description: >-
+            Meal tasks only (bug #006): allergies / dietary preferences. Ignored
+            server-side for non-meal types.
+        headcount:
+          type: integer
+          nullable: true
+          description: >-
+            Meal tasks only (bug #006): how many people the meal should feed.
+            Ignored server-side for non-meal types.
         trustedHelpersOnly:
           type: boolean
       required:
@@ -1075,6 +1440,14 @@ components:
         slotTime:
           type: string
           nullable: true
+        dietaryNotes:
+          type: string
+          nullable: true
+          description: Meal slots only (bug #006). Null on every other slot type.
+        headcount:
+          type: integer
+          nullable: true
+          description: Meal slots only (bug #006). Null on every other slot type.
       required:
         - id
         - slotType
@@ -1174,6 +1547,12 @@ components:
           description: When true the UI leads with self-share and waves are gated.
         shareLink:
           type: string
+        cardKeepsakeUrl:
+          type: string
+          nullable: true
+          description: >-
+            The "See your card 💛" re-entry link to the sealed workplace team
+            card keepsake. Null unless this page came from a sealed card gift.
         tasks:
           type: array
           items:

@@ -8,6 +8,22 @@ import { uniqueSlug } from "../lib/slug";
 
 const router: IRouter = Router();
 
+/**
+ * Coerce a client-supplied headcount into a sane positive integer, or null.
+ * Accepts a number or a numeric string (a form input often sends the latter).
+ * Caps at 100 — a meal train, not a wedding — so a scripted request can't stash
+ * an absurd value. Anything non-positive or unparseable becomes null (the field
+ * is always optional).
+ */
+function parseHeadcount(value: number | string | null | undefined): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  const n = typeof value === "number" ? value : parseInt(value, 10);
+  if (!Number.isFinite(n) || Number.isNaN(n)) return null;
+  const rounded = Math.floor(n);
+  if (rounded < 1) return null;
+  return Math.min(rounded, 100);
+}
+
 // POST /api/organiser/pages — create a new support page (draft)
 router.post("/organiser/pages", requireAuth as any, async (req, res) => {
   const authReq = req as unknown as AuthRequest;
@@ -48,6 +64,9 @@ router.post("/organiser/pages", requireAuth as any, async (req, res) => {
       privacy: (privacy === "pin_protected" ? "pin_protected" : "open") as "open" | "pin_protected",
       pin: hashedPin,
       status: "draft",
+      // Ledger marker (Item 14): a wizard-built page, distinct from a
+      // crisis-free or gift-redeemed page. Additive — not the paid path.
+      origin: "organiser",
     })
     .returning();
 
@@ -80,13 +99,15 @@ router.post("/organiser/pages/:pageId/slots", requireAuth as any, async (req, re
     return;
   }
 
-  const { slotType, customLabel, slotDate, slotTime, notes, trustedHelpersOnly } = req.body as {
+  const { slotType, customLabel, slotDate, slotTime, notes, trustedHelpersOnly, dietaryNotes, headcount } = req.body as {
     slotType?: string;
     customLabel?: string;
     slotDate?: string;
     slotTime?: string | null;
     notes?: string;
     trustedHelpersOnly?: boolean;
+    dietaryNotes?: string | null;
+    headcount?: number | string | null;
   };
 
   const validTypes = ["meal", "school_pickup", "child_care", "errand", "dog_walking", "shopping", "visit", "other"];
@@ -102,6 +123,12 @@ router.post("/organiser/pages/:pageId/slots", requireAuth as any, async (req, re
   const sensitiveTypes = ["school_pickup", "child_care"];
   const isTrustedOnly = sensitiveTypes.includes(slotType) || trustedHelpersOnly === true;
 
+  // Meal detail fields (bug #006) are meal-only — never persisted on any other
+  // type, so a stray dietary/headcount on a dog walk can't sneak in.
+  const isMeal = slotType === "meal";
+  const dietaryValue = isMeal && typeof dietaryNotes === "string" ? dietaryNotes.trim().slice(0, 500) || null : null;
+  const headcountValue = isMeal ? parseHeadcount(headcount) : null;
+
   const [slot] = await db
     .insert(slotsTable)
     .values({
@@ -112,6 +139,8 @@ router.post("/organiser/pages/:pageId/slots", requireAuth as any, async (req, re
       slotTime: slotTime || null,
       notes: typeof notes === "string" ? notes.trim() || null : null,
       trustedHelpersOnly: isTrustedOnly,
+      dietaryNotes: dietaryValue,
+      headcount: headcountValue,
     })
     .returning();
 
@@ -123,6 +152,8 @@ router.post("/organiser/pages/:pageId/slots", requireAuth as any, async (req, re
     slotDate: slot.slotDate,
     slotTime: slot.slotTime,
     notes: slot.notes,
+    dietaryNotes: slot.dietaryNotes,
+    headcount: slot.headcount,
     trustedHelpersOnly: slot.trustedHelpersOnly,
     isClaimed: slot.isClaimed,
     createdAt: slot.createdAt.toISOString(),
@@ -233,6 +264,8 @@ router.get("/organiser/pages/:pageId", requireAuth as any, async (req, res) => {
       slotDate: s.slotDate,
       slotTime: s.slotTime,
       notes: s.notes,
+      dietaryNotes: s.dietaryNotes,
+      headcount: s.headcount,
       trustedHelpersOnly: s.trustedHelpersOnly,
       isClaimed: s.isClaimed,
       claimedByName: s.claimedByName,

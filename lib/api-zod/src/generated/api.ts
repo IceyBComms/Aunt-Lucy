@@ -69,6 +69,18 @@ export const GetSupportPageResponse = zod.object({
         ),
       slotTime: zod.string().nullish(),
       notes: zod.string().nullish(),
+      dietaryNotes: zod
+        .string()
+        .nullish()
+        .describe(
+          "Meal slots only (bug #006): allergies \/ dietary preferences a helper needs before cooking. Null on every other slot type.",
+        ),
+      headcount: zod
+        .number()
+        .nullish()
+        .describe(
+          "Meal slots only (bug #006): how many people the meal should feed. Null on every other slot type.",
+        ),
       isClaimed: zod.boolean(),
       claimedByName: zod.string().nullish(),
       claimedNote: zod.string().nullish(),
@@ -123,6 +135,18 @@ export const ClaimSlotResponse = zod.object({
     ),
   slotTime: zod.string().nullish(),
   notes: zod.string().nullish(),
+  dietaryNotes: zod
+    .string()
+    .nullish()
+    .describe(
+      "Meal slots only (bug #006): allergies \/ dietary preferences a helper needs before cooking. Null on every other slot type.",
+    ),
+  headcount: zod
+    .number()
+    .nullish()
+    .describe(
+      "Meal slots only (bug #006): how many people the meal should feed. Null on every other slot type.",
+    ),
   isClaimed: zod.boolean(),
   claimedByName: zod.string().nullish(),
   claimedNote: zod.string().nullish(),
@@ -229,6 +253,11 @@ export const GetGiftResponse = zod.object({
       "other",
     ])
     .nullish(),
+  isTeamCard: zod
+    .boolean()
+    .describe(
+      "True for a workplace team card, false for a consumer gift. Derived from the gift's signing token — no new stored field. Lets the keepsake word its notes section for the right audience.",
+    ),
   signings: zod.array(
     zod.object({
       signerName: zod.string(),
@@ -343,7 +372,25 @@ export const ActivateGiftBody = zod.object({
           .string()
           .nullish()
           .describe("Omit or null for a flexible, undated task."),
+        slotTime: zod
+          .string()
+          .nullish()
+          .describe(
+            "Time of day (HH:MM), reusing the existing slot_time column. The activation review flow captures it mainly for school pickups (bug #005), where the time is the whole point; omit or null otherwise.",
+          ),
         notes: zod.string().nullish(),
+        dietaryNotes: zod
+          .string()
+          .nullish()
+          .describe(
+            "Meal tasks only (bug #006): allergies \/ dietary preferences. Ignored server-side for non-meal types.",
+          ),
+        headcount: zod
+          .number()
+          .nullish()
+          .describe(
+            "Meal tasks only (bug #006): how many people the meal should feed. Ignored server-side for non-meal types.",
+          ),
         trustedHelpersOnly: zod.boolean().optional(),
       }),
     )
@@ -402,6 +449,116 @@ export const ActivateGiftResponse = zod.object({
 });
 
 /**
+ * Keyed by the workplace card's public signing token. Returns the recipient's first name only, the organiser's name, the organisation name (if the organiser has set it), the ambient count of visible signings, and whether the card has been sealed (closed to new notes).
+ * @summary The card context for the signing page (public, no account)
+ */
+export const GetSignCardParams = zod.object({
+  signingToken: zod.coerce.string(),
+});
+
+export const GetSignCardResponse = zod.object({
+  recipientFirstName: zod.string(),
+  organiserName: zod.string(),
+  organisationName: zod.string().nullable(),
+  signedCount: zod.number(),
+  closed: zod
+    .boolean()
+    .describe("True once the card is sealed — no more notes accepted."),
+});
+
+/**
+ * Creates a visible signing. Rejects a blank name, an empty or over-long message, a sealed card, and anything past the anti-abuse signer cap.
+ * @summary Add a note to the card (public, no account)
+ */
+export const SignCardParams = zod.object({
+  signingToken: zod.coerce.string(),
+});
+
+export const SignCardBody = zod.object({
+  signerName: zod
+    .string()
+    .describe('Required. A person or a group label like \"the Finance team\".'),
+  message: zod
+    .string()
+    .describe("Required. Capped at ~500 characters server-side."),
+});
+
+/**
+ * Keyed by the private organiser token. Lists the visible notes, the share link to copy, and whether the card is sealed.
+ * @summary The organiser's review view of the card
+ */
+export const GetOrganiserCardParams = zod.object({
+  organiserToken: zod.coerce.string(),
+});
+
+export const GetOrganiserCardResponse = zod.object({
+  recipientFirstName: zod.string(),
+  organisationName: zod.string().nullable(),
+  signingLink: zod.string(),
+  sealed: zod.boolean(),
+  sealedAt: zod.date().nullable(),
+  signings: zod.array(
+    zod.object({
+      id: zod.string(),
+      signerName: zod.string(),
+      message: zod.string(),
+      createdAt: zod.date(),
+    }),
+  ),
+});
+
+/**
+ * @summary Set the organisation name shown on the card
+ */
+export const UpdateCardOrganisationParams = zod.object({
+  organiserToken: zod.coerce.string(),
+});
+
+export const UpdateCardOrganisationBody = zod.object({
+  organisationName: zod.string(),
+});
+
+export const UpdateCardOrganisationResponse = zod.object({
+  organisationName: zod.string().nullable(),
+});
+
+/**
+ * Sets the note's status to removed — the row is kept for audit but never shows on the card or counts. Idempotent and scoped to this card.
+ * @summary Soft-remove a note from the card (organiser only)
+ */
+export const RemoveSigningParams = zod.object({
+  organiserToken: zod.coerce.string(),
+  id: zod.coerce.string(),
+});
+
+export const RemoveSigningResponse = zod.object({
+  ok: zod.boolean(),
+});
+
+/**
+ * Seals the card to new notes and triggers delivery of the keepsake to the recipient (now, or on the buyer's chosen delivery date). Idempotent — a card already sealed answers cleanly rather than delivering twice.
+ * @summary Send the card — seal it and deliver the keepsake
+ */
+export const SealCardParams = zod.object({
+  organiserToken: zod.coerce.string(),
+});
+
+export const SealCardResponse = zod.object({
+  sealed: zod.boolean(),
+  alreadySealed: zod.boolean(),
+  delivery: zod
+    .enum(["sent", "scheduled", "manual"])
+    .nullish()
+    .describe("How the keepsake was delivered. Absent when already sealed."),
+  giftLink: zod
+    .string()
+    .nullish()
+    .describe(
+      "The recipient's gift link, returned only when there was no recipient email and the organiser must pass it on by hand.",
+    ),
+});
+
+/**
  * Token-gated by the private per-page management token. Returns the page details, tasks, contacts and the state of every invite sent or queued.
  * @summary The recipient's management view of their page
  */
@@ -443,6 +600,12 @@ export const GetManageStateResponse = zod.object({
     .boolean()
     .describe("When true the UI leads with self-share and waves are gated."),
   shareLink: zod.string(),
+  cardKeepsakeUrl: zod
+    .string()
+    .nullish()
+    .describe(
+      'The \"See your card 💛\" re-entry link to the sealed workplace team card keepsake. Null unless this page came from a sealed card gift.',
+    ),
   tasks: zod.array(
     zod.object({
       id: zod.string(),
@@ -475,6 +638,8 @@ export const GetManageStateResponse = zod.object({
         .describe('When it was claimed (ISO), for the \"help arriving\" view.'),
       slotDate: zod.string().nullish(),
       slotTime: zod.string().nullish(),
+      dietaryNotes: zod.string().nullish().describe("Meal slots only (bug"),
+      headcount: zod.number().nullish().describe("Meal slots only (bug"),
     }),
   ),
   contacts: zod.array(
