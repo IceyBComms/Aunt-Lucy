@@ -2,6 +2,7 @@ import { Router, type IRouter, type Request, type Response } from "express";
 import { timingSafeEqual } from "node:crypto";
 import {
   db,
+  ensureDbAwake,
   giftsTable,
   giftMessagesTable,
   supportPagesTable,
@@ -83,6 +84,10 @@ function cronAuthorised(req: Request, res: Response): boolean {
  */
 router.post("/internal/dispatch-scheduled", async (req, res) => {
   if (!cronAuthorised(req, res)) return;
+
+  // Wake Neon (scale-to-zero) and confirm a live connection before any work, so
+  // a cold-start hiccup becomes a short retry rather than a failed cron run.
+  await ensureDbAwake();
 
   const now = new Date();
 
@@ -242,6 +247,10 @@ async function autoSealDueCards(now: Date): Promise<number> {
 router.post("/internal/activate-scheduled-pages", async (req, res) => {
   if (!cronAuthorised(req, res)) return;
 
+  // Wake Neon (scale-to-zero) and confirm a live connection before any work, so
+  // a cold-start hiccup becomes a short retry rather than a failed cron run.
+  await ensureDbAwake();
+
   const due = await db
     .select({ id: supportPagesTable.id, slug: supportPagesTable.slug })
     .from(supportPagesTable)
@@ -288,6 +297,10 @@ router.post("/internal/activate-scheduled-pages", async (req, res) => {
  */
 router.post("/internal/dispatch-invites", async (req, res) => {
   if (!cronAuthorised(req, res)) return;
+
+  // Wake Neon (scale-to-zero) and confirm a live connection before any work, so
+  // a cold-start hiccup becomes a short retry rather than a failed cron run.
+  await ensureDbAwake();
 
   const now = new Date();
 
@@ -418,6 +431,10 @@ router.post("/internal/dispatch-invites", async (req, res) => {
  */
 router.post("/internal/dispatch-claim-notifications", async (req, res) => {
   if (!cronAuthorised(req, res)) return;
+
+  // Wake Neon (scale-to-zero) and confirm a live connection before any work, so
+  // a cold-start hiccup becomes a short retry rather than a failed cron run.
+  await ensureDbAwake();
 
   const base = getAppBaseUrl();
 
