@@ -149,7 +149,7 @@ function buildHtml(params: ClaimEmailParams): string {
             ${notesBlock}
           </table>
           <p style="margin:0 0 8px;color:#333;font-size:16px;line-height:1.6;">
-            If anything changes, just get in touch with the organiser directly.
+            If anything changes, just let the person looking after the page know.
           </p>
           ${releaseBlock}
           <p style="margin:24px 0 0;color:#7C9A72;font-size:15px;line-height:1.6;">
@@ -198,7 +198,7 @@ function buildPlainText(params: ClaimEmailParams): string {
   if (dietaryNotes) text += `Dietary needs: ${dietaryNotes}\n`;
   if (location) text += `Location: ${location}\n`;
   if (notes) text += `Notes: ${notes}\n`;
-  text += `\nIf anything changes, just get in touch with the organiser directly.\n`;
+  text += `\nIf anything changes, just let the person looking after the page know.\n`;
   if (releaseUrl) {
     text += `\nCan't make it after all? No worries at all — release this slot so someone else can pick it up:\n${releaseUrl}\n`;
   }
