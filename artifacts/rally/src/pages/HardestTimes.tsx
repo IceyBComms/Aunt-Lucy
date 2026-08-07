@@ -108,9 +108,9 @@ export default function HardestTimes() {
             Some news knocks the wind out of you.
           </h1>
           <p className="text-muted-foreground text-center leading-relaxed">
-            This one's on the house — no card, no catch. Tell Aunt Lucy what's
-            happened, and in a couple of minutes you'll have one page where your
-            people can actually help.
+            Aunt Lucy is free for times like this — no card, no catch. Tell her
+            what's happened, and in a couple of minutes you'll have one page
+            where your people can actually help.
           </p>
         </div>
 
