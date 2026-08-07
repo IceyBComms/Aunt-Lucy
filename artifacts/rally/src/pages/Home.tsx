@@ -281,7 +281,7 @@ export default function Home() {
             Going through a loss or a sudden illness right now? Aunt Lucy is free
             for the hardest times — always. No card, no catch.{" "}
             <button
-              onClick={() => setLocation("/organise")}
+              onClick={() => setLocation("/hardest-times")}
               className="text-primary underline underline-offset-2 hover:text-primary/80 transition-colors"
             >
               Start free
