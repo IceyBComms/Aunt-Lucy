@@ -41,7 +41,11 @@ export function Dialog({ open, onOpenChange, children, className }: DialogProps)
             exit={{ opacity: 0, scale: 0.95, y: 10 }}
             transition={{ type: "spring", damping: 25, stiffness: 300 }}
             className={cn(
-              "relative w-full max-w-md overflow-hidden rounded-3xl bg-card p-6 sm:p-8 shadow-xl border border-border/50 z-10",
+              // max-h + overflow-y-auto keep a tall form (and its submit button)
+              // reachable on short mobile viewports — e.g. once the on-screen
+              // keyboard eats half the screen. dvh tracks the mobile visual
+              // viewport better than vh. See AUDIT_FINDINGS §3(g).
+              "relative w-full max-w-md max-h-[90dvh] overflow-y-auto rounded-3xl bg-card p-6 sm:p-8 shadow-xl border border-border/50 z-10",
               className
             )}
             onClick={(e) => e.stopPropagation()}
