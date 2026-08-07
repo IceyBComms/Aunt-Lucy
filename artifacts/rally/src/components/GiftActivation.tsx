@@ -454,7 +454,7 @@ export function GiftActivation({ token }: { token: string }) {
                       <div className="flex flex-col gap-2">
                         <div className="flex flex-col gap-1">
                           <label className="text-[0.82rem] font-medium text-[#52493f]">
-                            How many to feed
+                            Feeding how many?
                           </label>
                           <input
                             type="number"

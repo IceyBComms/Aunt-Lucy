@@ -287,7 +287,7 @@ function SlotForm({
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
             <Label className="text-foreground/80 pl-1 text-sm">
-              How many to feed{" "}
+              Feeding how many?{" "}
               <span className="font-normal text-muted-foreground">(optional)</span>
             </Label>
             <Input
