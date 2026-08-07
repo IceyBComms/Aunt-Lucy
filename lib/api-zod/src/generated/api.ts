@@ -69,6 +69,18 @@ export const GetSupportPageResponse = zod.object({
         ),
       slotTime: zod.string().nullish(),
       notes: zod.string().nullish(),
+      dietaryNotes: zod
+        .string()
+        .nullish()
+        .describe(
+          "Meal slots only (bug #006): allergies \/ dietary preferences a helper needs before cooking. Null on every other slot type.",
+        ),
+      headcount: zod
+        .number()
+        .nullish()
+        .describe(
+          "Meal slots only (bug #006): how many people the meal should feed. Null on every other slot type.",
+        ),
       isClaimed: zod.boolean(),
       claimedByName: zod.string().nullish(),
       claimedNote: zod.string().nullish(),
@@ -123,6 +135,18 @@ export const ClaimSlotResponse = zod.object({
     ),
   slotTime: zod.string().nullish(),
   notes: zod.string().nullish(),
+  dietaryNotes: zod
+    .string()
+    .nullish()
+    .describe(
+      "Meal slots only (bug #006): allergies \/ dietary preferences a helper needs before cooking. Null on every other slot type.",
+    ),
+  headcount: zod
+    .number()
+    .nullish()
+    .describe(
+      "Meal slots only (bug #006): how many people the meal should feed. Null on every other slot type.",
+    ),
   isClaimed: zod.boolean(),
   claimedByName: zod.string().nullish(),
   claimedNote: zod.string().nullish(),
@@ -348,7 +372,25 @@ export const ActivateGiftBody = zod.object({
           .string()
           .nullish()
           .describe("Omit or null for a flexible, undated task."),
+        slotTime: zod
+          .string()
+          .nullish()
+          .describe(
+            "Time of day (HH:MM), reusing the existing slot_time column. The activation review flow captures it mainly for school pickups (bug #005), where the time is the whole point; omit or null otherwise.",
+          ),
         notes: zod.string().nullish(),
+        dietaryNotes: zod
+          .string()
+          .nullish()
+          .describe(
+            "Meal tasks only (bug #006): allergies \/ dietary preferences. Ignored server-side for non-meal types.",
+          ),
+        headcount: zod
+          .number()
+          .nullish()
+          .describe(
+            "Meal tasks only (bug #006): how many people the meal should feed. Ignored server-side for non-meal types.",
+          ),
         trustedHelpersOnly: zod.boolean().optional(),
       }),
     )
@@ -596,6 +638,8 @@ export const GetManageStateResponse = zod.object({
         .describe('When it was claimed (ISO), for the \"help arriving\" view.'),
       slotDate: zod.string().nullish(),
       slotTime: zod.string().nullish(),
+      dietaryNotes: zod.string().nullish().describe("Meal slots only (bug"),
+      headcount: zod.number().nullish().describe("Meal slots only (bug"),
     }),
   ),
   contacts: zod.array(

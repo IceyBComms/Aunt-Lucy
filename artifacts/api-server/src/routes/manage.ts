@@ -108,6 +108,8 @@ router.get("/manage/:token", requireManagementToken as any, async (req, res) => 
       claimedAt: s.claimedAt?.toISOString() ?? null,
       slotDate: s.slotDate,
       slotTime: s.slotTime,
+      dietaryNotes: s.dietaryNotes,
+      headcount: s.headcount,
     })),
     contacts: page.contacts.map((c) => ({
       id: c.id,

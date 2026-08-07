@@ -769,6 +769,18 @@ components:
         notes:
           type: string
           nullable: true
+        dietaryNotes:
+          type: string
+          nullable: true
+          description: >-
+            Meal slots only (bug #006): allergies / dietary preferences a helper
+            needs before cooking. Null on every other slot type.
+        headcount:
+          type: integer
+          nullable: true
+          description: >-
+            Meal slots only (bug #006): how many people the meal should feed.
+            Null on every other slot type.
         isClaimed:
           type: boolean
         claimedByName:
@@ -1230,9 +1242,28 @@ components:
           type: string
           nullable: true
           description: Omit or null for a flexible, undated task.
+        slotTime:
+          type: string
+          nullable: true
+          description: >-
+            Time of day (HH:MM), reusing the existing slot_time column. The
+            activation review flow captures it mainly for school pickups (bug
+            #005), where the time is the whole point; omit or null otherwise.
         notes:
           type: string
           nullable: true
+        dietaryNotes:
+          type: string
+          nullable: true
+          description: >-
+            Meal tasks only (bug #006): allergies / dietary preferences. Ignored
+            server-side for non-meal types.
+        headcount:
+          type: integer
+          nullable: true
+          description: >-
+            Meal tasks only (bug #006): how many people the meal should feed.
+            Ignored server-side for non-meal types.
         trustedHelpersOnly:
           type: boolean
       required:
@@ -1409,6 +1440,14 @@ components:
         slotTime:
           type: string
           nullable: true
+        dietaryNotes:
+          type: string
+          nullable: true
+          description: Meal slots only (bug #006). Null on every other slot type.
+        headcount:
+          type: integer
+          nullable: true
+          description: Meal slots only (bug #006). Null on every other slot type.
       required:
         - id
         - slotType
