@@ -15,6 +15,7 @@ import OrganiseAddSlots from "@/pages/OrganiseAddSlots";
 import OrganisePublish from "@/pages/OrganisePublish";
 import OrganiseDashboard from "@/pages/OrganiseDashboard";
 import InviteClaim from "@/pages/InviteClaim";
+import ReleaseSlot from "@/pages/ReleaseSlot";
 import Manage from "@/pages/Manage";
 import GiftExperience from "@/pages/GiftExperience";
 import GiftSigning from "@/pages/GiftSigning";
@@ -45,6 +46,10 @@ function Router() {
 
       {/* Trusted helper invite claim */}
       <Route path="/invite/:token" component={InviteClaim} />
+
+      {/* Helper releases a slot they can no longer make (cancel_token from the
+          claim-confirmation email). No account — the token is the key. */}
+      <Route path="/release/:token" component={ReleaseSlot} />
 
       {/* Recipient management — add people, send the Aunt Lucy invites */}
       <Route path="/manage/:token" component={Manage} />

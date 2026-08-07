@@ -242,6 +242,11 @@ router.post("/invite/:token/claim", async (req, res) => {
   // public claim); without this guard the second write would silently overwrite
   // the first helper's name/note. If we lose the race, RETURNING is empty and we
   // report the 409 rather than stamping the invite as claimed.
+  // A fresh release handle, exactly as the public claim path mints one — a
+  // trusted helper releases their slot the same way anyone else does (the
+  // release endpoint only ever touches the slot, never this invite row).
+  const cancelToken = crypto.randomBytes(24).toString("hex");
+
   const claimed = await db
     .update(slotsTable)
     .set({
@@ -253,6 +258,7 @@ router.post("/invite/:token/claim", async (req, res) => {
       // still chooses whether other helpers see their name; the recipient always
       // does.
       claimedNameVisible: showName === true,
+      cancelToken,
     })
     .where(and(eq(slotsTable.id, invite.slotId!), eq(slotsTable.isClaimed, false)))
     .returning();
@@ -271,7 +277,10 @@ router.post("/invite/:token/claim", async (req, res) => {
 
   logger.info({ inviteId: invite.id, name: invite.name }, "Trusted helper claimed slot");
 
-  res.json({ ok: true, claimedByName: invite.name });
+  // Hand back the release token so the confirmed screen can offer a "Can't make
+  // it?" link, matching the public path. It's the helper's own handle to the
+  // claim they just made.
+  res.json({ ok: true, claimedByName: invite.name, cancelToken });
 });
 
 export default router;

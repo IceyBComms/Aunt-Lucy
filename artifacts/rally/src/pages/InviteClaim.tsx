@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams } from "wouter";
+import { useParams, Link } from "wouter";
 import { format, parseISO } from "date-fns";
 import { CheckCircle2, Clock, Loader2, XCircle, MapPin, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -52,6 +52,11 @@ export default function InviteClaim() {
   const [claimed, setClaimed] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [claimError, setClaimError] = useState<string | null>(null);
+  // Present only after a fresh claim in this session — the private handle to
+  // release this slot again if plans change. Not returned by GET /invite (a
+  // re-visit shows the static "already confirmed" screen), so this stays null on
+  // reload, which is fine: the confirmation email carries the same link.
+  const [cancelToken, setCancelToken] = useState<string | null>(null);
 
   useEffect(() => {
     apiFetch<InviteDetails>(`/invite/${token}`)
@@ -67,7 +72,10 @@ export default function InviteClaim() {
     setIsClaiming(true);
     setClaimError(null);
     try {
-      await apiFetch(`/invite/${token}/claim`, { method: "POST" });
+      const res = await apiFetch<{ cancelToken?: string }>(`/invite/${token}/claim`, {
+        method: "POST",
+      });
+      if (res?.cancelToken) setCancelToken(res.cancelToken);
       setClaimed(true);
     } catch (err: any) {
       setClaimError(err.message ?? "Something went wrong. Please try again.");
@@ -129,6 +137,15 @@ export default function InviteClaim() {
           <p className="text-muted-foreground text-sm leading-relaxed">
             The family will be so grateful for your support.
           </p>
+          {cancelToken && (
+            <p className="text-muted-foreground text-sm leading-relaxed mt-4">
+              Plans change? You can{" "}
+              <Link href={`/release/${cancelToken}`} className="text-primary font-medium underline">
+                release this slot
+              </Link>{" "}
+              any time.
+            </p>
+          )}
         </div>
       </div>
     );
