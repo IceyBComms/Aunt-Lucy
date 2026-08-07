@@ -9,7 +9,7 @@ import {
 } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { uniqueSlug } from "../lib/slug";
-import { sendMagicLink } from "../lib/email";
+import { sendMagicLink, sendCrisisPageSaved } from "../lib/email";
 import { getAppBaseUrl } from "../lib/appUrl";
 import { hitRateLimit } from "../lib/rateLimit";
 import { logger } from "../lib/logger";
@@ -97,7 +97,7 @@ router.post("/crisis/pages", async (req, res) => {
     res.setHeader("Retry-After", Math.ceil(retryAfterMs / 1000));
     res.status(429).json({
       error:
-        "You've set up a few pages just now. Please give it a little while and try again.",
+        "That's a few goes in quick succession, so we've paused things for a minute. Nothing's lost — take a breath and try again shortly.",
     });
     return;
   }
@@ -143,13 +143,34 @@ router.post("/crisis/pages", async (req, res) => {
     .returning();
 
   if (!hasExistingPages) {
-    // Frictionless: issue a session and send them straight into setup.
+    // Frictionless: issue a session and send them straight into setup. The
+    // session lasts 30 days — the same lifetime as a standard magic-link
+    // sign-in (see routes/auth.ts) — so a crisis organiser is never quietly
+    // logged out mid-crisis on the device they set things up on.
     const sessionToken = generateToken();
     const sessionExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
     await db.insert(sessionsTable).values({
       organiserId: organiser.id,
       token: sessionToken,
       expiresAt: sessionExpiresAt,
+    });
+
+    // The ONE unprompted email a crisis page ever sends: a plain "keep this
+    // link" bookmark so they can get back to their page from any device. Fired
+    // ONLY here (frictionless creation), never on the magic-link fallback (that
+    // path already sends a sign-in link). Fire-and-forget: an email hiccup must
+    // never fail the page for someone in crisis. No activation nudge is ever
+    // queued — crisis pages create no gift_messages, so the dispatcher that
+    // sends nudges never sees them.
+    sendCrisisPageSaved({
+      to: emailTrimmed,
+      name: nameTrimmed,
+      pageLink: `${getAppBaseUrl()}/organise/dashboard`,
+    }).catch((err) => {
+      logger.error(
+        { err, pageId: page.id },
+        "Crisis page-saved email failed (page still created)",
+      );
     });
 
     logger.info(

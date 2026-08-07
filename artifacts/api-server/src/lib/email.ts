@@ -1274,6 +1274,98 @@ export async function sendActivationReminder(
   logger.info({ to: params.to }, "Activation reminder email sent");
 }
 
+// ─── Crisis: safety-net "keep this link" email (Item 14) ──────────────────────
+//
+// The ONLY unprompted email a crisis page ever sends: a one-time, plain bookmark
+// so the setup person can get back to their page from any device. Deliberately
+// neutral — NOT a gift-flavoured template, no CTA-button-hunt, no follow-up
+// sequence, no tracking extras. Sent only on the frictionless creation path,
+// never on the magic-link fallback. Reuses the shared branded chrome
+// (renderGiftLayout is the generic Aunt Lucy layout, also used by the warm
+// recipient notifications — nothing gift-specific about it).
+
+export interface CrisisPageSavedParams {
+  to: string;
+  name: string;
+  /** Where they get back to their page (their organiser dashboard). */
+  pageLink: string;
+}
+
+export function buildCrisisPageSavedEmail(
+  params: CrisisPageSavedParams,
+): RenderedEmail {
+  const firstNameOnly =
+    params.name.trim().split(/\s+/)[0] || params.name.trim();
+
+  const contentHtml = `          <p style="margin:0 0 20px;color:#333;font-size:16px;line-height:1.6;">
+            Hi ${escapeHtml(firstNameOnly)},
+          </p>
+          <p style="margin:0 0 16px;color:#333;font-size:16px;line-height:1.6;">
+            Here's your page, so you can get back to it any time, from any device:
+          </p>
+          <p style="margin:0 0 24px;font-size:16px;line-height:1.6;">
+            <a href="${escapeHtml(params.pageLink)}" style="color:#2D6A4F;font-weight:600;word-break:break-all;">${escapeHtml(params.pageLink)}</a>
+          </p>
+          <p style="margin:0 0 24px;color:#333;font-size:16px;line-height:1.6;">
+            There's nothing you need to do right now. Set things up whenever
+            you're ready — Aunt Lucy will take it from there.
+          </p>
+          <p style="margin:0;color:#2D6A4F;font-size:15px;line-height:1.6;">
+            — Aunt Lucy
+          </p>`;
+
+  const text = [
+    `Hi ${firstNameOnly},`,
+    ``,
+    `Here's your page, so you can get back to it any time, from any device:`,
+    ``,
+    params.pageLink,
+    ``,
+    `There's nothing you need to do right now. Set things up whenever you're ready — Aunt Lucy will take it from there.`,
+    ``,
+    `— Aunt Lucy`,
+  ].join("\n");
+
+  return {
+    subject: "Your Aunt Lucy page — keep this link",
+    html: renderGiftLayout({
+      preheader: "Keep this link — your page is here whenever you're ready.",
+      contentHtml,
+      footerHtml: `Can't click the link? Copy this: ${escapeHtml(params.pageLink)}`,
+    }),
+    text,
+  };
+}
+
+/** Fire-and-forget from the crisis route — never throws, so it can't fail a
+ * page. Dev-logs instead of sending when the Resend key is a placeholder. */
+export async function sendCrisisPageSaved(
+  params: CrisisPageSavedParams,
+): Promise<void> {
+  if (isPlaceholderResendKey) {
+    console.log(
+      `\n📌 Crisis page-saved email for ${params.to} (local dev — sending disabled):\n${buildCrisisPageSavedEmail(params).text}\n`,
+    );
+    return;
+  }
+  if (!resend) {
+    logger.warn("RESEND_API_KEY not set — skipping crisis page-saved email");
+    return;
+  }
+
+  const { error } = await resend.emails.send({
+    from: FROM_ADDRESS,
+    to: params.to,
+    ...buildCrisisPageSavedEmail(params),
+  });
+
+  if (error) {
+    logger.error({ error, to: params.to }, "Failed to send crisis page-saved email");
+    return;
+  }
+  logger.info({ to: params.to }, "Crisis page-saved email sent");
+}
+
 /**
  * The deliveryLine merge field from EMAIL_TEMPLATES.md: "it's on its way to
  * them now" or "we'll send it on {deliveryDate}".

@@ -12,16 +12,17 @@ import { useAuth } from "@/contexts/AuthContext";
  * a page is created and the person is dropped straight into the existing setup
  * flow (or emailed a sign-in link if their address already has an account).
  *
- * NB: every user-facing string below is PLACEHOLDER copy pending Kate's crisis
- * copy pass — the most delicate wording in the product. Marked [KATE-COPY].
+ * Copy is Kate's approved crisis wording — the most delicate in the product.
+ * Written in the organiser's own voice, because that's who's usually typing:
+ * often a sister or best mate setting it up for someone.
  */
 
 // Keys are sent to the API (which maps them onto the occasion vocabulary);
-// labels are what the person reads. [KATE-COPY] — labels pending approval.
+// labels are what the person reads.
 const OCCASIONS: { key: string; label: string }[] = [
-  { key: "bereavement", label: "Someone has died" },
-  { key: "illness_injury", label: "A sudden illness or injury" },
-  { key: "other_hardship", label: "Another hard time that arrived without warning" },
+  { key: "bereavement", label: "We've lost someone" },
+  { key: "illness_injury", label: "Someone's seriously ill or injured" },
+  { key: "other_hardship", label: "Something else has hit us hard" },
 ];
 
 type CreateResponse =
@@ -44,7 +45,7 @@ export default function HardestTimes() {
     setError(null);
 
     if (!occasion) {
-      setError("Please choose what's happened."); // [KATE-COPY]
+      setError("Please choose what's happened.");
       return;
     }
 
@@ -71,7 +72,7 @@ export default function HardestTimes() {
   }
 
   // Fallback confirmation — the address already had an account, so we emailed a
-  // sign-in link rather than handing over a session. [KATE-COPY]
+  // sign-in link rather than handing over a session.
   if (emailedTo) {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6">
@@ -80,12 +81,17 @@ export default function HardestTimes() {
             <MailCheck className="w-8 h-8 text-primary" />
           </div>
           <h1 className="font-serif text-2xl font-bold text-foreground mb-3">
-            Check your email
+            Check your email.
           </h1>
           <p className="text-muted-foreground leading-relaxed">
-            Your address already has an Aunt Lucy account, so we've sent a
-            sign-in link to <strong className="text-foreground">{emailedTo}</strong>.
-            Open it and your page will be waiting.
+            You've used Aunt Lucy before, so we've sent a sign-in link to{" "}
+            <strong className="text-foreground">{emailedTo}</strong> — that's
+            what keeps your pages safe. Click it and you'll land right back here,
+            ready to go.
+          </p>
+          <p className="text-xs text-muted-foreground leading-relaxed mt-4">
+            Nothing after a couple of minutes? Check your spam folder, or come
+            back and try again.
           </p>
         </div>
       </div>
@@ -99,20 +105,18 @@ export default function HardestTimes() {
           <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mb-5">
             <Heart className="w-8 h-8 text-primary fill-primary/20" />
           </div>
-          {/* [KATE-COPY] heading + intro line */}
           <h1 className="font-serif text-3xl font-bold text-foreground mb-3 text-center">
-            The hardest times are free. Always.
+            Some news knocks the wind out of you.
           </h1>
           <p className="text-muted-foreground text-center leading-relaxed">
-            A loss, a sudden illness, a crisis that arrived without warning —
-            Aunt Lucy is free for these, for as long as you need. No card, no
-            catch, no proof asked.
+            This one's on the house — no card, no catch. Tell Aunt Lucy what's
+            happened, and in a couple of minutes you'll have one page where your
+            people can actually help.
           </p>
         </div>
 
         <div className="bg-card rounded-3xl shadow-sm border border-border/50 p-6">
           <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Occasion — [KATE-COPY] labels */}
             <div className="space-y-3">
               <Label className="text-foreground/80 pl-1">
                 What's happened?
@@ -179,13 +183,14 @@ export default function HardestTimes() {
               size="lg"
               disabled={isLoading}
             >
-              {isLoading ? "Setting things up…" : "Set up Aunt Lucy — free"}
+              {isLoading ? "Setting things up…" : "Set up the page"}
             </Button>
           </form>
         </div>
 
-        <p className="text-center text-xs text-muted-foreground mt-6">
-          Free, always, for the hardest times. {/* [KATE-COPY] */}
+        <p className="text-center text-xs text-muted-foreground mt-6 leading-relaxed">
+          This page is free — always. No card, no upsells, nothing to cancel.
+          Times like this are why Aunt Lucy exists.
         </p>
       </div>
     </div>
