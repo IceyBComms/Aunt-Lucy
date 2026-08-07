@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { Heart, MailCheck } from "lucide-react";
+import { MailCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { TeacupMark } from "@/components/TeacupMark";
 import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -102,9 +103,7 @@ export default function HardestTimes() {
     <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6">
       <div className="w-full max-w-md">
         <div className="flex flex-col items-center mb-8">
-          <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mb-5">
-            <Heart className="w-8 h-8 text-primary fill-primary/20" />
-          </div>
+          <TeacupMark className="w-16 h-16 mb-5" />
           <h1 className="font-serif text-3xl font-bold text-foreground mb-3 text-center">
             Some news knocks the wind out of you.
           </h1>
