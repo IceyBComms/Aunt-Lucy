@@ -507,6 +507,7 @@ router.post("/internal/dispatch-claim-notifications", async (req, res) => {
       recipientFirstName: firstName(page.recipientName),
       manageLink,
       claims,
+      occasion: page.occasion ?? null,
     });
 
     if (ok) {

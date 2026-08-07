@@ -620,6 +620,12 @@ export interface RecipientClaimNotificationParams {
   /** The recipient's private /manage link — "see who's helping". */
   manageLink: string;
   claims: RecipientClaimItem[];
+  /**
+   * The page's occasion (gift_occasion enum value), used only to soften the
+   * register for a bereavement page. Optional/null on every other occasion, and
+   * then the original celebratory wording is unchanged.
+   */
+  occasion?: string | null;
 }
 
 /** "Dropping off a meal, Friday 1 August at 3:00 PM" / "…, whenever suits you". */
@@ -635,9 +641,21 @@ export function buildRecipientClaimNotificationEmail(
   const { recipientFirstName, manageLink, claims } = params;
   const single = claims.length === 1;
 
-  const subject = single
-    ? "Someone's just shown up for you 💛"
-    : "Your people are showing up 💛";
+  // A bereavement page gets a quieter register — the celebratory "good news"
+  // framing jars for someone grieving. Every other occasion is unchanged.
+  const bereavement = params.occasion === "bereavement";
+
+  const subject = bereavement
+    ? single
+      ? "Someone's looking after you 💛"
+      : "Your people are here 💛"
+    : single
+      ? "Someone's just shown up for you 💛"
+      : "Your people are showing up 💛";
+
+  // Only the lead-in softens; the rest of the sentence and the claim list stay
+  // identical across occasions.
+  const opener = bereavement ? "A gentle note — " : "A little good news — ";
 
   const lineFor = (c: RecipientClaimItem) => {
     const task = c.customLabel || SLOT_TYPE_LABELS[c.slotType] || "Helping out";
@@ -657,7 +675,7 @@ export function buildRecipientClaimNotificationEmail(
             Hi ${escapeHtml(recipientFirstName)},
           </p>
           <p style="margin:0 0 16px;color:#333;font-size:16px;line-height:1.6;">
-            A little good news — ${single ? "someone's" : "a few of your people have"} stepped in:
+            ${opener}${single ? "someone's" : "a few of your people have"} stepped in:
           </p>
           <ul style="margin:0 0 24px;padding-left:20px;color:#333;font-size:16px;line-height:1.7;">
 ${itemsHtml}
@@ -680,7 +698,7 @@ ${itemsHtml}
   const text = [
     `Hi ${recipientFirstName},`,
     ``,
-    `A little good news — ${single ? "someone's" : "a few of your people have"} stepped in:`,
+    `${opener}${single ? "someone's" : "a few of your people have"} stepped in:`,
     ``,
     textItems,
     ``,
