@@ -22,6 +22,7 @@ import GiftSigning from "@/pages/GiftSigning";
 import CardReview from "@/pages/CardReview";
 import BuyChooseTier from "@/pages/BuyChooseTier";
 import BuyDetails from "@/pages/BuyDetails";
+import HardestTimes from "@/pages/HardestTimes";
 import PilotApply from "@/pages/PilotApply";
 import OrganisePilotApplications from "@/pages/OrganisePilotApplications";
 import PrivacyPolicy from "@/pages/PrivacyPolicy";
@@ -33,6 +34,11 @@ function Router() {
     <Switch>
       <Route path="/" component={Home} />
       <Route path="/employers" component={Employers} />
+
+      {/* The free self-serve crisis path (Item 14) — reached from the
+          homepage's quiet line. No purchase, ever. */}
+      <Route path="/hardest-times" component={HardestTimes} />
+
       <Route path="/s/:slug" component={SupportPage} />
 
       {/* Organiser flow */}

@@ -15,6 +15,15 @@ export const pagePrivacyEnum = pgEnum("page_privacy", [
   "pin_protected",
 ]);
 
+// Where a support page came from, so crisis-free pages can be counted and
+// reported separately from paid and VIP-comp pages. 'gift' is reserved for the
+// (untouched) gift redemption path; those pages currently keep origin null.
+export const pageOriginEnum = pgEnum("page_origin", [
+  "crisis_free",
+  "organiser",
+  "gift",
+]);
+
 // How the recipient is referred to in the warm invite copy sent to helpers.
 // Defaults to they/them so nothing is ever assumed; the recipient sets this at
 // activation. A name-only fallback is handled in the copy layer, not here.
@@ -57,6 +66,11 @@ export const supportPagesTable = pgTable("support_pages", {
   // Used to derive the situation line below, and to decide whether to default
   // the invite flow to self-share (bereavement) rather than an automated wave.
   occasion: giftOccasionEnum("occasion"),
+  // How this page came to exist (Item 14). Nullable by design: legacy and
+  // gift-redeemed pages read null; the crisis path writes 'crisis_free' and the
+  // organiser wizard writes 'organiser'. Lets crisis-free pages be counted apart
+  // from paid/VIP-comp pages without touching the paid redemption path.
+  origin: pageOriginEnum("origin"),
   // Drives pronoun tokens in the helper invite copy. Defaults to they/them.
   recipientPronouns: recipientPronounsEnum("recipient_pronouns")
     .notNull()
