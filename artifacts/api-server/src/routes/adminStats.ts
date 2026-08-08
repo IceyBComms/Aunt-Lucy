@@ -82,6 +82,7 @@ function renderDashboard(stats: FounderStats, trend: WeeklyTrendRow[]): string {
     statRow("Releases (un-claims)", String(stats.slots.releasesWeek)),
     statRow("Gifts sold", String(stats.gifts.soldWeek)),
     statRow("Gift revenue (inc GST)", `$${formatMoney(stats.gifts.revenueCentsWeek)}`),
+    stats.gifts.compsWeek > 0 ? statRow("Comps ($0)", String(stats.gifts.compsWeek)) : "",
   ].join("\n");
 
   const totalRows = [
@@ -97,6 +98,7 @@ function renderDashboard(stats: FounderStats, trend: WeeklyTrendRow[]): string {
     statRow("Releases (un-claims)", String(stats.slots.releasesTotal)),
     statRow("Gifts sold", String(stats.gifts.soldTotal)),
     statRow("Gift revenue (inc GST)", `$${formatMoney(stats.gifts.revenueCentsTotal)}`),
+    stats.gifts.compsTotal > 0 ? statRow("Comps ($0)", String(stats.gifts.compsTotal)) : "",
   ].join("\n");
 
   return `<!DOCTYPE html>

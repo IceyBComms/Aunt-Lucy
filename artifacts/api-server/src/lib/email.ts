@@ -1478,6 +1478,11 @@ export function buildFounderDigestEmail(stats: FounderStats): RenderedEmail {
     ["Releases (un-claims)", String(stats.slots.releasesWeek)],
     ["Gifts sold", String(stats.gifts.soldWeek)],
     ["Gift revenue (inc GST)", `$${formatMoney(stats.gifts.revenueCentsWeek)}`],
+    // Comps ($0 VIP checkouts) only appear when there are any — never folded
+    // into sales or revenue.
+    ...(stats.gifts.compsWeek > 0
+      ? ([["Comps ($0)", String(stats.gifts.compsWeek)]] as Array<[string, string]>)
+      : []),
   ];
 
   const totalRows: Array<[string, string]> = [
@@ -1493,6 +1498,9 @@ export function buildFounderDigestEmail(stats: FounderStats): RenderedEmail {
     ["Releases (un-claims)", String(stats.slots.releasesTotal)],
     ["Gifts sold", String(stats.gifts.soldTotal)],
     ["Gift revenue (inc GST)", `$${formatMoney(stats.gifts.revenueCentsTotal)}`],
+    ...(stats.gifts.compsTotal > 0
+      ? ([["Comps ($0)", String(stats.gifts.compsTotal)]] as Array<[string, string]>)
+      : []),
   ];
 
   const contentHtml = `          <p style="margin:0 0 4px;color:#333;font-size:18px;font-weight:600;line-height:1.4;">
