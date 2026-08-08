@@ -26,6 +26,11 @@ import { sql } from "drizzle-orm";
  *   phone numbers counts twice).
  * - **Releases** — only the most recent release per slot is retained
  *   (`claim_cancelled_at`), so a slot released more than once counts once.
+ * - **Gifts sold / revenue** — counts only rows with a real Stripe
+ *   `payment_reference` and `amount_cents > 0` (and not refunded). Test/seed
+ *   rows have no payment_reference, so they never inflate the numbers, and $0
+ *   VIP/comp checkouts are reported separately as `comps` — never mixed into
+ *   sales or revenue.
  *
  * "This week" is a rolling 7-day window ending now — deliberately calendar- and
  * timezone-agnostic, so the digest reports the same thing no matter the exact
@@ -34,6 +39,20 @@ import { sql } from "drizzle-orm";
 
 /** How many days the rolling "this week" window covers. */
 export const WEEK_WINDOW_DAYS = 7;
+
+/**
+ * What counts as a real gift *sale*: a completed Stripe payment
+ * (payment_reference present) for actual money (amount_cents > 0), excluding
+ * refunds. Test/seed rows have no payment_reference; $0 VIP/comp checkouts have
+ * a reference but zero amount — neither is a sale. Kept as raw SQL fragments so
+ * the headline and trend queries share one definition and can't drift. These
+ * are constants (no user input), so sql.raw is safe here.
+ */
+const SALE_PREDICATE =
+  "payment_reference IS NOT NULL AND amount_cents > 0 AND status <> 'refunded'";
+/** A $0 VIP/comp checkout: a real Stripe checkout for zero money, reported on its own. */
+const COMP_PREDICATE =
+  "payment_reference IS NOT NULL AND amount_cents = 0 AND status <> 'refunded'";
 
 export interface OriginCounts {
   crisisFree: number;
@@ -70,6 +89,9 @@ export interface FounderStats {
     soldWeek: number;
     revenueCentsTotal: number;
     revenueCentsWeek: number;
+    /** $0 VIP/comp checkouts — real Stripe, zero money. Never counted as sales. */
+    compsTotal: number;
+    compsWeek: number;
   };
 }
 
@@ -150,13 +172,15 @@ export async function computeFounderStats(now: Date = new Date()): Promise<Found
   `);
   const s = rowsOf(slotsResult)[0] ?? {};
 
-  // ── Gifts: sold count + revenue (inc GST, in cents) ────────────────────────
+  // ── Gifts: real sales + revenue (inc GST, in cents), comps kept separate ───
   const giftsResult = await db.execute(sql`
     SELECT
-      count(*) FILTER (WHERE status IN ('paid','delivered','redeemed'))::int AS sold_total,
-      count(*) FILTER (WHERE status IN ('paid','delivered','redeemed') AND created_at >= ${weekStart})::int AS sold_week,
-      coalesce(sum(amount_cents) FILTER (WHERE status IN ('paid','delivered','redeemed')), 0)::bigint AS revenue_total,
-      coalesce(sum(amount_cents) FILTER (WHERE status IN ('paid','delivered','redeemed') AND created_at >= ${weekStart}), 0)::bigint AS revenue_week
+      count(*) FILTER (WHERE ${sql.raw(SALE_PREDICATE)})::int AS sold_total,
+      count(*) FILTER (WHERE (${sql.raw(SALE_PREDICATE)}) AND created_at >= ${weekStart})::int AS sold_week,
+      coalesce(sum(amount_cents) FILTER (WHERE ${sql.raw(SALE_PREDICATE)}), 0)::bigint AS revenue_total,
+      coalesce(sum(amount_cents) FILTER (WHERE (${sql.raw(SALE_PREDICATE)}) AND created_at >= ${weekStart}), 0)::bigint AS revenue_week,
+      count(*) FILTER (WHERE ${sql.raw(COMP_PREDICATE)})::int AS comps_total,
+      count(*) FILTER (WHERE (${sql.raw(COMP_PREDICATE)}) AND created_at >= ${weekStart})::int AS comps_week
     FROM gifts
   `);
   const g = rowsOf(giftsResult)[0] ?? {};
@@ -199,6 +223,8 @@ export async function computeFounderStats(now: Date = new Date()): Promise<Found
       soldWeek: toNum(g.sold_week),
       revenueCentsTotal: toNum(g.revenue_total),
       revenueCentsWeek: toNum(g.revenue_week),
+      compsTotal: toNum(g.comps_total),
+      compsWeek: toNum(g.comps_week),
     },
   };
 }
@@ -232,7 +258,7 @@ export async function computeWeeklyTrend(weeks = 12): Promise<WeeklyTrendRow[]> 
          WHERE sl.is_claimed AND sl.claimed_at IS NOT NULL
            AND date_trunc('week', sl.claimed_at) = s.wk)::int AS slots_claimed,
       (SELECT count(*) FROM gifts gg
-         WHERE gg.status IN ('paid','delivered','redeemed')
+         WHERE ${sql.raw(SALE_PREDICATE)}
            AND date_trunc('week', gg.created_at) = s.wk)::int AS gifts_sold
     FROM series s
     ORDER BY s.wk
