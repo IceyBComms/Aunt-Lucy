@@ -14,6 +14,23 @@ export const slotTypeEnum = pgEnum("slot_type", [
   "other",
 ]);
 
+// Whether the time of a task is the helper's to nudge or the family's fact
+// (Item 17 — "When plans change").
+//   • flexible — a meal drop-off, a grocery run: a helper may reschedule the
+//     time of day themselves (same day) from their claim link.
+//   • fixed — a school pickup, a lift to an appointment: the time is the
+//     family's fact, so a helper never edits it. They can leave a note or bow
+//     out, but the clock is not theirs to move.
+// Defaulted by task category at creation (see defaultFlexibility in the API's
+// slotFlexibility lib) and flippable per task by the setup person / page runner
+// — the recipient is never asked to set it. Unknown/custom tasks default to
+// 'fixed', the conservative choice: nudging the time of something that turns
+// out to be an appointment is worse than leaving a flexible task un-nudgeable.
+export const slotFlexibilityEnum = pgEnum("slot_flexibility", [
+  "flexible",
+  "fixed",
+]);
+
 export const slotsTable = pgTable("slots", {
   id: text("id")
     .primaryKey()
@@ -23,6 +40,12 @@ export const slotsTable = pgTable("slots", {
     .references(() => supportPagesTable.id, { onDelete: "cascade" }),
   slotType: slotTypeEnum("slot_type").notNull(),
   customLabel: text("custom_label"),
+  // Item 17: is the time this task's helper's to nudge, or the family's fact?
+  // Defaulted by category at creation and flippable per task by the page runner.
+  // NOT NULL with a conservative 'fixed' default so a row inserted by older code
+  // paths (or before the per-category default is applied) can never be treated
+  // as freely reschedulable by accident. New inserts set it explicitly.
+  flexibility: slotFlexibilityEnum("flexibility").notNull().default("fixed"),
   // Nullable on purpose: a slot with no date is a flexible offer ("a meal,
   // whenever suits") rather than an appointment. The date is filled in when a
   // helper claims it. Most tasks a recipient keeps at activation are undated —

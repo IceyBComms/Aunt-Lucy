@@ -620,6 +620,18 @@ export const GetManageStateResponse = zod.object({
         "other",
       ]),
       label: zod.string(),
+      customLabel: zod
+        .string()
+        .nullish()
+        .describe(
+          "The raw custom label (the edit form's value; `label` is display).",
+        ),
+      notes: zod.string().nullish(),
+      flexibility: zod
+        .enum(["flexible", "fixed"])
+        .describe(
+          "Whether the time of a task is the helper's to nudge (flexible) or the family's fact (fixed). Item 17.",
+        ),
       trustedHelpersOnly: zod.boolean(),
       isClaimed: zod.boolean(),
       claimedByName: zod
@@ -887,4 +899,106 @@ export const ScheduleInvitesBody = zod.object({
         ),
     }),
   ),
+});
+
+/**
+ * Edits time, date or details of a task and can flip its flexible/fixed flag. If the task is claimed the claim stands and the helper is always told (with a one-tap "can't any more" out). Sensitivity is not editable here.
+ * @summary Edit a task's time / date / details (Item 17)
+ */
+export const EditTaskParams = zod.object({
+  token: zod.coerce.string(),
+  slotId: zod.coerce.string(),
+});
+
+export const EditTaskBody = zod
+  .object({
+    slotDate: zod
+      .string()
+      .nullish()
+      .describe(
+        "YYYY-MM-DD, or empty\/null to clear (an undated flexible offer).",
+      ),
+    slotTime: zod
+      .string()
+      .nullish()
+      .describe("HH:MM (24h), or empty\/null to clear."),
+    customLabel: zod.string().nullish(),
+    notes: zod.string().nullish(),
+    dietaryNotes: zod
+      .string()
+      .nullish()
+      .describe("Meal tasks only; ignored on other types."),
+    headcount: zod
+      .number()
+      .nullish()
+      .describe("Meal tasks only; ignored on other types."),
+    flexibility: zod
+      .enum(["flexible", "fixed"])
+      .optional()
+      .describe(
+        "Whether the time of a task is the helper's to nudge (flexible) or the family's fact (fixed). Item 17.",
+      ),
+  })
+  .describe(
+    "Item 17 — the family editing a task's time \/ date \/ details, and optionally flipping its flexible\/fixed flag. Every field is optional; only those present are changed. Sensitivity (trustedHelpersOnly) is deliberately not editable here.",
+  );
+
+export const EditTaskResponse = zod.object({
+  id: zod.string(),
+  slotType: zod.enum([
+    "meal",
+    "school_pickup",
+    "child_care",
+    "errand",
+    "dog_walking",
+    "shopping",
+    "visit",
+    "other",
+  ]),
+  label: zod.string(),
+  customLabel: zod
+    .string()
+    .nullish()
+    .describe(
+      "The raw custom label (the edit form's value; `label` is display).",
+    ),
+  notes: zod.string().nullish(),
+  flexibility: zod
+    .enum(["flexible", "fixed"])
+    .describe(
+      "Whether the time of a task is the helper's to nudge (flexible) or the family's fact (fixed). Item 17.",
+    ),
+  trustedHelpersOnly: zod.boolean(),
+  isClaimed: zod.boolean(),
+  claimedByName: zod
+    .string()
+    .nullish()
+    .describe(
+      'Who claimed it. Always present to the recipient\/manager regardless of the helper\'s public-visibility choice — this is the \"look who showed up\" payoff and is safe because it is shown only to the person the help is for.',
+    ),
+  claimedNote: zod
+    .string()
+    .nullish()
+    .describe("The helper's optional message to the recipient, if left."),
+  claimedAt: zod
+    .string()
+    .nullish()
+    .describe('When it was claimed (ISO), for the \"help arriving\" view.'),
+  slotDate: zod.string().nullish(),
+  slotTime: zod.string().nullish(),
+  dietaryNotes: zod.string().nullish().describe("Meal slots only (bug"),
+  headcount: zod.number().nullish().describe("Meal slots only (bug"),
+});
+
+/**
+ * Cancels a task. Unclaimed is a quiet removal; claimed always thanks the helper and tells them it's covered (bereavement pages get the gentler variant) before the task is removed.
+ * @summary Cancel a task (Item 17)
+ */
+export const CancelTaskParams = zod.object({
+  token: zod.coerce.string(),
+  slotId: zod.coerce.string(),
+});
+
+export const CancelTaskResponse = zod.object({
+  ok: zod.boolean(),
 });

@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { useParams } from "wouter";
 import { format, parseISO } from "date-fns";
-import { CheckCircle2, Clock, Loader2, XCircle, MapPin, HeartHandshake } from "lucide-react";
+import { CheckCircle2, Clock, Loader2, MapPin, HeartHandshake } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { apiFetch } from "@/lib/api";
+import { helper as copy } from "@/lib/item17Copy";
 
 // The helper's own view of the claim they made, fetched by the private release
 // token from their confirmation email. Mirrors InviteClaim's shape and style —
@@ -16,6 +17,9 @@ interface ReleaseDetails {
     slotDate: string | null;
     slotTime: string | null;
     notes: string | null;
+    // Item 17: flexible → a helper may nudge the time; fixed → note only.
+    flexibility: "flexible" | "fixed";
+    claimedNote: string | null;
   };
   helperName: string | null;
   page: {
@@ -51,12 +55,63 @@ export default function ReleaseSlot() {
   const [error, setError] = useState<string | null>(null);
   const [releaseError, setReleaseError] = useState<string | null>(null);
 
+  // Item 17 — reschedule (flexible) / leave a note (any task).
+  const [newTime, setNewTime] = useState("");
+  const [note, setNote] = useState("");
+  const [submitting, setSubmitting] = useState<null | "time" | "note">(null);
+  const [passedOn, setPassedOn] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+
   useEffect(() => {
     apiFetch<ReleaseDetails>(`/slots/release/${token}`)
-      .then((data) => setDetails(data))
+      .then((data) => {
+        setDetails(data);
+        setNewTime((data.slot.slotTime ?? "").slice(0, 5));
+        setNote(data.slot.claimedNote ?? "");
+      })
       .catch((err: any) => setError(err.message ?? "This link is no longer active."))
       .finally(() => setIsLoading(false));
   }, [token]);
+
+  async function handleReschedule() {
+    if (!newTime) {
+      setActionError(copy.errors.badTime);
+      return;
+    }
+    setSubmitting("time");
+    setActionError(null);
+    try {
+      await apiFetch(`/slots/reschedule/${token}`, {
+        method: "POST",
+        body: JSON.stringify({ slotTime: newTime, note: note.trim() || undefined }),
+      });
+      setPassedOn(true);
+    } catch (err: any) {
+      setActionError(err.message ?? copy.errors.fallback);
+    } finally {
+      setSubmitting(null);
+    }
+  }
+
+  async function handleNote() {
+    if (note.trim().length > 200) {
+      setActionError(copy.errors.noteTooLong);
+      return;
+    }
+    setSubmitting("note");
+    setActionError(null);
+    try {
+      await apiFetch(`/slots/note/${token}`, {
+        method: "POST",
+        body: JSON.stringify({ note: note.trim() }),
+      });
+      setPassedOn(true);
+    } catch (err: any) {
+      setActionError(err.message ?? copy.errors.fallback);
+    } finally {
+      setSubmitting(null);
+    }
+  }
 
   async function handleRelease() {
     setIsReleasing(true);
@@ -137,11 +192,12 @@ export default function ReleaseSlot() {
       <div className="bg-primary text-white px-5 py-8">
         <div className="max-w-sm mx-auto">
           <h1 className="text-white font-serif text-2xl font-bold mb-1">
-            Can't make it?
+            Plans changed?
           </h1>
           <p className="text-white/80 leading-relaxed">
-            That's completely okay. Release this slot and someone else can step in
-            for <strong className="text-white">{page.recipientName}</strong>.
+            No drama at all. {slot.flexibility === "flexible" ? "Nudge the time, leave" : "Leave"} a
+            note, or bow out — whatever suits — and Aunt Lucy will let{" "}
+            <strong className="text-white">{page.recipientName}</strong> know.
           </p>
         </div>
       </div>
@@ -173,19 +229,101 @@ export default function ReleaseSlot() {
           )}
         </div>
 
+        {/* Item 17 — reschedule (flexible) or leave a note (any task). */}
+        {passedOn ? (
+          <div className="bg-card rounded-3xl border border-border/50 shadow-sm p-6 text-center">
+            <div className="w-14 h-14 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-3">
+              <CheckCircle2 className="w-7 h-7 text-primary" />
+            </div>
+            <p className="font-serif text-lg font-semibold text-foreground">
+              {copy.confirmation}
+            </p>
+          </div>
+        ) : slot.flexibility === "flexible" ? (
+          <div className="bg-card rounded-3xl border border-border/50 shadow-sm p-5 space-y-3">
+            <div>
+              <h3 className="font-serif font-semibold text-foreground text-lg">
+                {copy.reschedule.label}
+              </h3>
+              <p className="text-sm text-muted-foreground">{copy.reschedule.help}</p>
+            </div>
+            <input
+              type="time"
+              value={newTime}
+              onChange={(e) => setNewTime(e.target.value)}
+              className="w-full rounded-2xl border border-border bg-background px-4 py-3 text-foreground focus:border-primary focus:outline-none"
+            />
+            <div>
+              <textarea
+                value={note}
+                maxLength={200}
+                rows={2}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder={copy.reschedule.notePlaceholder}
+                className="w-full rounded-2xl border border-border bg-background px-4 py-3 text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+              />
+              <p className="mt-1 text-right text-xs text-muted-foreground">
+                {copy.noteCounter(note.length)}
+              </p>
+            </div>
+            {actionError && <p className="text-sm text-destructive">{actionError}</p>}
+            <Button
+              size="lg"
+              className="w-full font-serif text-base"
+              onClick={handleReschedule}
+              disabled={submitting === "time"}
+            >
+              {submitting === "time" ? copy.reschedule.buttonBusy : copy.reschedule.button}
+            </Button>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              {copy.dateChangeGuardrail(page.recipientName)}
+            </p>
+          </div>
+        ) : (
+          <div className="bg-card rounded-3xl border border-border/50 shadow-sm p-5 space-y-3">
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              {copy.fixedNote.body}
+            </p>
+            <div>
+              <textarea
+                value={note}
+                maxLength={200}
+                rows={2}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder={copy.reschedule.notePlaceholder}
+                className="w-full rounded-2xl border border-border bg-background px-4 py-3 text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+              />
+              <p className="mt-1 text-right text-xs text-muted-foreground">
+                {copy.noteCounter(note.length)}
+              </p>
+            </div>
+            {actionError && <p className="text-sm text-destructive">{actionError}</p>}
+            <Button
+              size="lg"
+              className="w-full font-serif text-base"
+              onClick={handleNote}
+              disabled={submitting === "note" || !note.trim()}
+            >
+              {submitting === "note" ? "Passing on…" : copy.fixedNote.button}
+            </Button>
+          </div>
+        )}
+
         {releaseError && (
           <p className="text-sm text-destructive text-center">{releaseError}</p>
         )}
 
-        <Button
-          size="lg"
-          variant="destructive"
-          className="w-full font-serif text-base"
-          onClick={handleRelease}
-          disabled={isReleasing}
-        >
-          {isReleasing ? "Releasing…" : "Release this slot"}
-        </Button>
+        {!passedOn && (
+          <Button
+            size="lg"
+            variant="destructive"
+            className="w-full font-serif text-base"
+            onClick={handleRelease}
+            disabled={isReleasing}
+          >
+            {isReleasing ? "Releasing…" : "Bow out — put it back on the list"}
+          </Button>
+        )}
 
         <p className="text-center text-xs text-muted-foreground">
           {page.recipientName} won't see any fuss — just that the slot's open
