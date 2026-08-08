@@ -89,7 +89,6 @@ export default function Home() {
           variants={fadeUp}
           className="inline-flex items-center gap-2 bg-primary/8 text-primary text-sm font-medium px-4 py-1.5 rounded-full mb-8"
         >
-          <TeacupMark className="w-3.5 h-3.5" />
           Free for helpers · No app needed
         </motion.div>
 
@@ -151,7 +150,7 @@ export default function Home() {
           <p className="text-muted-foreground leading-relaxed text-lg mb-6">
             When life turns upside down — a new baby, an operation, an illness —
             everyone says "let me know if you need anything," and they mean it.
-            But the person in the thick of it is the last one who can organise
+            But the person going through it is the last one who can organise
             it.
           </p>
           <p className="font-serif text-xl text-foreground leading-relaxed">
