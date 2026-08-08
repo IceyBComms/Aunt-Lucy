@@ -89,7 +89,7 @@ export default function Home() {
           variants={fadeUp}
           className="inline-flex items-center gap-2 bg-primary/8 text-primary text-sm font-medium px-4 py-1.5 rounded-full mb-8"
         >
-          <Heart className="w-3.5 h-3.5 fill-primary/30" />
+          <TeacupMark className="w-3.5 h-3.5" />
           Free for helpers · No app needed
         </motion.div>
 
@@ -234,7 +234,7 @@ export default function Home() {
               Pricing
             </p>
             <h2 className="font-serif text-3xl font-bold text-foreground mb-4">
-              One price. Eight weeks of real support.
+              One price. Eight weeks of coordinated support.
             </h2>
             <p className="text-muted-foreground leading-relaxed mb-4">
               $59 for one Aunt Lucy gift page, valid for 12 months. Eight weeks
@@ -258,6 +258,22 @@ export default function Home() {
             </Button>
           </div>
         </motion.div>
+      </section>
+
+      {/* The quiet line — the free crisis path: present, never sold */}
+      <section className="py-12 px-6">
+        <div className="max-w-xl mx-auto text-center">
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            Going through a loss or a sudden illness right now? Aunt Lucy is free
+            for the hardest times — always. No card, no catch.{" "}
+            <button
+              onClick={() => setLocation("/hardest-times")}
+              className="text-primary underline underline-offset-2 hover:text-primary/80 transition-colors"
+            >
+              Start free
+            </button>
+          </p>
+        </div>
       </section>
 
       {/* Bottom CTA */}
@@ -295,7 +311,7 @@ export default function Home() {
         </p>
         <div className="max-w-4xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
           <div className="flex items-center gap-2">
-            <Heart className="w-4 h-4 text-primary fill-primary/20" />
+            <TeacupMark className="w-4 h-4" />
             <span className="font-serif font-semibold text-foreground">Aunt Lucy</span>
             <span>· auntlucy.com.au</span>
           </div>
