@@ -330,7 +330,7 @@ export default function Employers() {
               Pricing
             </p>
             <h2 className="font-serif text-3xl font-bold text-foreground mb-4">
-              One team member. Eight weeks of real support.
+              One team member. Eight weeks of coordinated support.
             </h2>
             <p className="text-muted-foreground leading-relaxed mb-4">
               $79 for one Aunt Lucy gift page, valid for 12 months. Eight weeks

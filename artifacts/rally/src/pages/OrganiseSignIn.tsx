@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { Heart } from "lucide-react";
+import { TeacupMark } from "@/components/TeacupMark";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -46,7 +46,7 @@ export default function OrganiseSignIn() {
       <div className="w-full max-w-sm">
         <div className="flex flex-col items-center mb-10">
           <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mb-5">
-            <Heart className="w-8 h-8 text-primary fill-primary/20" />
+            <TeacupMark className="w-8 h-8" />
           </div>
           <h1 className="font-serif text-3xl font-bold text-foreground mb-2">
             Aunt Lucy
