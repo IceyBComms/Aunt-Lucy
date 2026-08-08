@@ -1,0 +1,15 @@
+# Aunt Lucy — robots.txt
+#
+# Everything is crawlable on purpose. Privacy for personal support pages and
+# tokened links is enforced by "X-Robots-Tag: noindex, nofollow" response
+# headers on those routes (see the Vercel config that governs the frontend
+# deploy: artifacts/api-server/vercel.json) — NOT by blocking crawlers here.
+#
+# Why we do NOT Disallow the private paths: a Disallow stops a crawler from
+# FETCHING the page, so it never sees the noindex header — and a leaked private
+# URL can still be indexed as a bare link, which defeats the goal. To keep
+# private pages out of search, they must stay crawlable so the noindex header
+# is actually read and obeyed.
+
+User-agent: *
+Allow: /
