@@ -27,6 +27,7 @@ import HardestTimes from "@/pages/HardestTimes";
 import PilotApply from "@/pages/PilotApply";
 import OrganisePilotApplications from "@/pages/OrganisePilotApplications";
 import PrivacyPolicy from "@/pages/PrivacyPolicy";
+import { useUmami } from "@/lib/umami";
 
 const queryClient = new QueryClient();
 
@@ -100,6 +101,8 @@ function Router() {
 }
 
 function App() {
+  useUmami();
+
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>

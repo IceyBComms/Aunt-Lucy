@@ -19,8 +19,10 @@ import {
   sendGiftDelivery,
   sendHelperInviteEmail,
   sendRecipientClaimNotification,
+  sendFounderDigest,
   type RecipientClaimItem,
 } from "../lib/email";
+import { computeFounderStats } from "../lib/founderStats";
 import { sendSms } from "../lib/sms";
 import { getAppBaseUrl } from "../lib/appUrl";
 import {
@@ -544,5 +546,41 @@ async function releaseNotificationStamp(slotIds: string[], stamp: Date): Promise
       ),
     );
 }
+
+/**
+ * POST /api/internal/founder-digest — cron endpoint #5.
+ *
+ * Composes the weekly founder digest from read-only analytics and sends exactly
+ * one email to the founder. Follows the same shape as the other four cron
+ * endpoints: secret-gated (fail closed), Neon woken before any query, JSON
+ * summary out. Triggered weekly (Monday 08:00 Sydney) by the external cron.
+ *
+ * Read-only: computeFounderStats issues only SELECTs. The single side effect is
+ * the one outbound email.
+ */
+router.post("/internal/founder-digest", async (req, res) => {
+  if (!cronAuthorised(req, res)) return;
+
+  await ensureDbAwake();
+
+  const stats = await computeFounderStats();
+  const sent = await sendFounderDigest(stats);
+
+  logger.info(
+    {
+      sent,
+      pagesCreatedWeek: stats.pages.createdWeek,
+      giftsSoldWeek: stats.gifts.soldWeek,
+    },
+    "Founder digest dispatch run complete",
+  );
+
+  res.json({
+    sent,
+    weekStart: stats.weekStart.toISOString(),
+    pagesCreatedWeek: stats.pages.createdWeek,
+    giftsSoldWeek: stats.gifts.soldWeek,
+  });
+});
 
 export default router;
