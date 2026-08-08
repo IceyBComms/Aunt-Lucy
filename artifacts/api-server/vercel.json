@@ -6,7 +6,6 @@
   "outputDirectory": "frontend-dist",
   "headers": [
     {
-      "//": "Private routes must never be indexed. Route-aware noindex applied at the edge (not on the SPA shell, so marketing pages stay indexable). Matches the request path before the SPA rewrite.",
       "source": "/s/:path*",
       "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }]
     },
