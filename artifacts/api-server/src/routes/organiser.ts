@@ -5,6 +5,7 @@ import { requireAuth, type AuthRequest } from "../middleware/requireAuth";
 import { hashPin } from "../lib/pin";
 import { isAdminEmail } from "../lib/admin";
 import { uniqueSlug } from "../lib/slug";
+import { defaultFlexibility } from "../lib/slotFlexibility";
 
 const router: IRouter = Router();
 
@@ -141,6 +142,10 @@ router.post("/organiser/pages/:pageId/slots", requireAuth as any, async (req, re
       trustedHelpersOnly: isTrustedOnly,
       dietaryNotes: dietaryValue,
       headcount: headcountValue,
+      // Item 17: category default. Organiser slots are always dated, so a dated
+      // errand reads as a lift → fixed; a meal stays flexible regardless. The
+      // page runner can flip it later on /manage.
+      flexibility: defaultFlexibility(slotType, slotDate != null),
     })
     .returning();
 

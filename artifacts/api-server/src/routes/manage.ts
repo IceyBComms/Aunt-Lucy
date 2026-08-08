@@ -21,6 +21,20 @@ import { logger } from "../lib/logger";
 import { sendSms } from "../lib/sms";
 import { sendHelperInviteEmail } from "../lib/email";
 import {
+  notifyHelperOfTaskEvent,
+  shareLinkFor,
+  releaseLinkFor,
+} from "../lib/item17Notify";
+import {
+  taskLabel,
+  whenLabel,
+  helperTaskChanged,
+  helperTaskCancelledStandard,
+  helperTaskCancelledBereavement,
+  helperEmailSubject,
+} from "../lib/item17Copy";
+import { type SlotFlexibility } from "../lib/slotFlexibility";
+import {
   resolvePronouns,
   applyPronounTokens,
   defaultSituationLine,
@@ -98,6 +112,11 @@ router.get("/manage/:token", requireManagementToken as any, async (req, res) => 
       id: s.id,
       slotType: s.slotType,
       label: s.customLabel ?? s.slotType,
+      // Raw fields the family edit form needs (label above is the display value).
+      customLabel: s.customLabel,
+      notes: s.notes ?? null,
+      // Item 17: is the time this task's helper's to nudge, or the family's fact?
+      flexibility: s.flexibility,
       trustedHelpersOnly: s.trustedHelpersOnly,
       isClaimed: s.isClaimed,
       // The recipient always sees who claimed, regardless of the helper's public
@@ -565,5 +584,227 @@ router.post("/manage/:token/invites/send", requireManagementToken as any, async 
 router.post("/manage/:token/invites/schedule", requireManagementToken as any, async (req, res) => {
   await dispatchOrQueue(req as unknown as ManagementRequest, res, "schedule");
 });
+
+// ─── Task edit / cancel (Item 17 — "When plans change") ──────────────────────
+//
+// The family side: the recipient, or the admin running the page, editing or
+// cancelling a task. Editing a CLAIMED task keeps the claim standing and always
+// tells the helper (no silent rewrites of what someone agreed to), carrying a
+// one-tap "can't any more" out. Cancelling: unclaimed is a quiet removal;
+// claimed always thanks the helper and lets them know it's covered.
+//
+// Sensitivity (trusted_helpers_only) is deliberately NOT editable here — that
+// belongs to the trusted-contact model CLAUDE.md flags as a "stop and ask"
+// area, not to Item 17's time/date/details edit.
+
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const TIME_RE = /^\d{2}:\d{2}(:\d{2})?$/;
+const FLEXIBILITY_VALUES: readonly SlotFlexibility[] = ["flexible", "fixed"];
+
+function parseHeadcountValue(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  const n = typeof value === "number" ? value : parseInt(String(value), 10);
+  if (!Number.isFinite(n) || Number.isNaN(n)) return null;
+  const rounded = Math.floor(n);
+  if (rounded < 1) return null;
+  return Math.min(rounded, 100);
+}
+
+/**
+ * PATCH /manage/:token/tasks/:slotId — edit a task's time / date / details, and
+ * optionally flip its flexible/fixed flag. The claim (if any) stands; the helper
+ * is told.
+ */
+router.patch(
+  "/manage/:token/tasks/:slotId",
+  requireManagementToken as any,
+  async (req, res) => {
+    const { pageId } = req as unknown as ManagementRequest;
+    const { slotId } = req.params;
+    const body = req.body as Record<string, unknown>;
+
+    const [row] = await db
+      .select({ slot: slotsTable, page: supportPagesTable })
+      .from(slotsTable)
+      .innerJoin(supportPagesTable, eq(slotsTable.pageId, supportPagesTable.id))
+      .where(and(eq(slotsTable.id, slotId), eq(slotsTable.pageId, pageId)))
+      .limit(1);
+
+    if (!row) {
+      res.status(404).json({ error: "That task isn't on this page." });
+      return;
+    }
+    const { slot, page } = row;
+    const isMeal = slot.slotType === "meal";
+
+    const patch: Partial<typeof slotsTable.$inferInsert> = {};
+
+    if (body.slotDate !== undefined) {
+      const d = trimmed(body.slotDate);
+      if (d && !DATE_RE.test(d)) {
+        res.status(400).json({ error: "That date doesn't look right — please try again." });
+        return;
+      }
+      patch.slotDate = d || null;
+    }
+    if (body.slotTime !== undefined) {
+      const t = trimmed(body.slotTime);
+      if (t && !TIME_RE.test(t)) {
+        res.status(400).json({ error: "That time doesn't look right — please try again." });
+        return;
+      }
+      patch.slotTime = t || null;
+    }
+    if (body.customLabel !== undefined) {
+      patch.customLabel = trimmed(body.customLabel).slice(0, 120) || null;
+    }
+    if (body.notes !== undefined) {
+      patch.notes = trimmed(body.notes).slice(0, 500) || null;
+    }
+    // Meal detail is meal-only, matching the create paths — a stray dietary note
+    // or headcount on a non-meal task is dropped rather than stored.
+    if (body.dietaryNotes !== undefined) {
+      patch.dietaryNotes = isMeal ? trimmed(body.dietaryNotes).slice(0, 500) || null : null;
+    }
+    if (body.headcount !== undefined) {
+      patch.headcount = isMeal ? parseHeadcountValue(body.headcount) : null;
+    }
+    if (body.flexibility !== undefined) {
+      const f = trimmed(body.flexibility);
+      if (!(FLEXIBILITY_VALUES as readonly string[]).includes(f)) {
+        res.status(400).json({ error: "That flexibility value isn't valid." });
+        return;
+      }
+      patch.flexibility = f as SlotFlexibility;
+    }
+
+    if (Object.keys(patch).length === 0) {
+      res.status(400).json({ error: "Nothing to update." });
+      return;
+    }
+
+    // If the task is claimed we must be able to give the helper a one-tap out.
+    // A claim made before cancel_token existed has none — mint one now so the
+    // "can't any more" link in their message works (reusing the un-claim
+    // mechanics exactly).
+    let cancelToken = slot.cancelToken;
+    if (slot.isClaimed && !cancelToken) {
+      cancelToken = crypto.randomBytes(24).toString("hex");
+      patch.cancelToken = cancelToken;
+    }
+
+    const [updated] = await db
+      .update(slotsTable)
+      .set(patch)
+      .where(eq(slotsTable.id, slotId))
+      .returning();
+
+    // Tell the helper — always, on their own channel. The claim stands; the
+    // message carries the one-tap out. The effective flexibility (post-edit) also
+    // decides nothing here — this notification always goes to the helper.
+    if (updated.isClaimed && updated.claimedByContact) {
+      const newDetail = whenLabel(updated.slotDate, updated.slotTime);
+      const label = taskLabel(updated.slotType, updated.customLabel);
+      const releaseLink = cancelToken ? releaseLinkFor(cancelToken) : shareLinkFor(page);
+      void notifyHelperOfTaskEvent({
+        helperContact: updated.claimedByContact,
+        emailSubject: helperEmailSubject(firstName(page.recipientName)),
+        body: helperTaskChanged({
+          helperFirstName: firstName(updated.claimedByName ?? "there"),
+          recipientFirstName: firstName(page.recipientName),
+          task: label,
+          newDetail,
+          releaseLink,
+        }),
+        link: releaseLink,
+      });
+    }
+
+    logger.info({ pageId, slotId, claimed: updated.isClaimed }, "Item 17: task edited");
+
+    res.json({
+      id: updated.id,
+      slotType: updated.slotType,
+      label: updated.customLabel ?? updated.slotType,
+      customLabel: updated.customLabel,
+      notes: updated.notes ?? null,
+      flexibility: updated.flexibility,
+      slotDate: updated.slotDate,
+      slotTime: updated.slotTime,
+      dietaryNotes: updated.dietaryNotes,
+      headcount: updated.headcount,
+      trustedHelpersOnly: updated.trustedHelpersOnly,
+      isClaimed: updated.isClaimed,
+      claimedByName: updated.claimedByName,
+    });
+  },
+);
+
+/**
+ * DELETE /manage/:token/tasks/:slotId — cancel a task.
+ *
+ * Unclaimed: a quiet removal, no message to anyone. Claimed: the helper is
+ * always thanked and told it's covered (bereavement pages get the gentler
+ * variant), then the task is removed. Removing rather than reopening is correct
+ * here — the family no longer needs it done at all, which is different from a
+ * helper handing a still-needed task back (that's the release path).
+ */
+router.delete(
+  "/manage/:token/tasks/:slotId",
+  requireManagementToken as any,
+  async (req, res) => {
+    const { pageId } = req as unknown as ManagementRequest;
+    const { slotId } = req.params;
+
+    const [row] = await db
+      .select({ slot: slotsTable, page: supportPagesTable })
+      .from(slotsTable)
+      .innerJoin(supportPagesTable, eq(slotsTable.pageId, supportPagesTable.id))
+      .where(and(eq(slotsTable.id, slotId), eq(slotsTable.pageId, pageId)))
+      .limit(1);
+
+    if (!row) {
+      res.status(404).json({ error: "That task isn't on this page." });
+      return;
+    }
+    const { slot, page } = row;
+
+    // Remove the task first, then tell the helper — a helper is never told a
+    // task is "covered now" until it has actually been taken off the list. The
+    // notify reads the slot/page data captured above, not the deleted row, and
+    // is fire-and-forget: a slow send never blocks the cancel.
+    await db.delete(slotsTable).where(eq(slotsTable.id, slotId));
+
+    if (slot.isClaimed && slot.claimedByContact) {
+      const label = taskLabel(slot.slotType, slot.customLabel);
+      const pageLink = shareLinkFor(page);
+      const helperFirstName = firstName(slot.claimedByName ?? "there");
+      const recipientFirstName = firstName(page.recipientName);
+      const bereavement = page.occasion === "bereavement";
+      const bodyText = bereavement
+        ? helperTaskCancelledBereavement({
+            helperFirstName,
+            recipientFirstName,
+            task: label,
+            pageLink,
+          })
+        : helperTaskCancelledStandard({
+            helperFirstName,
+            recipientFirstName,
+            task: label,
+            pageLink,
+          });
+      void notifyHelperOfTaskEvent({
+        helperContact: slot.claimedByContact,
+        emailSubject: helperEmailSubject(recipientFirstName),
+        body: bodyText,
+        link: pageLink,
+      });
+    }
+
+    logger.info({ pageId, slotId, wasClaimed: slot.isClaimed }, "Item 17: task cancelled");
+    res.json({ ok: true });
+  },
+);
 
 export default router;

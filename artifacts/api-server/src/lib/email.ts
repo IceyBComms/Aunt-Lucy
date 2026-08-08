@@ -750,104 +750,11 @@ export async function sendRecipientClaimNotification(
   return true;
 }
 
-// ─── Slot released notification ───────────────────────────────────────────────
-//
-// The counterpart to the claim notification: a helper who'd claimed a slot can
-// no longer make it, so it's open again. Sent to the same place claim news goes
-// (the page's recipient_email) and framed the same warm way — a heads-up, never
-// a guilt trip. The recipient never has to keep re-checking the page to notice a
-// drop-out.
-
-export interface SlotReleasedNotificationParams {
-  to: string;
-  recipientFirstName: string;
-  /** Who let go of the slot; may be null for a pre-existing claim with no name. */
-  helperName: string | null;
-  slotType: string;
-  customLabel: string | null;
-  slotDate: string | null;
-  slotTime: string | null;
-  /** The recipient's private /manage link — "see who's helping". */
-  manageLink: string;
-}
-
-export function buildSlotReleasedNotificationEmail(
-  params: SlotReleasedNotificationParams,
-): RenderedEmail {
-  const { recipientFirstName, helperName, slotType, customLabel, slotDate, slotTime, manageLink } =
-    params;
-
-  const task = customLabel || SLOT_TYPE_LABELS[slotType] || "a task";
-  const when = claimWhenLabel(slotDate, slotTime);
-  // "Someone" keeps it warm when a name isn't on the claim (e.g. a pre-existing
-  // one). With a name, we lead with the person.
-  const who = helperName ? escapeHtml(helperName) : "Someone";
-
-  const contentHtml = `          <p style="margin:0 0 20px;color:#333;font-size:16px;line-height:1.6;">
-            Hi ${escapeHtml(recipientFirstName)},
-          </p>
-          <p style="margin:0 0 16px;color:#333;font-size:16px;line-height:1.6;">
-            Just a quick heads-up — ${who} can no longer make <strong>${escapeHtml(task)}</strong> (${escapeHtml(when)}), so it's open again for someone else to pick up.
-          </p>
-          <p style="margin:0 0 24px;color:#333;font-size:16px;line-height:1.6;">
-            There's nothing you need to do — Aunt Lucy will keep it in front of your people.
-          </p>
-          ${renderButton(manageLink, "See who's helping")}
-          <p style="margin:0;color:#2D6A4F;font-size:15px;line-height:1.6;">
-            — Aunt Lucy
-          </p>`;
-
-  const text = [
-    `Hi ${recipientFirstName},`,
-    ``,
-    `Just a quick heads-up — ${helperName ?? "someone"} can no longer make ${task} (${when}), so it's open again for someone else to pick up.`,
-    ``,
-    `There's nothing you need to do — Aunt Lucy will keep it in front of your people.`,
-    ``,
-    `See who's helping: ${manageLink}`,
-    ``,
-    `— Aunt Lucy`,
-  ].join("\n");
-
-  return {
-    subject: "A slot's just opened back up",
-    html: renderGiftLayout({
-      preheader: "A helper can't make it — the slot's open again. Nothing for you to do.",
-      contentHtml,
-      footerHtml: `Can't click the button? Copy this link: ${escapeHtml(manageLink)}`,
-    }),
-    text,
-  };
-}
-
-/** Returns true if the email was handed to Resend (or dev-logged), false if not. */
-export async function sendSlotReleasedNotification(
-  params: SlotReleasedNotificationParams,
-): Promise<boolean> {
-  if (isPlaceholderResendKey) {
-    console.log(
-      `\n🔁 Slot released notification for ${params.to} (local dev — sending disabled):\n${buildSlotReleasedNotificationEmail(params).text}\n`,
-    );
-    return true;
-  }
-  if (!resend) {
-    logger.warn("RESEND_API_KEY not set — skipping slot released notification");
-    return false;
-  }
-
-  const { error } = await resend.emails.send({
-    from: FROM_ADDRESS,
-    to: params.to,
-    ...buildSlotReleasedNotificationEmail(params),
-  });
-
-  if (error) {
-    logger.error({ error, to: params.to }, "Failed to send slot released notification");
-    return false;
-  }
-  logger.info({ to: params.to }, "Slot released notification sent");
-  return true;
-}
+// Note (Item 17): the former email-only `sendSlotReleasedNotification` lived
+// here. It is superseded by lib/item17Notify.notifyRecipientOfTaskEvent, which
+// applies the flexible/fixed channel rule (a released FIXED task must go by SMS,
+// not email) and covers the runner as well as the recipient. Removed so the
+// email-only path can't be reused by accident and quietly bypass that rule.
 
 // ─── Gift Fulfilment Emails ───────────────────────────────────────────────────
 //
@@ -1427,6 +1334,83 @@ function buildFirstBullet(params: BuyerConfirmationParams): {
 
   const bullet = `${params.recipientFirstName} will get a gentle message letting them know you've set this up — ${params.deliveryLine}.`;
   return { text: bullet, html: escapeHtml(bullet) };
+}
+
+// ─── Item 17 — "When plans change" notifications ─────────────────────────────
+//
+// A single generic branded email used for every Item 17 notification (to the
+// recipient/runner AND to a helper). The BODY is the verbatim copy from
+// item17Copy.ts and is shown unchanged; the same string doubles as the SMS
+// body, so the wording lives in exactly one place. Any `link` embedded in that
+// body is made tappable here without altering a character of the copy. There is
+// deliberately no added greeting or signature — the branded header already says
+// Aunt Lucy, and the approved copy carries its own voice.
+
+export interface Item17EmailParams {
+  to: string;
+  subject: string;
+  /** Verbatim copy; `\n\n` separates paragraphs. Also sent as-is over SMS. */
+  body: string;
+  /** A URL that appears inside `body`, turned into an anchor for the email. */
+  link?: string | null;
+  preheader?: string;
+}
+
+export function buildItem17Email(params: Item17EmailParams): RenderedEmail {
+  const escLink = params.link ? escapeHtml(params.link) : null;
+  const paragraphs = params.body
+    .split("\n\n")
+    .map((seg) => {
+      let html = escapeHtml(seg).replace(/\n/g, "<br>");
+      if (escLink) {
+        html = html
+          .split(escLink)
+          .join(
+            `<a href="${escLink}" style="color:#2D6A4F;font-weight:600;word-break:break-all;">${escLink}</a>`,
+          );
+      }
+      return `          <p style="margin:0 0 16px;color:#333;font-size:16px;line-height:1.6;">${html}</p>`;
+    })
+    .join("\n");
+
+  return {
+    subject: params.subject,
+    html: renderGiftLayout({
+      preheader: params.preheader ?? params.subject,
+      contentHtml: paragraphs,
+      footerHtml: params.link
+        ? `Can't tap the link? Copy this: ${escapeHtml(params.link)}`
+        : "auntlucy.com.au",
+    }),
+    text: params.body,
+  };
+}
+
+/** Returns true if handed to Resend (or dev-logged), false if it couldn't send. */
+export async function sendItem17Email(params: Item17EmailParams): Promise<boolean> {
+  if (isPlaceholderResendKey) {
+    console.log(
+      `\n✉️ Item 17 email for ${params.to} (local dev — sending disabled):\n${params.body}\n`,
+    );
+    return true;
+  }
+  if (!resend) {
+    logger.warn("RESEND_API_KEY not set — skipping Item 17 email");
+    return false;
+  }
+
+  const { error } = await resend.emails.send({
+    from: FROM_ADDRESS,
+    to: params.to,
+    ...buildItem17Email(params),
+  });
+
+  if (error) {
+    logger.error({ error, to: params.to }, "Failed to send Item 17 email");
+    return false;
+  }
+  logger.info({ to: params.to }, "Item 17 email sent");
+  return true;
 }
 
 // ─── Founder weekly digest (Item 16) ─────────────────────────────────────────

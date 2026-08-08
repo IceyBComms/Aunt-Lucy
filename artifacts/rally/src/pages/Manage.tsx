@@ -9,6 +9,7 @@ import {
   ShieldCheck,
   Trash2,
   Clock,
+  Pencil,
 } from "lucide-react";
 import {
   useGetManageState,
@@ -19,9 +20,19 @@ import {
   useSendInvites,
   useScheduleInvites,
   useUpdateManageDetails,
+  useEditTask,
+  useCancelTask,
   type InvitePreview,
+  type ManageTaskSummary,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
+import {
+  Dialog,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog-framer";
+import { family as copy } from "@/lib/item17Copy";
 
 /** One row of the invite selection: whether to include, and which task (trusted). */
 interface Selection {
@@ -65,6 +76,85 @@ export function Manage() {
   const send = useSendInvites({ mutation: { onSuccess: invalidate } });
   const schedule = useScheduleInvites({ mutation: { onSuccess: invalidate } });
   const updateDetails = useUpdateManageDetails({ mutation: { onSuccess: invalidate } });
+  const editTask = useEditTask({ mutation: { onSuccess: invalidate } });
+  const cancelTask = useCancelTask({ mutation: { onSuccess: invalidate } });
+
+  // Item 17 — task edit / cancel. `editing` / `cancelling` hold the task whose
+  // dialog is open; `flash` shows the shared "Done — Aunt Lucy's on it." line.
+  const [editing, setEditing] = useState<ManageTaskSummary | null>(null);
+  const [cancelling, setCancelling] = useState<ManageTaskSummary | null>(null);
+  const [flash, setFlash] = useState(false);
+  const [editForm, setEditForm] = useState({
+    customLabel: "",
+    slotDate: "",
+    slotTime: "",
+    notes: "",
+    flexibility: "fixed" as "flexible" | "fixed",
+    dietaryNotes: "",
+    headcount: "",
+  });
+
+  const showFlash = () => {
+    setFlash(true);
+    setTimeout(() => setFlash(false), 2500);
+  };
+
+  const openEdit = (t: ManageTaskSummary) => {
+    setEditForm({
+      customLabel: t.customLabel ?? "",
+      slotDate: t.slotDate ?? "",
+      // A stored time may carry seconds (HH:MM:SS); the time input wants HH:MM.
+      slotTime: (t.slotTime ?? "").slice(0, 5),
+      notes: t.notes ?? "",
+      flexibility: t.flexibility,
+      dietaryNotes: t.dietaryNotes ?? "",
+      headcount: t.headcount != null ? String(t.headcount) : "",
+    });
+    setEditing(t);
+  };
+
+  const saveEdit = () => {
+    if (!editing) return;
+    const isMeal = editing.slotType === "meal";
+    editTask.mutate(
+      {
+        token,
+        slotId: editing.id,
+        data: {
+          customLabel: editForm.customLabel.trim() || null,
+          slotDate: editForm.slotDate || null,
+          slotTime: editForm.slotTime || null,
+          notes: editForm.notes.trim() || null,
+          flexibility: editForm.flexibility,
+          ...(isMeal
+            ? {
+                dietaryNotes: editForm.dietaryNotes.trim() || null,
+                headcount: editForm.headcount ? Number(editForm.headcount) : null,
+              }
+            : {}),
+        },
+      },
+      {
+        onSuccess: () => {
+          setEditing(null);
+          showFlash();
+        },
+      },
+    );
+  };
+
+  const confirmCancel = () => {
+    if (!cancelling) return;
+    cancelTask.mutate(
+      { token, slotId: cancelling.id },
+      {
+        onSuccess: () => {
+          setCancelling(null);
+          showFlash();
+        },
+      },
+    );
+  };
 
   // New-contact form
   const [name, setName] = useState("");
@@ -81,6 +171,16 @@ export function Manage() {
 
   const trustedTasks = useMemo(
     () => (data?.tasks ?? []).filter((t) => t.trustedHelpersOnly && !t.isClaimed),
+    [data],
+  );
+  // Every task on the page, for the family management list (Item 17). Claimed
+  // first (they carry the "someone's counting on this" weight), then by date.
+  const allTasks = useMemo(
+    () =>
+      [...(data?.tasks ?? [])].sort((a, b) => {
+        if (a.isClaimed !== b.isClaimed) return a.isClaimed ? -1 : 1;
+        return (a.slotDate ?? "").localeCompare(b.slotDate ?? "");
+      }),
     [data],
   );
   // Claimed tasks, newest first — the "watch help arrive" payoff (Item 8).
@@ -260,6 +360,71 @@ export function Manage() {
           </div>
         )}
       </section>
+
+      {/* Your tasks (Item 17) — change or cancel anything, claimed or not. */}
+      {allTasks.length > 0 && (
+        <section className="mb-7">
+          <h2 className="mb-1 font-serif text-[1.15rem] font-semibold text-[#2c2c2c]">
+            Your tasks
+          </h2>
+          <p className="mb-3 text-[0.9rem] text-[#8b7e74]">
+            Plans change — that's alright. Change a time or take something off the
+            list, and Aunt Lucy will let anyone who's helping know, kindly.
+          </p>
+          {flash && (
+            <p className="mb-3 flex items-center gap-1.5 rounded-[0.7rem] bg-[#eef4ea] px-3.5 py-2.5 text-[0.9rem] text-[#2d6a4f]">
+              <Check className="h-4 w-4" />
+              {copy.done}
+            </p>
+          )}
+          <div className="flex flex-col gap-2.5">
+            {allTasks.map((t) => {
+              const when = formatWhen(t.slotDate ?? null, t.slotTime ?? null);
+              return (
+                <div
+                  key={t.id}
+                  className="rounded-[1rem] border border-[#e7ddd0] bg-white px-4 py-3"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[0.98rem] text-[#2c2c2c]">{t.label}</p>
+                      <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[0.82rem] text-[#8b7e74]">
+                        {when && <span>{when}</span>}
+                        <span className="inline-flex items-center rounded-full bg-[#f3eadd] px-2 py-0.5 text-[0.72rem] font-semibold text-[#8b7e74]">
+                          {t.flexibility === "flexible" ? "Flexible time" : "Fixed time"}
+                        </span>
+                        {t.isClaimed && (
+                          <span className="text-[#2d6a4f]">
+                            {t.claimedByName ?? "A friend"} has this 💛
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                    <div className="flex flex-none items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => openEdit(t)}
+                        className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[0.82rem] font-semibold text-[#2d6a4f] hover:bg-[#eef4ea]"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                        {copy.editLink}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCancelling(t)}
+                        aria-label={`Cancel ${t.label}`}
+                        className="grid h-8 w-8 place-items-center rounded-full text-[#8b7e74] hover:bg-[#f3eadd] hover:text-[#d15b3e]"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       {/* Where we'll reach you (Item 8) — editable so a recipient who skipped it
           at activation can add it. */}
@@ -609,6 +774,184 @@ export function Manage() {
           <ArrowRight className="h-4 w-4" />
         </a>
       </div>
+
+      {/* Edit task dialog (Item 17) */}
+      <Dialog open={editing !== null} onOpenChange={(o) => !o && setEditing(null)}>
+        {editing && (
+          <>
+            <DialogHeader>
+              <DialogTitle>{copy.editLink}</DialogTitle>
+              {editing.isClaimed && (
+                <DialogDescription>
+                  {copy.editingClaimedNotice(editing.claimedByName ?? "A friend")}
+                </DialogDescription>
+              )}
+            </DialogHeader>
+
+            <div className="flex flex-col gap-4 text-left">
+              <label className="flex flex-col gap-1.5">
+                <span className="text-[0.85rem] font-semibold text-foreground">What</span>
+                <input
+                  value={editForm.customLabel}
+                  onChange={(e) => setEditForm((f) => ({ ...f, customLabel: e.target.value }))}
+                  placeholder={editing.label}
+                  className="w-full rounded-[0.7rem] border border-border bg-background px-3 py-2.5 text-[0.97rem] text-foreground focus:border-primary focus:outline-none"
+                />
+              </label>
+
+              <div className="flex gap-3">
+                <label className="flex flex-1 flex-col gap-1.5">
+                  <span className="text-[0.85rem] font-semibold text-foreground">Date</span>
+                  <input
+                    type="date"
+                    value={editForm.slotDate}
+                    onChange={(e) => setEditForm((f) => ({ ...f, slotDate: e.target.value }))}
+                    className="w-full rounded-[0.7rem] border border-border bg-background px-3 py-2.5 text-[0.97rem] text-foreground focus:border-primary focus:outline-none"
+                  />
+                </label>
+                <label className="flex flex-1 flex-col gap-1.5">
+                  <span className="text-[0.85rem] font-semibold text-foreground">Time</span>
+                  <input
+                    type="time"
+                    value={editForm.slotTime}
+                    onChange={(e) => setEditForm((f) => ({ ...f, slotTime: e.target.value }))}
+                    className="w-full rounded-[0.7rem] border border-border bg-background px-3 py-2.5 text-[0.97rem] text-foreground focus:border-primary focus:outline-none"
+                  />
+                </label>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <span className="text-[0.85rem] font-semibold text-foreground">
+                  Can a helper nudge the time?
+                </span>
+                <div className="flex gap-2">
+                  {(["flexible", "fixed"] as const).map((opt) => (
+                    <button
+                      key={opt}
+                      type="button"
+                      onClick={() => setEditForm((f) => ({ ...f, flexibility: opt }))}
+                      className={`flex-1 rounded-full border px-4 py-2 text-[0.85rem] font-semibold transition ${
+                        editForm.flexibility === opt
+                          ? "border-primary bg-primary text-primary-foreground"
+                          : "border-border bg-background text-muted-foreground"
+                      }`}
+                    >
+                      {opt === "flexible" ? "Flexible" : "Fixed"}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[0.8rem] text-muted-foreground">
+                  {editForm.flexibility === "flexible"
+                    ? "A helper can shift the time of day themselves — good for meals and errands."
+                    : "The time is set — a helper gets a note, never an edit. Good for pickups and appointments."}
+                </p>
+              </div>
+
+              <label className="flex flex-col gap-1.5">
+                <span className="text-[0.85rem] font-semibold text-foreground">
+                  Notes <span className="font-normal text-muted-foreground">(optional)</span>
+                </span>
+                <textarea
+                  value={editForm.notes}
+                  rows={2}
+                  onChange={(e) => setEditForm((f) => ({ ...f, notes: e.target.value }))}
+                  className="w-full rounded-[0.7rem] border border-border bg-background px-3 py-2.5 text-[0.95rem] text-foreground focus:border-primary focus:outline-none"
+                />
+              </label>
+
+              {editing.slotType === "meal" && (
+                <div className="flex gap-3">
+                  <label className="flex flex-1 flex-col gap-1.5">
+                    <span className="text-[0.85rem] font-semibold text-foreground">Dietary needs</span>
+                    <input
+                      value={editForm.dietaryNotes}
+                      onChange={(e) => setEditForm((f) => ({ ...f, dietaryNotes: e.target.value }))}
+                      className="w-full rounded-[0.7rem] border border-border bg-background px-3 py-2.5 text-[0.95rem] text-foreground focus:border-primary focus:outline-none"
+                    />
+                  </label>
+                  <label className="flex w-24 flex-col gap-1.5">
+                    <span className="text-[0.85rem] font-semibold text-foreground">Feeding</span>
+                    <input
+                      type="number"
+                      min={1}
+                      value={editForm.headcount}
+                      onChange={(e) => setEditForm((f) => ({ ...f, headcount: e.target.value }))}
+                      className="w-full rounded-[0.7rem] border border-border bg-background px-3 py-2.5 text-[0.95rem] text-foreground focus:border-primary focus:outline-none"
+                    />
+                  </label>
+                </div>
+              )}
+
+              {editTask.isError && (
+                <p className="text-[0.85rem] text-destructive">
+                  {(editTask.error as Error)?.message ?? "That didn't work — please try again."}
+                </p>
+              )}
+
+              <button
+                type="button"
+                disabled={editTask.isPending}
+                onClick={saveEdit}
+                className="mt-1 inline-flex items-center justify-center gap-2 rounded-full bg-[#2d6a4f] px-6 py-3 font-serif text-[1.02rem] font-semibold text-white disabled:opacity-50"
+              >
+                {editTask.isPending ? (
+                  <>
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                    {copy.saveButtonBusy}
+                  </>
+                ) : (
+                  copy.saveButton
+                )}
+              </button>
+            </div>
+          </>
+        )}
+      </Dialog>
+
+      {/* Cancel task confirm dialog (Item 17) */}
+      <Dialog open={cancelling !== null} onOpenChange={(o) => !o && setCancelling(null)}>
+        {cancelling && (
+          <>
+            <DialogHeader>
+              <DialogTitle>
+                {cancelling.isClaimed
+                  ? copy.cancelClaimed.title(cancelling.label)
+                  : copy.cancelUnclaimed.title}
+              </DialogTitle>
+              <DialogDescription>
+                {cancelling.isClaimed
+                  ? copy.cancelClaimed.body(cancelling.claimedByName ?? "A friend")
+                  : copy.cancelUnclaimed.body}
+              </DialogDescription>
+            </DialogHeader>
+
+            {cancelTask.isError && (
+              <p className="mb-3 text-[0.85rem] text-destructive">
+                {(cancelTask.error as Error)?.message ?? "That didn't work — please try again."}
+              </p>
+            )}
+
+            <div className="flex flex-col-reverse gap-2.5 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setCancelling(null)}
+                className="rounded-full border border-border px-5 py-2.5 text-[0.9rem] font-semibold text-foreground"
+              >
+                {cancelling.isClaimed ? copy.cancelClaimed.keep : copy.cancelUnclaimed.keep}
+              </button>
+              <button
+                type="button"
+                disabled={cancelTask.isPending}
+                onClick={confirmCancel}
+                className="inline-flex items-center justify-center gap-2 rounded-full bg-[#c0563a] px-5 py-2.5 text-[0.9rem] font-semibold text-white disabled:opacity-50"
+              >
+                {cancelTask.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                {cancelling.isClaimed ? copy.cancelClaimed.confirm : copy.cancelUnclaimed.confirm}
+              </button>
+            </div>
+          </>
+        )}
+      </Dialog>
     </div>
   );
 }
