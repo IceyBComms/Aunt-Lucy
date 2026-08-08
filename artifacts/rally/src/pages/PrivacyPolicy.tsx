@@ -10,13 +10,19 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function MailLink({ address }: { address: string }) {
+function MailLink({
+  address,
+  children,
+}: {
+  address: string;
+  children?: React.ReactNode;
+}) {
   return (
     <a
       href={`mailto:${address}`}
       className="text-primary underline underline-offset-2"
     >
-      {address}
+      {children ?? address}
     </a>
   );
 }
@@ -175,10 +181,10 @@ export default function PrivacyPolicy() {
               again, and transaction records we're legally required to hold.)
             </p>
             <p>
-              <strong className="text-foreground">
-                [CONFIRM: current behaviour is removal on request — an automated deletion path is on
-                the product roadmap.]
-              </strong>
+              You can ask us to delete your information at any time by{" "}
+              <MailLink address="hello@auntlucy.com.au">emailing us</MailLink>, and we'll remove
+              it. We're building a way for you to delete it yourself inside Aunt Lucy, and we'll
+              update this page when that's ready.
             </p>
           </Section>
 
