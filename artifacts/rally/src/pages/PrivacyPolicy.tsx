@@ -114,9 +114,9 @@ export default function PrivacyPolicy() {
               and the messages they sign on the team card.
             </p>
             <p>
-              <strong className="text-foreground">Automatically:</strong> ordinary technical logs
-              (things like IP addresses and timestamps) that keep the service running and help us
-              spot abuse. We don't run advertising trackers, and we don't show ads.
+              <strong className="text-foreground">Automatically:</strong> our hosting providers keep
+              standard access logs (including IP addresses and timestamps) that keep the service
+              running and help us spot abuse. We don't run advertising trackers, and we don't show ads.
             </p>
           </Section>
 
