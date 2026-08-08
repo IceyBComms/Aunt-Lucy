@@ -13,6 +13,7 @@ import giftsRouter from "./gifts";
 import giftCardsRouter from "./giftCards";
 import stripeRouter from "./stripe";
 import internalRouter from "./internal";
+import adminStatsRouter from "./adminStats";
 import devRouter from "./dev";
 
 const router: IRouter = Router();
@@ -31,6 +32,7 @@ router.use(giftsRouter);
 router.use(giftCardsRouter);
 router.use(stripeRouter);
 router.use(internalRouter);
+router.use(adminStatsRouter);
 
 // Scaffolding for testing the fulfilment flow before Item 2 exists. Never
 // mounted in production, so the route simply does not exist on Railway.

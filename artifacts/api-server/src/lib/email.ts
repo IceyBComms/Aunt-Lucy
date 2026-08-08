@@ -1,6 +1,7 @@
 import { Resend } from "resend";
 import { logger } from "./logger";
 import { formatMoney, gstRateLabel, type GstBreakdown } from "./gst";
+import type { FounderStats } from "./founderStats";
 
 // A RESEND_API_KEY containing "placeholder" means local development: don't send
 // real email. Magic links are logged to the console instead (see sendMagicLink).
@@ -1426,4 +1427,146 @@ function buildFirstBullet(params: BuyerConfirmationParams): {
 
   const bullet = `${params.recipientFirstName} will get a gentle message letting them know you've set this up — ${params.deliveryLine}.`;
   return { text: bullet, html: escapeHtml(bullet) };
+}
+
+// ─── Founder weekly digest (Item 16) ─────────────────────────────────────────
+//
+// An internal-only email to the founder: this week plus running totals, drawn
+// from the read-only queries in ./founderStats. Neutral chrome (renderGiftLayout
+// is the generic Aunt Lucy layout, nothing gift-specific), numbers first, no
+// CTA. Never sent to a customer — only to FOUNDER_DIGEST_RECIPIENT.
+
+/** The one and only address the founder digest is ever sent to. */
+export const FOUNDER_DIGEST_RECIPIENT = "kate@icebreakercommunications.com";
+
+function pct(fraction: number): string {
+  return `${Math.round(fraction * 100)}%`;
+}
+
+/** A two-column HTML table of label → value rows. Labels/values are escaped. */
+function renderStatTable(rows: Array<[string, string]>): string {
+  const body = rows
+    .map(
+      ([label, value]) => `            <tr>
+              <td style="padding:6px 0;color:#333;font-size:15px;line-height:1.5;">${escapeHtml(label)}</td>
+              <td style="padding:6px 0;color:#2D6A4F;font-size:15px;font-weight:600;text-align:right;white-space:nowrap;">${escapeHtml(value)}</td>
+            </tr>`,
+    )
+    .join("\n");
+  return `          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0 0 8px;">
+${body}
+          </table>`;
+}
+
+function renderStatHeading(text: string): string {
+  return `          <p style="margin:24px 0 8px;color:#666;font-size:12px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;">${escapeHtml(text)}</p>`;
+}
+
+export function buildFounderDigestEmail(stats: FounderStats): RenderedEmail {
+  const weekLabel = `${formatAuDate(stats.weekStart)} – ${formatAuDate(stats.generatedAt)}`;
+  const o = stats.pages.byOrigin;
+  const ow = stats.pages.byOriginWeek;
+
+  const weekRows: Array<[string, string]> = [
+    ["Pages created", String(stats.pages.createdWeek)],
+    ["  · gift", String(ow.gift)],
+    ["  · crisis (free)", String(ow.crisisFree)],
+    ["  · organiser", String(ow.organiser)],
+    ["Pages activated", String(stats.pages.activatedWeek)],
+    ["Slots claimed", String(stats.slots.claimedWeek)],
+    ["Distinct helpers", String(stats.slots.distinctHelpersWeek)],
+    ["Releases (un-claims)", String(stats.slots.releasesWeek)],
+    ["Gifts sold", String(stats.gifts.soldWeek)],
+    ["Gift revenue (inc GST)", `$${formatMoney(stats.gifts.revenueCentsWeek)}`],
+  ];
+
+  const totalRows: Array<[string, string]> = [
+    ["Pages created", String(stats.pages.createdTotal)],
+    ["  · gift", String(o.gift)],
+    ["  · crisis (free)", String(o.crisisFree)],
+    ["  · organiser", String(o.organiser)],
+    ["  · other / legacy", String(o.other)],
+    ["Pages activated", String(stats.pages.activatedTotal)],
+    ["Activation rate", pct(stats.pages.activationRate)],
+    ["Slots claimed", String(stats.slots.claimedTotal)],
+    ["Distinct helpers", String(stats.slots.distinctHelpersTotal)],
+    ["Releases (un-claims)", String(stats.slots.releasesTotal)],
+    ["Gifts sold", String(stats.gifts.soldTotal)],
+    ["Gift revenue (inc GST)", `$${formatMoney(stats.gifts.revenueCentsTotal)}`],
+  ];
+
+  const contentHtml = `          <p style="margin:0 0 4px;color:#333;font-size:18px;font-weight:600;line-height:1.4;">
+            Aunt Lucy — weekly numbers
+          </p>
+          <p style="margin:0 0 8px;color:#666;font-size:14px;line-height:1.5;">
+            ${escapeHtml(weekLabel)}
+          </p>
+${renderStatHeading("This week (last 7 days)")}
+${renderStatTable(weekRows)}
+${renderStatHeading("Running totals (all time)")}
+${renderStatTable(totalRows)}
+          <p style="margin:20px 0 0;color:#999;font-size:12px;line-height:1.5;">
+            Distinct helpers and releases are approximate — see the code notes in
+            founderStats.ts. Internal only.
+          </p>`;
+
+  const textRows = (rows: Array<[string, string]>) =>
+    rows.map(([label, value]) => `${label.replace(/^ +/, "  ")}: ${value}`).join("\n");
+
+  const text = [
+    `Aunt Lucy — weekly numbers`,
+    weekLabel,
+    ``,
+    `THIS WEEK (last 7 days)`,
+    textRows(weekRows),
+    ``,
+    `RUNNING TOTALS (all time)`,
+    textRows(totalRows),
+    ``,
+    `Distinct helpers and releases are approximate (see founderStats.ts). Internal only.`,
+  ].join("\n");
+
+  return {
+    subject: `Aunt Lucy weekly numbers — ${formatAuDate(stats.generatedAt)}`,
+    html: renderGiftLayout({
+      preheader: `${stats.pages.createdWeek} pages, ${stats.gifts.soldWeek} gifts sold this week`,
+      contentHtml,
+      footerHtml: "Aunt Lucy — internal founder digest",
+    }),
+    text,
+  };
+}
+
+/**
+ * Sends exactly one founder-digest email. Returns true when a send was made (or
+ * dev-logged), false only when there's no way to send (missing key). Throws on a
+ * genuine Resend error so the cron run is marked failed and retried.
+ */
+export async function sendFounderDigest(stats: FounderStats): Promise<boolean> {
+  const rendered = buildFounderDigestEmail(stats);
+
+  if (isPlaceholderResendKey) {
+    console.log(
+      `\n📊 Founder digest for ${FOUNDER_DIGEST_RECIPIENT} (local dev — sending disabled):\n${rendered.text}\n`,
+    );
+    return true;
+  }
+  if (!resend) {
+    logger.warn("RESEND_API_KEY not set — skipping founder digest");
+    return false;
+  }
+
+  const { error } = await resend.emails.send({
+    from: FROM_ADDRESS,
+    to: FOUNDER_DIGEST_RECIPIENT,
+    ...rendered,
+  });
+
+  if (error) {
+    logger.error({ error }, "Failed to send founder digest");
+    throw new Error(`Resend error sending founder digest: ${JSON.stringify(error)}`);
+  }
+
+  logger.info({ to: FOUNDER_DIGEST_RECIPIENT }, "Founder digest sent");
+  return true;
 }
