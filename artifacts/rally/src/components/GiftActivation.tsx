@@ -669,7 +669,7 @@ export function GiftActivation({ token }: { token: string }) {
       </div>
 
       {/* WHERE SHOULD WE REACH YOU — powers the "help arriving" notifications.
-          PLACEHOLDER copy — Kate to approve. Optional; prefilled from the gift. */}
+          Optional; prefilled from the gift. */}
       <div className="mt-7">
         <h3 className="mb-1.5 font-serif text-[1.05rem] font-semibold text-[#2c2c2c]">
           Where should we reach you?{" "}
@@ -678,8 +678,8 @@ export function GiftActivation({ token }: { token: string }) {
           </span>
         </h3>
         <p className="mb-2.5 text-[0.88rem] text-[#8b7e74]">
-          So we can let you know when someone's helped — nothing else. You can add
-          or change this anytime.
+          Add your mobile and we'll text you when someone puts their hand up. No app
+          to check, no chasing — just a quiet heads-up when help is on the way.
         </p>
         <div className="flex flex-col gap-3 rounded-[0.9rem] border border-[#e0d6c8] bg-white px-3.5 py-3">
           <label className="text-[0.9rem] text-[#52493f]">
