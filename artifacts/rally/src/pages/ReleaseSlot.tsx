@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { useParams } from "wouter";
 import { format, parseISO } from "date-fns";
-import { CheckCircle2, Clock, Loader2, MapPin, HeartHandshake } from "lucide-react";
+import { CheckCircle2, Clock, Loader2, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { TeacupMark } from "@/components/TeacupMark";
 import { apiFetch } from "@/lib/api";
 import { helper as copy } from "@/lib/item17Copy";
 
@@ -174,7 +175,7 @@ export default function ReleaseSlot() {
         <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6">
           <div className="w-full max-w-sm text-center">
             <div className="w-20 h-20 bg-primary/10 rounded-3xl flex items-center justify-center mx-auto mb-6">
-              <HeartHandshake className="w-10 h-10 text-primary" />
+              <TeacupMark className="w-10 h-10" />
             </div>
             <p className="font-serif text-xl font-semibold text-foreground leading-relaxed">
               {copy.confirmationFixedCancel(recipientFirstName)}
@@ -187,7 +188,7 @@ export default function ReleaseSlot() {
       <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6">
         <div className="w-full max-w-sm text-center">
           <div className="w-20 h-20 bg-primary/10 rounded-3xl flex items-center justify-center mx-auto mb-6">
-            <HeartHandshake className="w-10 h-10 text-primary" />
+            <TeacupMark className="w-10 h-10" />
           </div>
           <p className="font-serif text-xl font-semibold text-foreground leading-relaxed">
             {copy.confirmationFlexibleCancel(recipientFirstName)}
