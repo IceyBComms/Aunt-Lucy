@@ -1421,7 +1421,7 @@ export async function sendItem17Email(params: Item17EmailParams): Promise<boolea
 // CTA. Never sent to a customer — only to FOUNDER_DIGEST_RECIPIENT.
 
 /** The one and only address the founder digest is ever sent to. */
-export const FOUNDER_DIGEST_RECIPIENT = "kate@icebreakercommunications.com";
+export const FOUNDER_DIGEST_RECIPIENT = "hello@auntlucy.com.au";
 
 function pct(fraction: number): string {
   return `${Math.round(fraction * 100)}%`;
