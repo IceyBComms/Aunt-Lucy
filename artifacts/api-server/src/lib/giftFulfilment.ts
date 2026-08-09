@@ -91,6 +91,7 @@ async function queueAndSendKeepsake(params: {
         recipientFirstName: firstName(gift.recipientName),
         buyerFirstName: firstName(gift.purchaserName),
         giftLink: giftLinkFor(gift.redemptionToken),
+        occasion: gift.occasion,
       });
       await db
         .update(giftsTable)

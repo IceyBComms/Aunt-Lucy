@@ -243,8 +243,8 @@ export async function sendMagicLink({ to, magicLink }: MagicLinkParams): Promise
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#FAF7F2;">
     <tr><td align="center" style="padding:40px 16px;">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
-        <tr><td style="background-color:#2D6A4F;padding:28px 32px;">
-          <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:600;">Aunt Lucy</h1>
+        <tr><td bgcolor="#E76F51" style="background-color:#E76F51;padding:26px 32px;">
+          <img src="https://auntlucy.com.au/brand/png/aunt-lucy-lockup-horizontal-reversed-1600.png" alt="Aunt Lucy" width="280" height="69" style="display:block;width:280px;height:69px;max-width:100%;border:0;outline:none;text-decoration:none;color:#ffffff;font-size:22px;font-weight:600;" />
         </td></tr>
         <tr><td style="padding:32px;">
           <p style="margin:0 0 20px;color:#333;font-size:16px;line-height:1.6;">Hi there,</p>
@@ -796,8 +796,8 @@ function renderGiftLayout(params: {
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#FAF7F2;">
     <tr><td align="center" style="padding:40px 16px;">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
-        <tr><td style="background-color:#2D6A4F;padding:28px 32px;">
-          <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:600;">Aunt Lucy</h1>
+        <tr><td bgcolor="#E76F51" style="background-color:#E76F51;padding:26px 32px;">
+          <img src="https://auntlucy.com.au/brand/png/aunt-lucy-lockup-horizontal-reversed-1600.png" alt="Aunt Lucy" width="280" height="69" style="display:block;width:280px;height:69px;max-width:100%;border:0;outline:none;text-decoration:none;color:#ffffff;font-size:22px;font-weight:600;" />
         </td></tr>
         <tr><td style="padding:32px;">
 ${params.contentHtml}
@@ -812,11 +812,21 @@ ${params.contentHtml}
 </html>`;
 }
 
-/** The orange call-to-action button used by the recipient-facing emails. */
+/**
+ * The call-to-action button shared by every recipient-facing email.
+ *
+ * Bulletproof, table-based, all-inline: background is the brand green from the
+ * header band (#2D6A4F), text is forced white on both the <a> and an inner
+ * <span> so clients that impose their own link colour (Outlook web turned the
+ * label a dark purple) can't win. font-family is pinned to the layout's stack
+ * so the label never falls back to a serif.
+ */
 function renderButton(url: string, label: string): string {
-  return `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 auto 24px;">
-            <tr><td style="border-radius:8px;background-color:#E76F51;">
-              <a href="${escapeHtml(url)}" style="display:inline-block;padding:14px 32px;color:#ffffff;font-size:16px;font-weight:600;text-decoration:none;border-radius:8px;">${escapeHtml(label)}</a>
+  const font =
+    "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
+  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 auto 24px;">
+            <tr><td align="center" bgcolor="#2D6A4F" style="border-radius:8px;background-color:#2D6A4F;">
+              <a href="${escapeHtml(url)}" style="display:inline-block;padding:14px 30px;color:#ffffff;font-family:${font};font-size:16px;font-weight:600;line-height:1.2;text-decoration:none;border-radius:8px;"><span style="color:#ffffff;text-decoration:none;">${escapeHtml(label)}</span></a>
             </td></tr>
           </table>`;
 }
@@ -1064,17 +1074,57 @@ export interface GiftDeliveryParams {
   recipientFirstName: string;
   buyerFirstName: string;
   giftLink: string;
+  /**
+   * The gift's occasion (gift_occasion enum value), used to choose the body
+   * paragraph. Optional/null-safe: any unmapped or unknown value falls back to
+   * the neutral paragraph — new-baby copy is never the default (Bug #010).
+   */
+  occasion?: string | null;
+}
+
+/**
+ * The gift-delivery body paragraph, chosen by occasion. Verbatim, Kate-approved
+ * copy (Bug #010). A single combined paragraph — the occasion sets the opening
+ * clause and names the giver as the actor ("«Name» has set up a page so the
+ * people who love you can…"), so "they/them" never stands in for the giver.
+ * The fallback MUST be the default for any unmapped, unknown or null occasion —
+ * a gift for illness must never open with new-baby words. `surgery` shares the
+ * illness/recovery paragraph so a future enum value is covered without a code
+ * change. `giverName` is interpolated as-is: pass an HTML-escaped name for the
+ * HTML body, the raw name for the plain-text body.
+ */
+function giftDeliveryParagraph(
+  occasion: string | null | undefined,
+  giverName: string,
+): string {
+  switch (occasion) {
+    case "new_baby":
+      return `A tiny new person has arrived in your world. ${giverName} has set up a page so the people who love you can make the first few busy weeks a little easier — meals, the school run, a friendly face — without you having to ask or organise a thing.`;
+    case "illness_recovery":
+    case "surgery":
+      return `While you focus on getting better, ${giverName} has set up a page so the people who love you can take care of the rest — meals, the school run, a friendly face — without you having to ask or organise a thing.`;
+    case "bereavement":
+      return `There are no right words for a time like this. ${giverName} has set up a page so the people who love you can quietly take a few things off your plate — meals, the school run, a friendly face — without you having to ask or organise a thing.`;
+    default:
+      return `Life's thrown a lot at you lately. ${giverName} has set up a page so the people who love you can help carry some of it — meals, the school run, a friendly face — without you having to ask or organise a thing.`;
+  }
 }
 
 export function buildGiftDeliveryEmail(params: GiftDeliveryParams): RenderedEmail {
+  const bodyParagraphHtml = giftDeliveryParagraph(
+    params.occasion,
+    escapeHtml(params.buyerFirstName),
+  );
+  const bodyParagraphText = giftDeliveryParagraph(
+    params.occasion,
+    params.buyerFirstName,
+  );
+
   const contentHtml = `          <p style="margin:0 0 20px;color:#333;font-size:16px;line-height:1.6;">
             Hi ${escapeHtml(params.recipientFirstName)},
           </p>
-          <p style="margin:0 0 20px;color:#333;font-size:18px;line-height:1.6;">
-            Someone who loves you has set up Aunt Lucy for you.
-          </p>
           <p style="margin:0 0 20px;color:#333;font-size:16px;line-height:1.6;">
-            ${escapeHtml(params.buyerFirstName)} wanted to do something genuinely useful. They've set up a page so the people who care about you can help with the everyday stuff — meals, the school run, a friendly face — without you having to ask or organise a thing.
+            ${bodyParagraphHtml}
           </p>
           <p style="margin:0 0 24px;color:#333;font-size:16px;line-height:1.6;">
             All you need to do is take a look when you're ready.
@@ -1090,9 +1140,7 @@ export function buildGiftDeliveryEmail(params: GiftDeliveryParams): RenderedEmai
   const text = [
     `Hi ${params.recipientFirstName},`,
     ``,
-    `Someone who loves you has set up Aunt Lucy for you.`,
-    ``,
-    `${params.buyerFirstName} wanted to do something genuinely useful. They've set up a page so the people who care about you can help with the everyday stuff — meals, the school run, a friendly face — without you having to ask or organise a thing.`,
+    bodyParagraphText,
     ``,
     `All you need to do is take a look when you're ready.`,
     ``,

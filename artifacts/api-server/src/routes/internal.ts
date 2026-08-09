@@ -159,6 +159,7 @@ router.post("/internal/dispatch-scheduled", async (req, res) => {
       recipientFirstName: firstName(gift.recipientName),
       buyerFirstName: firstName(gift.purchaserName),
       giftLink: giftLinkFor(gift.redemptionToken),
+      occasion: gift.occasion,
     };
 
     try {
