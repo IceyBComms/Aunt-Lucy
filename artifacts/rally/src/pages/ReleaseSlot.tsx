@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import { useParams } from "wouter";
 import { format, parseISO } from "date-fns";
-import { CheckCircle2, Clock, Loader2, XCircle, MapPin, HeartHandshake } from "lucide-react";
+import { CheckCircle2, Clock, Loader2, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { TeacupMark } from "@/components/TeacupMark";
 import { apiFetch } from "@/lib/api";
+import { helper as copy } from "@/lib/item17Copy";
 
 // The helper's own view of the claim they made, fetched by the private release
 // token from their confirmation email. Mirrors InviteClaim's shape and style —
@@ -16,11 +18,15 @@ interface ReleaseDetails {
     slotDate: string | null;
     slotTime: string | null;
     notes: string | null;
+    // Item 17: flexible → a helper may nudge the time; fixed → note only.
+    flexibility: "flexible" | "fixed";
+    claimedNote: string | null;
   };
   helperName: string | null;
   page: {
     recipientName: string;
     location: string | null;
+    slug: string;
   };
 }
 
@@ -37,7 +43,7 @@ const SLOT_TYPE_LABELS: Record<string, { icon: string; label: string }> = {
 
 function formatTime(timeStr: string): string {
   const [h, min] = timeStr.split(":").map(Number);
-  const ampm = h >= 12 ? "PM" : "AM";
+  const ampm = h >= 12 ? "pm" : "am";
   const h12 = h % 12 || 12;
   return `${h12}:${String(min).padStart(2, "0")} ${ampm}`;
 }
@@ -51,12 +57,63 @@ export default function ReleaseSlot() {
   const [error, setError] = useState<string | null>(null);
   const [releaseError, setReleaseError] = useState<string | null>(null);
 
+  // Item 17 — reschedule (flexible) / leave a note (any task).
+  const [newTime, setNewTime] = useState("");
+  const [note, setNote] = useState("");
+  const [submitting, setSubmitting] = useState<null | "time" | "note">(null);
+  const [passedOn, setPassedOn] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+
   useEffect(() => {
     apiFetch<ReleaseDetails>(`/slots/release/${token}`)
-      .then((data) => setDetails(data))
+      .then((data) => {
+        setDetails(data);
+        setNewTime((data.slot.slotTime ?? "").slice(0, 5));
+        setNote(data.slot.claimedNote ?? "");
+      })
       .catch((err: any) => setError(err.message ?? "This link is no longer active."))
       .finally(() => setIsLoading(false));
   }, [token]);
+
+  async function handleReschedule() {
+    if (!newTime) {
+      setActionError(copy.errors.badTime);
+      return;
+    }
+    setSubmitting("time");
+    setActionError(null);
+    try {
+      await apiFetch(`/slots/reschedule/${token}`, {
+        method: "POST",
+        body: JSON.stringify({ slotTime: newTime, note: note.trim() || undefined }),
+      });
+      setPassedOn(true);
+    } catch (err: any) {
+      setActionError(err.message ?? copy.errors.fallback);
+    } finally {
+      setSubmitting(null);
+    }
+  }
+
+  async function handleNote() {
+    if (note.trim().length > 200) {
+      setActionError(copy.errors.noteTooLong);
+      return;
+    }
+    setSubmitting("note");
+    setActionError(null);
+    try {
+      await apiFetch(`/slots/note/${token}`, {
+        method: "POST",
+        body: JSON.stringify({ note: note.trim() }),
+      });
+      setPassedOn(true);
+    } catch (err: any) {
+      setActionError(err.message ?? copy.errors.fallback);
+    } finally {
+      setSubmitting(null);
+    }
+  }
 
   async function handleRelease() {
     setIsReleasing(true);
@@ -103,29 +160,52 @@ export default function ReleaseSlot() {
   const { slot, page } = details;
   const slotMeta = SLOT_TYPE_LABELS[slot.slotType] ?? SLOT_TYPE_LABELS.other;
   const slotLabel = slot.customLabel || slotMeta.label;
+  const recipientFirstName = page.recipientName.split(/\s+/)[0] || page.recipientName;
   // Undated slots are flexible offers — show words, not a fabricated date.
+  // Australian format: "Saturday 15 August" (day before month), not US month-first.
   const formattedDate = slot.slotDate
-    ? format(parseISO(slot.slotDate), "EEEE, MMMM d")
+    ? format(parseISO(slot.slotDate), "EEEE d MMMM")
     : null;
   const formattedTime = slot.slotDate && slot.slotTime ? formatTime(slot.slotTime) : null;
 
   if (released) {
+    // Fixed tasks are time-sensitive: the recipient has just been texted, so the
+    // confirmation says so. Flexible keeps the original "it's open again" wording.
+    if (slot.flexibility === "fixed") {
+      return (
+        <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6">
+          <div className="w-full max-w-sm text-center">
+            <div className="w-20 h-20 bg-primary/10 rounded-3xl flex items-center justify-center mx-auto mb-6">
+              <TeacupMark className="w-10 h-10" />
+            </div>
+            <p className="font-serif text-xl font-semibold text-foreground leading-relaxed">
+              {copy.confirmationFixedCancel(recipientFirstName)}
+            </p>
+            <a
+              href={`/s/${page.slug}`}
+              className="mt-5 inline-block text-sm text-primary underline underline-offset-4 hover:opacity-80"
+            >
+              {copy.seeElseLink}
+            </a>
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6">
         <div className="w-full max-w-sm text-center">
           <div className="w-20 h-20 bg-primary/10 rounded-3xl flex items-center justify-center mx-auto mb-6">
-            <HeartHandshake className="w-10 h-10 text-primary" />
+            <TeacupMark className="w-10 h-10" />
           </div>
-          <h1 className="font-serif text-2xl font-bold text-foreground mb-3">
-            All done — it's open again
-          </h1>
-          <p className="text-muted-foreground leading-relaxed mb-2">
-            Thanks for letting us know. <strong>{slotLabel}</strong> is back on{" "}
-            {page.recipientName}'s page for someone else to pick up.
+          <p className="font-serif text-xl font-semibold text-foreground leading-relaxed">
+            {copy.confirmationFlexibleCancel(recipientFirstName)}
           </p>
-          <p className="text-muted-foreground text-sm leading-relaxed">
-            No hard feelings at all — life happens. Thank you for wanting to help.
-          </p>
+          <a
+            href={`/s/${page.slug}`}
+            className="mt-5 inline-block text-sm text-primary underline underline-offset-4 hover:opacity-80"
+          >
+            {copy.seeElseLink}
+          </a>
         </div>
       </div>
     );
@@ -137,11 +217,12 @@ export default function ReleaseSlot() {
       <div className="bg-primary text-white px-5 py-8">
         <div className="max-w-sm mx-auto">
           <h1 className="text-white font-serif text-2xl font-bold mb-1">
-            Can't make it?
+            Plans changed?
           </h1>
           <p className="text-white/80 leading-relaxed">
-            That's completely okay. Release this slot and someone else can step in
-            for <strong className="text-white">{page.recipientName}</strong>.
+            {slot.flexibility === "flexible"
+              ? copy.introFlexible(recipientFirstName)
+              : copy.introFixed(recipientFirstName)}
           </p>
         </div>
       </div>
@@ -160,7 +241,7 @@ export default function ReleaseSlot() {
               <p className="text-sm text-muted-foreground flex items-center gap-1.5">
                 <Clock className="w-3.5 h-3.5" />
                 {formattedDate ?? "Whenever suits"}
-                {formattedTime && ` • ${formattedTime}`}
+                {formattedTime && `, ${formattedTime}`}
               </p>
             </div>
           </div>
@@ -173,24 +254,117 @@ export default function ReleaseSlot() {
           )}
         </div>
 
+        {/* Item 17 — reschedule (flexible) or leave a note (any task). */}
+        {passedOn ? (
+          <div className="bg-card rounded-3xl border border-border/50 shadow-sm p-6 text-center">
+            <div className="w-14 h-14 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-3">
+              <CheckCircle2 className="w-7 h-7 text-primary" />
+            </div>
+            <p className="font-serif text-lg font-semibold text-foreground">
+              {copy.confirmation}
+            </p>
+          </div>
+        ) : slot.flexibility === "flexible" ? (
+          <div className="bg-card rounded-3xl border border-border/50 shadow-sm p-5 space-y-3">
+            <div>
+              <h3 className="font-serif font-semibold text-foreground text-lg">
+                {copy.reschedule.label}
+              </h3>
+              <p className="text-sm text-muted-foreground">{copy.reschedule.help}</p>
+            </div>
+            <input
+              type="time"
+              value={newTime}
+              onChange={(e) => setNewTime(e.target.value)}
+              className="w-full rounded-2xl border border-border bg-background px-4 py-3 text-foreground focus:border-primary focus:outline-none"
+            />
+            <div>
+              <textarea
+                value={note}
+                maxLength={200}
+                rows={2}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder={copy.reschedule.notePlaceholder}
+                className="w-full rounded-2xl border border-border bg-background px-4 py-3 text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+              />
+              <p className="mt-1 text-right text-xs text-muted-foreground">
+                {copy.noteCounter(note.length)}
+              </p>
+            </div>
+            {actionError && <p className="text-sm text-destructive">{actionError}</p>}
+            <Button
+              size="lg"
+              className="w-full font-serif text-base"
+              onClick={handleReschedule}
+              disabled={submitting === "time"}
+            >
+              {submitting === "time" ? copy.reschedule.buttonBusy : copy.reschedule.button}
+            </Button>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              {copy.dateChangeGuardrail(recipientFirstName)}
+            </p>
+          </div>
+        ) : (
+          <div className="bg-card rounded-3xl border border-border/50 shadow-sm p-5 space-y-3">
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              {copy.fixedNote.lead}
+            </p>
+            <div>
+              <textarea
+                value={note}
+                maxLength={200}
+                rows={2}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder={copy.reschedule.notePlaceholder}
+                className="w-full rounded-2xl border border-border bg-background px-4 py-3 text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+              />
+              <p className="mt-1 text-right text-xs text-muted-foreground">
+                {copy.noteCounter(note.length)}
+              </p>
+            </div>
+            {actionError && <p className="text-sm text-destructive">{actionError}</p>}
+            <Button
+              size="lg"
+              className="w-full font-serif text-base"
+              onClick={handleNote}
+              disabled={submitting === "note" || !note.trim()}
+            >
+              {submitting === "note" ? "Passing on…" : copy.fixedNote.button}
+            </Button>
+          </div>
+        )}
+
         {releaseError && (
           <p className="text-sm text-destructive text-center">{releaseError}</p>
         )}
 
-        <Button
-          size="lg"
-          variant="destructive"
-          className="w-full font-serif text-base"
-          onClick={handleRelease}
-          disabled={isReleasing}
-        >
-          {isReleasing ? "Releasing…" : "Release this slot"}
-        </Button>
-
-        <p className="text-center text-xs text-muted-foreground">
-          {page.recipientName} won't see any fuss — just that the slot's open
-          again. You can still claim another slot any time.
-        </p>
+        {!passedOn && (
+          <>
+            {slot.flexibility === "fixed" && (
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                {copy.fixedNote.cancelBlurb(slotLabel, recipientFirstName)}
+              </p>
+            )}
+            <Button
+              size="lg"
+              variant="outline"
+              className="w-full font-serif text-base"
+              onClick={handleRelease}
+              disabled={isReleasing}
+            >
+              {isReleasing
+                ? copy.cancelButtonBusy
+                : slot.flexibility === "fixed"
+                  ? copy.cancelButtonFixed
+                  : copy.cancelButtonFlexible}
+            </Button>
+            <p className="text-center text-xs text-muted-foreground">
+              {slot.flexibility === "fixed"
+                ? copy.footerFixed(recipientFirstName)
+                : copy.footerFlexible(recipientFirstName)}
+            </p>
+          </>
+        )}
       </div>
     </div>
   );

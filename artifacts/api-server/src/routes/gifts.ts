@@ -7,6 +7,7 @@ import { uniqueSlug } from "../lib/slug";
 import { defaultSituationLine, type RecipientPronouns } from "../lib/inviteCopy";
 import { TIERS, sellableTier } from "../lib/giftPricing";
 import { uniqueToken } from "../lib/token";
+import { defaultFlexibility } from "../lib/slotFlexibility";
 import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
@@ -553,6 +554,9 @@ router.post("/gifts/:redemptionToken/activate", async (req, res) => {
           dietaryNotes: t.dietaryNotes,
           headcount: t.headcount,
           trustedHelpersOnly: t.trustedHelpersOnly,
+          // Item 17: default the flexible/fixed flag by category. The page
+          // runner can flip it later per task; the recipient is never asked.
+          flexibility: defaultFlexibility(t.slotType, t.slotDate != null),
         })),
       );
     }

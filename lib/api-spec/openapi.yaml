@@ -723,6 +723,85 @@ paths:
               schema:
                 $ref: "#/components/schemas/BereavementGateError"
 
+  /manage/{token}/tasks/{slotId}:
+    patch:
+      operationId: editTask
+      tags: [manage]
+      summary: Edit a task's time / date / details (Item 17)
+      description: >-
+        Edits time, date or details of a task and can flip its flexible/fixed
+        flag. If the task is claimed the claim stands and the helper is always
+        told (with a one-tap "can't any more" out). Sensitivity is not editable
+        here.
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: slotId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EditTaskRequest"
+      responses:
+        "200":
+          description: Task updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ManageTaskSummary"
+        "400":
+          description: Nothing to update or an invalid value
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationError"
+        "404":
+          description: Task not on this page
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotFoundError"
+    delete:
+      operationId: cancelTask
+      tags: [manage]
+      summary: Cancel a task (Item 17)
+      description: >-
+        Cancels a task. Unclaimed is a quiet removal; claimed always thanks the
+        helper and tells them it's covered (bereavement pages get the gentler
+        variant) before the task is removed.
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: slotId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Task cancelled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResponse"
+        "404":
+          description: Task not on this page
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotFoundError"
+
 components:
   schemas:
     HealthStatus:
@@ -1405,6 +1484,15 @@ components:
         - sms
         - email
 
+    SlotFlexibility:
+      type: string
+      description: >-
+        Whether the time of a task is the helper's to nudge (flexible) or the
+        family's fact (fixed). Item 17.
+      enum:
+        - flexible
+        - fixed
+
     ManageTaskSummary:
       type: object
       properties:
@@ -1414,6 +1502,15 @@ components:
           $ref: "#/components/schemas/SlotType"
         label:
           type: string
+        customLabel:
+          type: string
+          nullable: true
+          description: The raw custom label (the edit form's value; `label` is display).
+        notes:
+          type: string
+          nullable: true
+        flexibility:
+          $ref: "#/components/schemas/SlotFlexibility"
         trustedHelpersOnly:
           type: boolean
         isClaimed:
@@ -1452,6 +1549,7 @@ components:
         - id
         - slotType
         - label
+        - flexibility
         - trustedHelpersOnly
         - isClaimed
 
@@ -1612,6 +1710,39 @@ components:
           type: string
           nullable: true
           description: Set/clear the optional mobile for future SMS updates.
+
+    EditTaskRequest:
+      type: object
+      description: >-
+        Item 17 — the family editing a task's time / date / details, and
+        optionally flipping its flexible/fixed flag. Every field is optional; only
+        those present are changed. Sensitivity (trustedHelpersOnly) is
+        deliberately not editable here.
+      properties:
+        slotDate:
+          type: string
+          nullable: true
+          description: YYYY-MM-DD, or empty/null to clear (an undated flexible offer).
+        slotTime:
+          type: string
+          nullable: true
+          description: HH:MM (24h), or empty/null to clear.
+        customLabel:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        dietaryNotes:
+          type: string
+          nullable: true
+          description: Meal tasks only; ignored on other types.
+        headcount:
+          type: integer
+          nullable: true
+          description: Meal tasks only; ignored on other types.
+        flexibility:
+          $ref: "#/components/schemas/SlotFlexibility"
 
     AddContactRequest:
       type: object

@@ -1,12 +1,21 @@
 import { Router, type IRouter } from "express";
 import crypto from "crypto";
-import { db, slotsTable, supportPagesTable, pageGrantsTable } from "@workspace/db";
+import { db, slotsTable, supportPagesTable } from "@workspace/db";
 import { eq, and, sql } from "drizzle-orm";
-import { sendClaimConfirmation, sendSlotReleasedNotification } from "../lib/email";
+import { sendClaimConfirmation } from "../lib/email";
 import { verifyPin } from "../lib/pin";
 import { getAppBaseUrl } from "../lib/appUrl";
-import { firstName } from "../lib/giftFulfilment";
 import { logger } from "../lib/logger";
+import { notifyRecipientOfTaskEvent, shareLinkFor } from "../lib/item17Notify";
+import {
+  taskLabel,
+  whenLabel,
+  timeLabel,
+  recipientFixedLostHelper,
+  recipientFlexibleCancelled,
+  recipientFlexibleRescheduled,
+  recipientNotePassedOn,
+} from "../lib/item17Copy";
 
 const router: IRouter = Router();
 
@@ -186,11 +195,20 @@ router.get("/slots/release/:token", async (req, res) => {
       slotDate: slot.slotDate,
       slotTime: slot.slotTime,
       notes: slot.notes,
+      // Item 17: drives which controls the claim link offers — a flexible task
+      // gets the reschedule block, a fixed task gets note-only.
+      flexibility: slot.flexibility,
+      // The helper's current note (latest-version-only), so the note field can
+      // prefill. Private to the recipient/runner; never shown on the public page.
+      claimedNote: slot.claimedNote ?? null,
     },
     helperName: slot.claimedByName,
     page: {
       recipientName: page.recipientName,
       location: page.location,
+      // Public share slug — powers the "see what else would help" link on the
+      // post-cancel confirmation. Public by design (it's the /s/:slug URL).
+      slug: page.slug,
     },
   });
 });
@@ -251,32 +269,31 @@ router.post("/slots/release/:token", async (req, res) => {
     where: eq(supportPagesTable.id, row.pageId),
   });
 
-  // Tell the person running the page a slot has opened back up — but not on a
-  // page they've already closed. Fire-and-forget, exactly like the claim
-  // confirmation: a slow or failed email must not hold up the helper's release.
-  if (page && page.recipientEmail && page.status !== "closed") {
-    // The recipient's private /manage link — same "see who's helping" entry the
-    // claim notification uses, falling back to the public page if the grant is
-    // somehow missing.
-    const grant = await db.query.pageGrantsTable.findFirst({
-      where: and(
-        eq(pageGrantsTable.pageId, page.id),
-        eq(pageGrantsTable.role, "recipient"),
-      ),
-    });
-    const manageLink = grant
-      ? `${getAppBaseUrl()}/manage/${grant.token}`
-      : `${getAppBaseUrl()}/s/${page.slug}`;
+  // Tell the recipient (and the runner, once distinct) a slot has opened back
+  // up — on the channel the flexible/fixed rule chooses. This is the un-claim
+  // wiring the Item 17 brief asked for: before this, a released slot only ever
+  // emailed the recipient, so a FIXED task (a school pickup) could silently lose
+  // its helper if they had no inbox open. Now a fixed task always goes by SMS.
+  // Fire-and-forget, exactly like the claim confirmation.
+  if (page) {
+    const label = taskLabel(row.slotType, row.customLabel);
+    const shareLink = shareLinkFor(page);
+    const helperName = row.cancelledClaimName ?? "Someone";
+    const message =
+      row.flexibility === "fixed"
+        ? recipientFixedLostHelper({
+            helperName,
+            task: label,
+            when: whenLabel(row.slotDate, row.slotTime),
+            shareLink,
+          })
+        : recipientFlexibleCancelled({ helperName, task: label, shareLink });
 
-    void sendSlotReleasedNotification({
-      to: page.recipientEmail,
-      recipientFirstName: firstName(page.recipientName),
-      helperName: row.cancelledClaimName,
-      slotType: row.slotType,
-      customLabel: row.customLabel,
+    void notifyRecipientOfTaskEvent(page, {
+      flexibility: row.flexibility,
       slotDate: row.slotDate,
-      slotTime: row.slotTime,
-      manageLink,
+      message,
+      link: shareLink,
     });
   }
 
@@ -285,6 +302,137 @@ router.post("/slots/release/:token", async (req, res) => {
     "Helper released a claimed slot",
   );
 
+  res.json({ ok: true });
+});
+
+// ─── Helper reschedule / note (Item 17) ───────────────────────────────────────
+//
+// Reachable only through the same cancel_token the release link uses — the
+// helper's own private handle, no account, ever. Both are one-way to the family:
+// no reply, no thread. The un-claim path above is unchanged; these sit beside it.
+
+const HELPER_NOTE_MAX = 200;
+const TIME_RE = /^\d{2}:\d{2}(:\d{2})?$/;
+
+/**
+ * POST /api/slots/reschedule/:token — a FLEXIBLE task's helper nudges the time
+ * of day (same day only), with an optional short note. A different day is not an
+ * edit — the UI steers them to bow out or leave a note — so slot_date is never
+ * touched here. Fixed tasks are refused: their time is the family's fact.
+ */
+router.post("/slots/reschedule/:token", async (req, res) => {
+  const { token } = req.params;
+  const { slotTime, note } = req.body as { slotTime?: string; note?: string };
+
+  const time = typeof slotTime === "string" ? slotTime.trim() : "";
+  if (!time || !TIME_RE.test(time)) {
+    res.status(400).json({ error: "That time doesn't look right — please try again." });
+    return;
+  }
+  const noteTrimmed = typeof note === "string" ? note.trim() : "";
+  if (noteTrimmed.length > HELPER_NOTE_MAX) {
+    res.status(400).json({ error: "That note's a little long — please shorten it." });
+    return;
+  }
+
+  const [result] = await db
+    .select({ slot: slotsTable, page: supportPagesTable })
+    .from(slotsTable)
+    .innerJoin(supportPagesTable, eq(slotsTable.pageId, supportPagesTable.id))
+    .where(and(eq(slotsTable.cancelToken, token), eq(slotsTable.isClaimed, true)))
+    .limit(1);
+
+  if (!result) {
+    res.status(404).json({ error: "This link is no longer active." });
+    return;
+  }
+  const { slot, page } = result;
+
+  // Fixed tasks can't be rescheduled by a helper — the guardrail on the UI
+  // should prevent this, but the time is the family's fact, so we enforce it.
+  if (slot.flexibility !== "flexible") {
+    res.status(409).json({ error: "This task's time is set by the family." });
+    return;
+  }
+
+  const [updated] = await db
+    .update(slotsTable)
+    .set({
+      slotTime: time,
+      // A note is optional; when present it replaces the latest note (one-way,
+      // recipient-only). An empty note leaves any existing note untouched.
+      ...(noteTrimmed ? { claimedNote: noteTrimmed } : {}),
+    })
+    .where(and(eq(slotsTable.cancelToken, token), eq(slotsTable.isClaimed, true)))
+    .returning();
+
+  // Tell the recipient — flexible → email, upgraded to SMS if today/tomorrow.
+  void notifyRecipientOfTaskEvent(page, {
+    flexibility: "flexible",
+    slotDate: updated.slotDate,
+    message: recipientFlexibleRescheduled({
+      helperName: updated.claimedByName ?? "Someone",
+      task: taskLabel(updated.slotType, updated.customLabel),
+      newTime: timeLabel(time),
+    }),
+  });
+
+  logger.info({ slotId: updated.id, pageId: updated.pageId }, "Item 17: helper rescheduled a flexible task");
+  res.json({ ok: true });
+});
+
+/**
+ * POST /api/slots/note/:token — leave (or update) one short note on any claimed
+ * task. Latest-version-only, max 200 chars, visible ONLY to the recipient +
+ * runner. One-way: no replies, no thread.
+ */
+router.post("/slots/note/:token", async (req, res) => {
+  const { token } = req.params;
+  const { note } = req.body as { note?: string };
+
+  const noteTrimmed = typeof note === "string" ? note.trim() : "";
+  if (!noteTrimmed) {
+    res.status(400).json({ error: "Add a note to pass on." });
+    return;
+  }
+  if (noteTrimmed.length > HELPER_NOTE_MAX) {
+    res.status(400).json({ error: "That note's a little long — please shorten it." });
+    return;
+  }
+
+  const [result] = await db
+    .select({ slot: slotsTable, page: supportPagesTable })
+    .from(slotsTable)
+    .innerJoin(supportPagesTable, eq(slotsTable.pageId, supportPagesTable.id))
+    .where(and(eq(slotsTable.cancelToken, token), eq(slotsTable.isClaimed, true)))
+    .limit(1);
+
+  if (!result) {
+    res.status(404).json({ error: "This link is no longer active." });
+    return;
+  }
+  const { slot, page } = result;
+
+  const [updated] = await db
+    .update(slotsTable)
+    .set({ claimedNote: noteTrimmed })
+    .where(and(eq(slotsTable.cancelToken, token), eq(slotsTable.isClaimed, true)))
+    .returning();
+
+  // Pass the note on to the recipient on the flexibility channel — a note on a
+  // fixed same-day task (a school pickup) is worth an SMS just like a change to
+  // it would be.
+  void notifyRecipientOfTaskEvent(page, {
+    flexibility: slot.flexibility,
+    slotDate: updated.slotDate,
+    message: recipientNotePassedOn({
+      helperName: updated.claimedByName ?? "Someone",
+      task: taskLabel(updated.slotType, updated.customLabel),
+      note: noteTrimmed,
+    }),
+  });
+
+  logger.info({ slotId: updated.id, pageId: updated.pageId }, "Item 17: helper left a note");
   res.json({ ok: true });
 });
 

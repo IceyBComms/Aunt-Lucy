@@ -25,6 +25,7 @@ import type {
   ConflictError,
   CreateGiftRequest,
   CreateGiftResponse,
+  EditTaskRequest,
   GetSupportPageParams,
   GiftExperience,
   GiftReview,
@@ -36,6 +37,7 @@ import type {
   ManageContact,
   ManageDetails,
   ManageState,
+  ManageTaskSummary,
   NotFoundError,
   OkResponse,
   OrganiserCardView,
@@ -1992,4 +1994,179 @@ export const useScheduleInvites = <
   TContext
 > => {
   return useMutation(getScheduleInvitesMutationOptions(options));
+};
+
+/**
+ * Edits time, date or details of a task and can flip its flexible/fixed flag. If the task is claimed the claim stands and the helper is always told (with a one-tap "can't any more" out). Sensitivity is not editable here.
+ * @summary Edit a task's time / date / details (Item 17)
+ */
+export const getEditTaskUrl = (token: string, slotId: string) => {
+  return `/api/manage/${token}/tasks/${slotId}`;
+};
+
+export const editTask = async (
+  token: string,
+  slotId: string,
+  editTaskRequest: EditTaskRequest,
+  options?: RequestInit,
+): Promise<ManageTaskSummary> => {
+  return customFetch<ManageTaskSummary>(getEditTaskUrl(token, slotId), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(editTaskRequest),
+  });
+};
+
+export const getEditTaskMutationOptions = <
+  TError = ErrorType<ValidationError | NotFoundError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof editTask>>,
+    TError,
+    { token: string; slotId: string; data: BodyType<EditTaskRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof editTask>>,
+  TError,
+  { token: string; slotId: string; data: BodyType<EditTaskRequest> },
+  TContext
+> => {
+  const mutationKey = ["editTask"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof editTask>>,
+    { token: string; slotId: string; data: BodyType<EditTaskRequest> }
+  > = (props) => {
+    const { token, slotId, data } = props ?? {};
+
+    return editTask(token, slotId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type EditTaskMutationResult = NonNullable<
+  Awaited<ReturnType<typeof editTask>>
+>;
+export type EditTaskMutationBody = BodyType<EditTaskRequest>;
+export type EditTaskMutationError = ErrorType<ValidationError | NotFoundError>;
+
+/**
+ * @summary Edit a task's time / date / details (Item 17)
+ */
+export const useEditTask = <
+  TError = ErrorType<ValidationError | NotFoundError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof editTask>>,
+    TError,
+    { token: string; slotId: string; data: BodyType<EditTaskRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof editTask>>,
+  TError,
+  { token: string; slotId: string; data: BodyType<EditTaskRequest> },
+  TContext
+> => {
+  return useMutation(getEditTaskMutationOptions(options));
+};
+
+/**
+ * Cancels a task. Unclaimed is a quiet removal; claimed always thanks the helper and tells them it's covered (bereavement pages get the gentler variant) before the task is removed.
+ * @summary Cancel a task (Item 17)
+ */
+export const getCancelTaskUrl = (token: string, slotId: string) => {
+  return `/api/manage/${token}/tasks/${slotId}`;
+};
+
+export const cancelTask = async (
+  token: string,
+  slotId: string,
+  options?: RequestInit,
+): Promise<OkResponse> => {
+  return customFetch<OkResponse>(getCancelTaskUrl(token, slotId), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getCancelTaskMutationOptions = <
+  TError = ErrorType<NotFoundError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof cancelTask>>,
+    TError,
+    { token: string; slotId: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof cancelTask>>,
+  TError,
+  { token: string; slotId: string },
+  TContext
+> => {
+  const mutationKey = ["cancelTask"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof cancelTask>>,
+    { token: string; slotId: string }
+  > = (props) => {
+    const { token, slotId } = props ?? {};
+
+    return cancelTask(token, slotId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CancelTaskMutationResult = NonNullable<
+  Awaited<ReturnType<typeof cancelTask>>
+>;
+
+export type CancelTaskMutationError = ErrorType<NotFoundError>;
+
+/**
+ * @summary Cancel a task (Item 17)
+ */
+export const useCancelTask = <
+  TError = ErrorType<NotFoundError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof cancelTask>>,
+    TError,
+    { token: string; slotId: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof cancelTask>>,
+  TError,
+  { token: string; slotId: string },
+  TContext
+> => {
+  return useMutation(getCancelTaskMutationOptions(options));
 };

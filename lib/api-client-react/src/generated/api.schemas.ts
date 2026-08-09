@@ -344,10 +344,25 @@ export const InviteChannel = {
   email: "email",
 } as const;
 
+/**
+ * Whether the time of a task is the helper's to nudge (flexible) or the family's fact (fixed). Item 17.
+ */
+export type SlotFlexibility =
+  (typeof SlotFlexibility)[keyof typeof SlotFlexibility];
+
+export const SlotFlexibility = {
+  flexible: "flexible",
+  fixed: "fixed",
+} as const;
+
 export interface ManageTaskSummary {
   id: string;
   slotType: SlotType;
   label: string;
+  /** The raw custom label (the edit form's value; `label` is display). */
+  customLabel?: string | null;
+  notes?: string | null;
+  flexibility: SlotFlexibility;
   trustedHelpersOnly: boolean;
   isClaimed: boolean;
   /** Who claimed it. Always present to the recipient/manager regardless of the helper's public-visibility choice — this is the "look who showed up" payoff and is safe because it is shown only to the person the help is for. */
@@ -439,6 +454,23 @@ export interface UpdateDetailsRequest {
   recipientEmail?: string | null;
   /** Set/clear the optional mobile for future SMS updates. */
   recipientMobile?: string | null;
+}
+
+/**
+ * Item 17 — the family editing a task's time / date / details, and optionally flipping its flexible/fixed flag. Every field is optional; only those present are changed. Sensitivity (trustedHelpersOnly) is deliberately not editable here.
+ */
+export interface EditTaskRequest {
+  /** YYYY-MM-DD, or empty/null to clear (an undated flexible offer). */
+  slotDate?: string | null;
+  /** HH:MM (24h), or empty/null to clear. */
+  slotTime?: string | null;
+  customLabel?: string | null;
+  notes?: string | null;
+  /** Meal tasks only; ignored on other types. */
+  dietaryNotes?: string | null;
+  /** Meal tasks only; ignored on other types. */
+  headcount?: number | null;
+  flexibility?: SlotFlexibility;
 }
 
 export interface AddContactRequest {
