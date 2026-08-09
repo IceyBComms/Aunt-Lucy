@@ -34,7 +34,7 @@ export const family = {
   cancelClaimed: {
     title: (task: string) => `Cancel ${task}?`,
     body: (helper: string) =>
-      `${helper} has this one. Aunt Lucy will thank them and let them know it's covered — you don't have to explain a thing.`,
+      `${helper} has this one. Aunt Lucy will thank them and let them know it's no longer needed — you don't have to explain a thing.`,
     keep: "Not yet",
     confirm: "Cancel the task",
   },
@@ -46,6 +46,17 @@ export const family = {
 // ─── Helper side (/release — the claim link) ─────────────────────────────────
 
 export const helper = {
+  /**
+   * Intro under the "Plans changed?" heading. Flexible copy is Kate's approved
+   * verbatim line. The fixed line mirrors it without the "nudge the time" clause
+   * (a fixed time isn't the helper's to move) — no verbatim fixed line was
+   * supplied, so this is the obvious parallel; flagged in the PR for confirmation.
+   */
+  introFlexible: (recipientFirstName: string) =>
+    `No problem. Nudge the time, leave a note or cancel if need be — Aunt Lucy will let ${recipientFirstName} know.`,
+  introFixed: (recipientFirstName: string) =>
+    `No problem. Leave a note or cancel if need be — Aunt Lucy will let ${recipientFirstName} know.`,
+
   /** Flexible tasks: reschedule the time of day (same day). */
   reschedule: {
     label: "Need a different time?",
@@ -57,19 +68,30 @@ export const helper = {
 
   /** Fixed tasks: leave a note (the time is not the helper's to move). */
   fixedNote: {
-    body:
-      "Plans shifting? Leave a note and Aunt Lucy will pass it on. If the time no longer works, you can bow out below — no drama, it just goes back on the list.",
+    lead: "Plans shifting? Leave a note and Aunt Lucy will pass it on.",
+    /** Shown near the cancel control on a fixed task — the time is sensitive. */
+    cancelBlurb: (task: string, recipientFirstName: string) =>
+      `Plans changed and you can't do ${task}? This one's time sensitive so the sooner you cancel the better — Aunt Lucy will text ${recipientFirstName} straight away, so they've got time to make another plan.`,
     button: "Pass it on",
   },
 
   /** Shown if a helper tries to move a flexible task to a different day. */
   dateChangeGuardrail: (organiser: string) =>
-    `Different day? That one's worth a quick word with ${organiser} — or bow out and the task goes back on the list.`,
+    `Different day? That one's worth a quick word with ${organiser} — or cancel and the task goes back on the list.`,
+
+  /** Give-up-the-task buttons. "Bow out" is retired from all helper-facing UI. */
+  cancelButtonFixed: "Cancel — Aunt Lucy will text them now",
+  cancelButtonFlexible: "Cancel — put it back on the list",
+  cancelButtonBusy: "Cancelling…",
 
   /** The "n / 200" character counter under a note field. */
   noteCounter: (n: number) => `${n} / 200`,
 
+  /** After a reschedule or a note (flexible cancel keeps its own screen). */
   confirmation: "Done — they'll know.",
+  /** After cancelling a FIXED task — the recipient has been texted. */
+  confirmationFixedCancel: (recipientFirstName: string) =>
+    `Done — ${recipientFirstName} has the message. Thank you for the early word; it's what gives them time to sort another plan.`,
 
   errors: {
     noteTooLong: "That note's a little long — please shorten it.",

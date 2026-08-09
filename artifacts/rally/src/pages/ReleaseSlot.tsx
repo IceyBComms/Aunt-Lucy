@@ -41,7 +41,7 @@ const SLOT_TYPE_LABELS: Record<string, { icon: string; label: string }> = {
 
 function formatTime(timeStr: string): string {
   const [h, min] = timeStr.split(":").map(Number);
-  const ampm = h >= 12 ? "PM" : "AM";
+  const ampm = h >= 12 ? "pm" : "am";
   const h12 = h % 12 || 12;
   return `${h12}:${String(min).padStart(2, "0")} ${ampm}`;
 }
@@ -158,13 +158,31 @@ export default function ReleaseSlot() {
   const { slot, page } = details;
   const slotMeta = SLOT_TYPE_LABELS[slot.slotType] ?? SLOT_TYPE_LABELS.other;
   const slotLabel = slot.customLabel || slotMeta.label;
+  const recipientFirstName = page.recipientName.split(/\s+/)[0] || page.recipientName;
   // Undated slots are flexible offers — show words, not a fabricated date.
+  // Australian format: "Saturday 15 August" (day before month), not US month-first.
   const formattedDate = slot.slotDate
-    ? format(parseISO(slot.slotDate), "EEEE, MMMM d")
+    ? format(parseISO(slot.slotDate), "EEEE d MMMM")
     : null;
   const formattedTime = slot.slotDate && slot.slotTime ? formatTime(slot.slotTime) : null;
 
   if (released) {
+    // Fixed tasks are time-sensitive: the recipient has just been texted, so the
+    // confirmation says so. Flexible keeps the original "it's open again" wording.
+    if (slot.flexibility === "fixed") {
+      return (
+        <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6">
+          <div className="w-full max-w-sm text-center">
+            <div className="w-20 h-20 bg-primary/10 rounded-3xl flex items-center justify-center mx-auto mb-6">
+              <HeartHandshake className="w-10 h-10 text-primary" />
+            </div>
+            <p className="font-serif text-xl font-semibold text-foreground leading-relaxed">
+              {copy.confirmationFixedCancel(recipientFirstName)}
+            </p>
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6">
         <div className="w-full max-w-sm text-center">
@@ -195,9 +213,9 @@ export default function ReleaseSlot() {
             Plans changed?
           </h1>
           <p className="text-white/80 leading-relaxed">
-            No drama at all. {slot.flexibility === "flexible" ? "Nudge the time, leave" : "Leave"} a
-            note, or bow out — whatever suits — and Aunt Lucy will let{" "}
-            <strong className="text-white">{page.recipientName}</strong> know.
+            {slot.flexibility === "flexible"
+              ? copy.introFlexible(recipientFirstName)
+              : copy.introFixed(recipientFirstName)}
           </p>
         </div>
       </div>
@@ -216,7 +234,7 @@ export default function ReleaseSlot() {
               <p className="text-sm text-muted-foreground flex items-center gap-1.5">
                 <Clock className="w-3.5 h-3.5" />
                 {formattedDate ?? "Whenever suits"}
-                {formattedTime && ` • ${formattedTime}`}
+                {formattedTime && `, ${formattedTime}`}
               </p>
             </div>
           </div>
@@ -276,13 +294,13 @@ export default function ReleaseSlot() {
               {submitting === "time" ? copy.reschedule.buttonBusy : copy.reschedule.button}
             </Button>
             <p className="text-xs text-muted-foreground leading-relaxed">
-              {copy.dateChangeGuardrail(page.recipientName)}
+              {copy.dateChangeGuardrail(recipientFirstName)}
             </p>
           </div>
         ) : (
           <div className="bg-card rounded-3xl border border-border/50 shadow-sm p-5 space-y-3">
             <p className="text-sm text-muted-foreground leading-relaxed">
-              {copy.fixedNote.body}
+              {copy.fixedNote.lead}
             </p>
             <div>
               <textarea
@@ -314,15 +332,26 @@ export default function ReleaseSlot() {
         )}
 
         {!passedOn && (
-          <Button
-            size="lg"
-            variant="destructive"
-            className="w-full font-serif text-base"
-            onClick={handleRelease}
-            disabled={isReleasing}
-          >
-            {isReleasing ? "Releasing…" : "Bow out — put it back on the list"}
-          </Button>
+          <>
+            {slot.flexibility === "fixed" && (
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                {copy.fixedNote.cancelBlurb(slotLabel, recipientFirstName)}
+              </p>
+            )}
+            <Button
+              size="lg"
+              variant="destructive"
+              className="w-full font-serif text-base"
+              onClick={handleRelease}
+              disabled={isReleasing}
+            >
+              {isReleasing
+                ? copy.cancelButtonBusy
+                : slot.flexibility === "fixed"
+                  ? copy.cancelButtonFixed
+                  : copy.cancelButtonFlexible}
+            </Button>
+          </>
         )}
 
         <p className="text-center text-xs text-muted-foreground">

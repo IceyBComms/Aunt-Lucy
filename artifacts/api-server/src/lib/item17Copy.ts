@@ -93,8 +93,8 @@ export function helperTaskCancelledStandard(params: {
   pageLink: string;
 }): string {
   return (
-    `Hi ${params.helperFirstName} — ${params.task} for ${params.recipientFirstName} is covered now, ` +
-    `and there's nothing more needed from you. Thank you for putting your hand up; it counted. ` +
+    `Hi ${params.helperFirstName} — plans have changed and ${params.task} for ${params.recipientFirstName} ` +
+    `isn't needed after all — there's nothing more for you to do. Thank you for putting your hand up; it counted. ` +
     `If you'd like to see what else would help: ${params.pageLink}`
   );
 }
@@ -107,8 +107,8 @@ export function helperTaskCancelledBereavement(params: {
   pageLink: string;
 }): string {
   return (
-    `Hi ${params.helperFirstName} — a small update: ${params.task} for ${params.recipientFirstName} ` +
-    `is taken care of now. Thank you for being there for them. ` +
+    `Hi ${params.helperFirstName} — a small update: plans have changed and ${params.task} for ${params.recipientFirstName} ` +
+    `isn't needed after all. Thank you for being there for them. ` +
     `The page is here if you'd like to see what else would help: ${params.pageLink}`
   );
 }
