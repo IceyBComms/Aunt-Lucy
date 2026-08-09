@@ -246,7 +246,6 @@ export async function sendMagicLink({ to, magicLink }: MagicLinkParams): Promise
         <tr><td bgcolor="#E76F51" style="background-color:#E76F51;padding:26px 32px;">
           <img src="https://auntlucy.com.au/brand/png/aunt-lucy-lockup-horizontal-reversed-1600.png" alt="Aunt Lucy" width="280" height="69" style="display:block;width:280px;height:69px;max-width:100%;border:0;outline:none;text-decoration:none;color:#ffffff;font-size:22px;font-weight:600;" />
         </td></tr>
-        <tr><td bgcolor="#2D6A4F" style="background-color:#2D6A4F;font-size:0;line-height:0;height:5px;">&nbsp;</td></tr>
         <tr><td style="padding:32px;">
           <p style="margin:0 0 20px;color:#333;font-size:16px;line-height:1.6;">Hi there,</p>
           <p style="margin:0 0 24px;color:#333;font-size:16px;line-height:1.6;">
@@ -800,7 +799,6 @@ function renderGiftLayout(params: {
         <tr><td bgcolor="#E76F51" style="background-color:#E76F51;padding:26px 32px;">
           <img src="https://auntlucy.com.au/brand/png/aunt-lucy-lockup-horizontal-reversed-1600.png" alt="Aunt Lucy" width="280" height="69" style="display:block;width:280px;height:69px;max-width:100%;border:0;outline:none;text-decoration:none;color:#ffffff;font-size:22px;font-weight:600;" />
         </td></tr>
-        <tr><td bgcolor="#2D6A4F" style="background-color:#2D6A4F;font-size:0;line-height:0;height:5px;">&nbsp;</td></tr>
         <tr><td style="padding:32px;">
 ${params.contentHtml}
         </td></tr>
@@ -1077,45 +1075,56 @@ export interface GiftDeliveryParams {
   buyerFirstName: string;
   giftLink: string;
   /**
-   * The gift's occasion (gift_occasion enum value), used to choose the opening
-   * line. Optional/null-safe: any unmapped or unknown value falls back to the
-   * neutral line — new-baby copy is never the default (Bug #010).
+   * The gift's occasion (gift_occasion enum value), used to choose the body
+   * paragraph. Optional/null-safe: any unmapped or unknown value falls back to
+   * the neutral paragraph — new-baby copy is never the default (Bug #010).
    */
   occasion?: string | null;
 }
 
 /**
- * The gift-delivery opening line, chosen by occasion. Verbatim, Kate-approved
- * copy (Bug #010). The fallback MUST be the default for any unmapped, unknown
- * or null occasion — a gift for illness must never open with new-baby words.
- * `surgery` shares the illness/recovery line so a future enum value is covered
- * without a code change.
+ * The gift-delivery body paragraph, chosen by occasion. Verbatim, Kate-approved
+ * copy (Bug #010). A single combined paragraph — the occasion sets the opening
+ * clause and names the giver as the actor ("«Name» has set up a page so the
+ * people who love you can…"), so "they/them" never stands in for the giver.
+ * The fallback MUST be the default for any unmapped, unknown or null occasion —
+ * a gift for illness must never open with new-baby words. `surgery` shares the
+ * illness/recovery paragraph so a future enum value is covered without a code
+ * change. `giverName` is interpolated as-is: pass an HTML-escaped name for the
+ * HTML body, the raw name for the plain-text body.
  */
-function giftDeliveryOpeningLine(occasion?: string | null): string {
+function giftDeliveryParagraph(
+  occasion: string | null | undefined,
+  giverName: string,
+): string {
   switch (occasion) {
     case "new_baby":
-      return "A tiny new person has arrived in your world, and someone who loves you wants to make the first few busy weeks a little easier.";
+      return `A tiny new person has arrived in your world. ${giverName} has set up a page so the people who love you can make the first few busy weeks a little easier — meals, the school run, a friendly face — without you having to ask or organise a thing.`;
     case "illness_recovery":
     case "surgery":
-      return "While you focus on getting better, someone who loves you has organised the rest.";
+      return `While you focus on getting better, ${giverName} has set up a page so the people who love you can take care of the rest — meals, the school run, a friendly face — without you having to ask or organise a thing.`;
     case "bereavement":
-      return "There are no right words for a time like this. Someone who loves you wants to quietly take a few things off your plate, so you don't have to ask.";
+      return `There are no right words for a time like this. ${giverName} has set up a page so the people who love you can quietly take a few things off your plate — meals, the school run, a friendly face — without you having to ask or organise a thing.`;
     default:
-      return "Life's thrown a lot at you lately. Someone who loves you wants to help carry some of it.";
+      return `Life's thrown a lot at you lately. ${giverName} has set up a page so the people who love you can help carry some of it — meals, the school run, a friendly face — without you having to ask or organise a thing.`;
   }
 }
 
 export function buildGiftDeliveryEmail(params: GiftDeliveryParams): RenderedEmail {
-  const openingLine = giftDeliveryOpeningLine(params.occasion);
+  const bodyParagraphHtml = giftDeliveryParagraph(
+    params.occasion,
+    escapeHtml(params.buyerFirstName),
+  );
+  const bodyParagraphText = giftDeliveryParagraph(
+    params.occasion,
+    params.buyerFirstName,
+  );
 
   const contentHtml = `          <p style="margin:0 0 20px;color:#333;font-size:16px;line-height:1.6;">
             Hi ${escapeHtml(params.recipientFirstName)},
           </p>
-          <p style="margin:0 0 20px;color:#333;font-size:18px;line-height:1.6;">
-            ${escapeHtml(openingLine)}
-          </p>
           <p style="margin:0 0 20px;color:#333;font-size:16px;line-height:1.6;">
-            The people who love you want to give you a hand, so ${escapeHtml(params.buyerFirstName)} set up a page where they can help with the everyday stuff — meals, the school run, a friendly face — without you having to ask or organise a thing.
+            ${bodyParagraphHtml}
           </p>
           <p style="margin:0 0 24px;color:#333;font-size:16px;line-height:1.6;">
             All you need to do is take a look when you're ready.
@@ -1131,9 +1140,7 @@ export function buildGiftDeliveryEmail(params: GiftDeliveryParams): RenderedEmai
   const text = [
     `Hi ${params.recipientFirstName},`,
     ``,
-    openingLine,
-    ``,
-    `The people who love you want to give you a hand, so ${params.buyerFirstName} set up a page where they can help with the everyday stuff — meals, the school run, a friendly face — without you having to ask or organise a thing.`,
+    bodyParagraphText,
     ``,
     `All you need to do is take a look when you're ready.`,
     ``,
