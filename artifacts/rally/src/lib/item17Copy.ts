@@ -87,11 +87,23 @@ export const helper = {
   /** The "n / 200" character counter under a note field. */
   noteCounter: (n: number) => `${n} / 200`,
 
-  /** After a reschedule or a note (flexible cancel keeps its own screen). */
+  /** After a reschedule or a note. */
   confirmation: "Done — they'll know.",
   /** After cancelling a FIXED task — the recipient has been texted. */
   confirmationFixedCancel: (recipientFirstName: string) =>
     `Done — ${recipientFirstName} has the message. Thank you for the early word; it's what gives them time to sort another plan.`,
+  /** After cancelling a FLEXIBLE task — the slot just goes back on the list. */
+  confirmationFlexibleCancel: (recipientFirstName: string) =>
+    `Thanks — Aunt Lucy will free up the slot for someone else and let ${recipientFirstName} know.`,
+
+  /**
+   * Reassurance beside the cancel control about what happens if they cancel.
+   * Fixed is time-sensitive (a text goes straight away); flexible just reopens.
+   */
+  footerFixed: (recipientFirstName: string) =>
+    `${recipientFirstName} will get a text straight away, so another plan can get moving.`,
+  footerFlexible: (recipientFirstName: string) =>
+    `No fuss — the slot goes back on the list and Aunt Lucy quietly lets ${recipientFirstName} know.`,
 
   errors: {
     noteTooLong: "That note's a little long — please shorten it.",

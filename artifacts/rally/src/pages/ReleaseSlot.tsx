@@ -189,15 +189,8 @@ export default function ReleaseSlot() {
           <div className="w-20 h-20 bg-primary/10 rounded-3xl flex items-center justify-center mx-auto mb-6">
             <HeartHandshake className="w-10 h-10 text-primary" />
           </div>
-          <h1 className="font-serif text-2xl font-bold text-foreground mb-3">
-            All done — it's open again
-          </h1>
-          <p className="text-muted-foreground leading-relaxed mb-2">
-            Thanks for letting us know. <strong>{slotLabel}</strong> is back on{" "}
-            {page.recipientName}'s page for someone else to pick up.
-          </p>
-          <p className="text-muted-foreground text-sm leading-relaxed">
-            No hard feelings at all — life happens. Thank you for wanting to help.
+          <p className="font-serif text-xl font-semibold text-foreground leading-relaxed">
+            {copy.confirmationFlexibleCancel(recipientFirstName)}
           </p>
         </div>
       </div>
@@ -351,13 +344,13 @@ export default function ReleaseSlot() {
                   ? copy.cancelButtonFixed
                   : copy.cancelButtonFlexible}
             </Button>
+            <p className="text-center text-xs text-muted-foreground">
+              {slot.flexibility === "fixed"
+                ? copy.footerFixed(recipientFirstName)
+                : copy.footerFlexible(recipientFirstName)}
+            </p>
           </>
         )}
-
-        <p className="text-center text-xs text-muted-foreground">
-          {page.recipientName} won't see any fuss — just that the slot's open
-          again. You can still claim another slot any time.
-        </p>
       </div>
     </div>
   );
