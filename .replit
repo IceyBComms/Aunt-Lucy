@@ -28,7 +28,7 @@ timeoutMs = 20000
 [userenv]
 
 [userenv.shared]
-ADMIN_EMAIL = "kate@icebreakercommunications.com"
+ADMIN_EMAIL = "hello@auntlucy.com.au"
 APP_URL = "https://auntlucy.com.au"
 
 [nix]
