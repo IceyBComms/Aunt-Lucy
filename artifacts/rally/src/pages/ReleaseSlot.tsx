@@ -26,6 +26,7 @@ interface ReleaseDetails {
   page: {
     recipientName: string;
     location: string | null;
+    slug: string;
   };
 }
 
@@ -180,6 +181,12 @@ export default function ReleaseSlot() {
             <p className="font-serif text-xl font-semibold text-foreground leading-relaxed">
               {copy.confirmationFixedCancel(recipientFirstName)}
             </p>
+            <a
+              href={`/s/${page.slug}`}
+              className="mt-5 inline-block text-sm text-primary underline underline-offset-4 hover:opacity-80"
+            >
+              {copy.seeElseLink}
+            </a>
           </div>
         </div>
       );
@@ -193,6 +200,12 @@ export default function ReleaseSlot() {
           <p className="font-serif text-xl font-semibold text-foreground leading-relaxed">
             {copy.confirmationFlexibleCancel(recipientFirstName)}
           </p>
+          <a
+            href={`/s/${page.slug}`}
+            className="mt-5 inline-block text-sm text-primary underline underline-offset-4 hover:opacity-80"
+          >
+            {copy.seeElseLink}
+          </a>
         </div>
       </div>
     );
@@ -334,7 +347,7 @@ export default function ReleaseSlot() {
             )}
             <Button
               size="lg"
-              variant="destructive"
+              variant="outline"
               className="w-full font-serif text-base"
               onClick={handleRelease}
               disabled={isReleasing}

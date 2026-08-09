@@ -61,7 +61,8 @@ export const helper = {
   reschedule: {
     label: "Need a different time?",
     help: "Nudge it and Aunt Lucy will let them know.",
-    notePlaceholder: "More like 6 — hope that's OK",
+    // "6pm" not a bare "6" — on a meal task a lone number reads as a headcount.
+    notePlaceholder: "More like 6pm — hope that's OK",
     button: "Update my time",
     buttonBusy: "Updating…",
   },
@@ -83,6 +84,13 @@ export const helper = {
   cancelButtonFixed: "Cancel — Aunt Lucy will text them now",
   cancelButtonFlexible: "Cancel — put it back on the list",
   cancelButtonBusy: "Cancelling…",
+
+  /**
+   * A quiet "open door" link on the post-cancel confirmation, to the page's
+   * public share page. Same wording on every occasion (echoes the "see what else
+   * would help" phrase from the cancellation messages). Never a push.
+   */
+  seeElseLink: "If another time or task suits better — see what else would help →",
 
   /** The "n / 200" character counter under a note field. */
   noteCounter: (n: number) => `${n} / 200`,

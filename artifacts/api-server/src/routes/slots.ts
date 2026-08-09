@@ -206,6 +206,9 @@ router.get("/slots/release/:token", async (req, res) => {
     page: {
       recipientName: page.recipientName,
       location: page.location,
+      // Public share slug — powers the "see what else would help" link on the
+      // post-cancel confirmation. Public by design (it's the /s/:slug URL).
+      slug: page.slug,
     },
   });
 });
