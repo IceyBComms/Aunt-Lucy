@@ -243,10 +243,10 @@ export async function sendMagicLink({ to, magicLink }: MagicLinkParams): Promise
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#FAF7F2;">
     <tr><td align="center" style="padding:40px 16px;">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
-        <tr><td bgcolor="#2D6A4F" style="background-color:#2D6A4F;padding:26px 32px;">
+        <tr><td bgcolor="#E76F51" style="background-color:#E76F51;padding:26px 32px;">
           <img src="https://auntlucy.com.au/brand/png/aunt-lucy-lockup-horizontal-reversed-1600.png" alt="Aunt Lucy" width="280" height="69" style="display:block;width:280px;height:69px;max-width:100%;border:0;outline:none;text-decoration:none;color:#ffffff;font-size:22px;font-weight:600;" />
         </td></tr>
-        <tr><td bgcolor="#E76F51" style="background-color:#E76F51;font-size:0;line-height:0;height:5px;">&nbsp;</td></tr>
+        <tr><td bgcolor="#2D6A4F" style="background-color:#2D6A4F;font-size:0;line-height:0;height:5px;">&nbsp;</td></tr>
         <tr><td style="padding:32px;">
           <p style="margin:0 0 20px;color:#333;font-size:16px;line-height:1.6;">Hi there,</p>
           <p style="margin:0 0 24px;color:#333;font-size:16px;line-height:1.6;">
@@ -797,10 +797,10 @@ function renderGiftLayout(params: {
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#FAF7F2;">
     <tr><td align="center" style="padding:40px 16px;">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
-        <tr><td bgcolor="#2D6A4F" style="background-color:#2D6A4F;padding:26px 32px;">
+        <tr><td bgcolor="#E76F51" style="background-color:#E76F51;padding:26px 32px;">
           <img src="https://auntlucy.com.au/brand/png/aunt-lucy-lockup-horizontal-reversed-1600.png" alt="Aunt Lucy" width="280" height="69" style="display:block;width:280px;height:69px;max-width:100%;border:0;outline:none;text-decoration:none;color:#ffffff;font-size:22px;font-weight:600;" />
         </td></tr>
-        <tr><td bgcolor="#E76F51" style="background-color:#E76F51;font-size:0;line-height:0;height:5px;">&nbsp;</td></tr>
+        <tr><td bgcolor="#2D6A4F" style="background-color:#2D6A4F;font-size:0;line-height:0;height:5px;">&nbsp;</td></tr>
         <tr><td style="padding:32px;">
 ${params.contentHtml}
         </td></tr>
@@ -1115,7 +1115,7 @@ export function buildGiftDeliveryEmail(params: GiftDeliveryParams): RenderedEmai
             ${escapeHtml(openingLine)}
           </p>
           <p style="margin:0 0 20px;color:#333;font-size:16px;line-height:1.6;">
-            ${escapeHtml(params.buyerFirstName)} wanted to do something genuinely useful. They've set up a page so the people who care about you can help with the everyday stuff — meals, the school run, a friendly face — without you having to ask or organise a thing.
+            The people who love you want to give you a hand, so ${escapeHtml(params.buyerFirstName)} set up a page where they can help with the everyday stuff — meals, the school run, a friendly face — without you having to ask or organise a thing.
           </p>
           <p style="margin:0 0 24px;color:#333;font-size:16px;line-height:1.6;">
             All you need to do is take a look when you're ready.
@@ -1133,7 +1133,7 @@ export function buildGiftDeliveryEmail(params: GiftDeliveryParams): RenderedEmai
     ``,
     openingLine,
     ``,
-    `${params.buyerFirstName} wanted to do something genuinely useful. They've set up a page so the people who care about you can help with the everyday stuff — meals, the school run, a friendly face — without you having to ask or organise a thing.`,
+    `The people who love you want to give you a hand, so ${params.buyerFirstName} set up a page where they can help with the everyday stuff — meals, the school run, a friendly face — without you having to ask or organise a thing.`,
     ``,
     `All you need to do is take a look when you're ready.`,
     ``,
