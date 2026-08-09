@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { db, contactsTable } from "@workspace/db";
 import { and, eq, isNull } from "drizzle-orm";
 import { logger } from "../lib/logger";
+import { inboundWebhookUrl, verifyTwilioRequest } from "../lib/twilioSignature";
 
 const router: IRouter = Router();
 
@@ -27,8 +28,35 @@ const STOP_KEYWORDS = new Set([
  * keeps our own outbox from even trying.
  *
  * Responds with empty TwiML so Twilio sends no automatic reply of its own.
+ *
+ * Fail closed: the request must carry a valid x-twilio-signature computed by
+ * Twilio (see twilioSignature.ts). Without one, a forged POST could suppress any
+ * contact, so an unverified request gets a 403 and the body is ignored. The
+ * verified STOP path below is unchanged.
  */
 router.post("/twilio/inbound", async (req, res) => {
+  const verification = verifyTwilioRequest(
+    req.headers["x-twilio-signature"],
+    inboundWebhookUrl(),
+    req.body,
+  );
+  if (!verification.ok) {
+    if (verification.reason === "not_configured") {
+      logger.error(
+        "TWILIO_AUTH_TOKEN not set — inbound SMS webhook cannot verify signatures; rejecting request",
+      );
+    } else {
+      // Deliberately no phone number here — this is the reject path and the PII
+      // cleanup for this file is already queued.
+      logger.warn(
+        { reason: verification.reason },
+        "Rejected inbound Twilio webhook — signature check failed",
+      );
+    }
+    res.status(403).set("Content-Type", "text/xml").send("<Response></Response>");
+    return;
+  }
+
   const from = typeof req.body?.From === "string" ? req.body.From.trim() : "";
   const bodyText = typeof req.body?.Body === "string" ? req.body.Body.trim().toLowerCase() : "";
 
