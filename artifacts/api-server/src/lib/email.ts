@@ -73,6 +73,10 @@ interface ClaimEmailParams {
   // claim, so it needs no account. Optional so older callers still compile; when
   // absent the email simply omits the release line.
   releaseUrl?: string | null;
+  // The helper's private "Add to your calendar" (.ics subscribe) link. Unique to
+  // this claim, passed only for dated tasks. Optional; when absent the email
+  // omits the calendar line.
+  calendarUrl?: string | null;
 }
 
 function buildHtml(params: ClaimEmailParams): string {
@@ -88,6 +92,7 @@ function buildHtml(params: ClaimEmailParams): string {
     headcount,
     location,
     releaseUrl,
+    calendarUrl,
   } = params;
 
   const typeLabel = customLabel || SLOT_TYPE_LABELS[slotType] || "Helping out";
@@ -97,6 +102,14 @@ function buildHtml(params: ClaimEmailParams): string {
   const dateTimeLine = timeFormatted
     ? `${dateFormatted} at ${timeFormatted}`
     : dateFormatted;
+
+  // "Add to your calendar" — rendered only for dated tasks (the caller passes
+  // calendarUrl only then). SUGGESTED COPY — Kate to bless final wording.
+  const calendarBlock = calendarUrl
+    ? `<p style="margin:0 0 8px;color:#333;font-size:16px;line-height:1.6;">
+            📅 <a href="${escapeHtml(calendarUrl)}" style="color:#7C9A72;font-weight:600;">Add this to your calendar</a> so it's there when you need it — it'll update if the time changes.
+          </p>`
+    : "";
 
   // A gentle, no-guilt way out if plans change. Rendered only when a release
   // link is present.
@@ -152,6 +165,7 @@ function buildHtml(params: ClaimEmailParams): string {
           <p style="margin:0 0 8px;color:#333;font-size:16px;line-height:1.6;">
             If anything changes, just let the person looking after the page know.
           </p>
+          ${calendarBlock}
           ${releaseBlock}
           <p style="margin:24px 0 0;color:#7C9A72;font-size:15px;line-height:1.6;">
             Warmly,<br>The Aunt Lucy Team
@@ -180,6 +194,7 @@ function buildPlainText(params: ClaimEmailParams): string {
     headcount,
     location,
     releaseUrl,
+    calendarUrl,
   } = params;
 
   const typeLabel = customLabel || SLOT_TYPE_LABELS[slotType] || "Helping out";
@@ -200,6 +215,10 @@ function buildPlainText(params: ClaimEmailParams): string {
   if (location) text += `Location: ${location}\n`;
   if (notes) text += `Notes: ${notes}\n`;
   text += `\nIf anything changes, just let the person looking after the page know.\n`;
+  if (calendarUrl) {
+    // SUGGESTED COPY — Kate to bless final wording.
+    text += `\nAdd this to your calendar so it's there when you need it (it'll update if the time changes):\n${calendarUrl}\n`;
+  }
   if (releaseUrl) {
     text += `\nCan't make it after all? No worries at all — release this slot so someone else can pick it up:\n${releaseUrl}\n`;
   }

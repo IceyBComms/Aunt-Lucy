@@ -8,6 +8,7 @@ import { sendHelperInviteEmail } from "../lib/email";
 import { logger } from "../lib/logger";
 import { getAppBaseUrl } from "../lib/appUrl";
 import { firstName } from "../lib/giftFulfilment";
+import { calendarSubscribeUrl } from "../lib/calendarFeed";
 import {
   resolvePronouns,
   applyPronounTokens,
@@ -246,6 +247,9 @@ router.post("/invite/:token/claim", async (req, res) => {
   // trusted helper releases their slot the same way anyone else does (the
   // release endpoint only ever touches the slot, never this invite row).
   const cancelToken = crypto.randomBytes(24).toString("hex");
+  // Sibling calendar-feed handle, minted on the same claim as the public path
+  // (see slots.ts). Survives release so the feed can render STATUS:CANCELLED.
+  const calendarToken = crypto.randomBytes(24).toString("hex");
 
   const claimed = await db
     .update(slotsTable)
@@ -259,6 +263,7 @@ router.post("/invite/:token/claim", async (req, res) => {
       // does.
       claimedNameVisible: showName === true,
       cancelToken,
+      calendarToken,
     })
     .where(and(eq(slotsTable.id, invite.slotId!), eq(slotsTable.isClaimed, false)))
     .returning();
@@ -279,8 +284,15 @@ router.post("/invite/:token/claim", async (req, res) => {
 
   // Hand back the release token so the confirmed screen can offer a "Can't make
   // it?" link, matching the public path. It's the helper's own handle to the
-  // claim they just made.
-  res.json({ ok: true, claimedByName: invite.name, cancelToken });
+  // claim they just made. calendarUrl is the webcal:// subscribe form, given
+  // only for a dated task (an undated offer isn't an appointment); the confirmed
+  // screen shows an "Add to your calendar" link when present.
+  res.json({
+    ok: true,
+    claimedByName: invite.name,
+    cancelToken,
+    calendarUrl: claimed[0].slotDate ? calendarSubscribeUrl(calendarToken) : null,
+  });
 });
 
 export default router;

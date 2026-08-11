@@ -5,6 +5,7 @@ import { eq, and, sql } from "drizzle-orm";
 import { sendClaimConfirmation } from "../lib/email";
 import { verifyPin } from "../lib/pin";
 import { getAppBaseUrl } from "../lib/appUrl";
+import { calendarSubscribeUrl } from "../lib/calendarFeed";
 import { logger } from "../lib/logger";
 import { notifyRecipientOfTaskEvent, shareLinkFor } from "../lib/item17Notify";
 import {
@@ -19,8 +20,8 @@ import {
 
 const router: IRouter = Router();
 
-/** The helper's private release handle, minted fresh on every claim. */
-function mintCancelToken(): string {
+/** A helper's private handle, minted fresh on every claim (release + calendar). */
+function mintToken(): string {
   return crypto.randomBytes(24).toString("hex");
 }
 
@@ -88,7 +89,11 @@ router.post("/slots/:slotId/claim", async (req, res) => {
     }
   }
 
-  const cancelToken = mintCancelToken();
+  const cancelToken = mintToken();
+  // Sibling of cancelToken, minted on the same claim: the private handle to this
+  // claim's subscribable .ics feed. Unlike cancelToken it survives a release, so
+  // a subscribed calendar can later be told STATUS:CANCELLED (see calendarFeed).
+  const calendarToken = mintToken();
 
   // Atomic conditional update: only update if is_claimed = false.
   // Prevents race conditions where two helpers claim simultaneously.
@@ -108,6 +113,8 @@ router.post("/slots/:slotId/claim", async (req, res) => {
       // Rotating it on every claim means an old link can never touch a re-taken
       // slot.
       cancelToken,
+      // Fresh calendar-feed handle for this claim (GET /api/calendar/:token.ics).
+      calendarToken,
     })
     .where(and(eq(slotsTable.id, slot.id), eq(slotsTable.isClaimed, false)))
     .returning();
@@ -134,6 +141,10 @@ router.post("/slots/:slotId/claim", async (req, res) => {
     // The one-tap "Can't make it? Release this slot" link. Its token is unique
     // to this claim, so it's the helper's own handle and needs no account.
     releaseUrl: `${getAppBaseUrl()}/release/${cancelToken}`,
+    // "Add to your calendar" — the webcal:// subscribe form so a later time
+    // change or cancellation propagates. Only for dated tasks: an undated
+    // "whenever suits" offer isn't an appointment, so it gets no calendar link.
+    calendarUrl: row.slotDate ? calendarSubscribeUrl(calendarToken) : null,
   });
 
   res.json({
