@@ -446,6 +446,12 @@ export default function Employers() {
             >
               Privacy policy
             </button>
+            <button
+              onClick={() => setLocation("/terms")}
+              className="underline underline-offset-2 hover:text-foreground transition-colors"
+            >
+              Terms &amp; refunds
+            </button>
           </div>
         </div>
       </footer>

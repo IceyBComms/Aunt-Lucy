@@ -27,6 +27,7 @@ import HardestTimes from "@/pages/HardestTimes";
 import PilotApply from "@/pages/PilotApply";
 import OrganisePilotApplications from "@/pages/OrganisePilotApplications";
 import PrivacyPolicy from "@/pages/PrivacyPolicy";
+import TermsOfService from "@/pages/TermsOfService";
 import { useUmami } from "@/lib/umami";
 
 const queryClient = new QueryClient();
@@ -94,6 +95,9 @@ function Router() {
 
       {/* Privacy policy */}
       <Route path="/privacy" component={PrivacyPolicy} />
+
+      {/* Terms of Service (includes the Refund & Cancellation Policy at #refund) */}
+      <Route path="/terms" component={TermsOfService} />
 
       <Route component={NotFound} />
     </Switch>
