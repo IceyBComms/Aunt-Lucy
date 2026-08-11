@@ -322,6 +322,12 @@ export default function Home() {
             >
               Privacy policy
             </button>
+            <button
+              onClick={() => setLocation("/terms")}
+              className="underline underline-offset-2 hover:text-foreground transition-colors"
+            >
+              Terms &amp; Refunds
+            </button>
           </div>
         </div>
       </footer>
