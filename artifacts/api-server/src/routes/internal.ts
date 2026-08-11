@@ -356,7 +356,7 @@ router.post("/internal/dispatch-invites", async (req, res) => {
     const recipientFirstName = firstName(page.recipientName);
     const pronounsEnum = page.recipientPronouns as RecipientPronouns;
     const situationLine = applyPronounTokens(
-      page.situationLine ?? defaultSituationLine(page.occasion ?? null),
+      page.situationLine ?? defaultSituationLine(page.occasion ?? null, page.babyStage),
       pronounsEnum,
     );
     const pronouns = resolvePronouns(pronounsEnum);
@@ -386,7 +386,10 @@ router.post("/internal/dispatch-invites", async (req, res) => {
         body = trustedInviteSms({
           helperFirstName,
           recipientFirstName,
-          trustedLine: applyPronounTokens(defaultTrustedLine(page.occasion ?? null), pronounsEnum),
+          trustedLine: applyPronounTokens(
+            page.trustedLine ?? defaultTrustedLine(page.occasion ?? null, page.babyStage),
+            pronounsEnum,
+          ),
           pronounPoss: pronouns.poss,
           link: `${base}/invite/${invite.inviteToken}`,
           openingLine,

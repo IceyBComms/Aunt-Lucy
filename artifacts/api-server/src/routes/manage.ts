@@ -45,11 +45,13 @@ import {
   generalInviteEmailSubject,
   generalInviteEmailText,
   type RecipientPronouns,
+  type BabyStage,
 } from "../lib/inviteCopy";
 
 const router: IRouter = Router();
 
 const PRONOUN_VALUES: readonly RecipientPronouns[] = ["she_her", "he_him", "they_them"];
+const BABY_STAGE_VALUES: readonly BabyStage[] = ["expecting", "arrived"];
 type InviteKind = "general" | "trusted" | "second_wave";
 const OPENER_MAX = 200;
 
@@ -99,7 +101,16 @@ router.get("/manage/:token", requireManagementToken as any, async (req, res) => 
     status: page.status,
     occasion: page.occasion ?? null,
     recipientPronouns: page.recipientPronouns,
-    situationLine: page.situationLine ?? defaultSituationLine(page.occasion ?? null),
+    // The RAW stored overrides (null = "using the default"), so the /manage form
+    // can render the field as empty-with-ghost-text rather than pre-filled. The
+    // *Default fields carry the occasion (and baby-stage) default wording the UI
+    // shows as that placeholder. Tokens ({poss}/{obj}) are left in — the client
+    // resolves them against recipientPronouns, same as the activation screen.
+    situationLine: page.situationLine,
+    situationLineDefault: defaultSituationLine(page.occasion ?? null, page.babyStage),
+    trustedLine: page.trustedLine,
+    trustedLineDefault: defaultTrustedLine(page.occasion ?? null, page.babyStage),
+    babyStage: page.babyStage,
     // Where the recipient is notified when help arrives — shown so they can add
     // or change it if they skipped it at activation.
     recipientEmail: page.recipientEmail ?? null,
@@ -170,6 +181,21 @@ router.patch("/manage/:token/details", requireManagementToken as any, async (req
   if (body.situationLine !== undefined) {
     patch.situationLine = trimmed(body.situationLine).slice(0, 120) || null;
   }
+  // The trusted "support circle" line override — same shape as situationLine:
+  // empty clears it back to the occasion/baby-stage default at send time.
+  if (body.trustedLine !== undefined) {
+    patch.trustedLine = trimmed(body.trustedLine).slice(0, 120) || null;
+  }
+  // new_baby only, but harmless elsewhere. A recognised value sets the stage; an
+  // empty/unrecognised value clears it back to null (stage-agnostic default).
+  // Flipping this after a page is live updates the default for invites sent from
+  // then on (set while pregnant → change once the baby's here).
+  if (body.babyStage !== undefined) {
+    const b = trimmed(body.babyStage);
+    patch.babyStage = (BABY_STAGE_VALUES as readonly string[]).includes(b)
+      ? (b as BabyStage)
+      : null;
+  }
   // Where claim notifications are sent — settable here for a recipient who
   // skipped it at activation. An empty value clears it; a non-empty value must
   // look like an email address.
@@ -198,6 +224,8 @@ router.patch("/manage/:token/details", requireManagementToken as any, async (req
   res.json({
     recipientPronouns: updated.recipientPronouns,
     situationLine: updated.situationLine,
+    trustedLine: updated.trustedLine,
+    babyStage: updated.babyStage,
     recipientEmail: updated.recipientEmail ?? null,
     recipientMobile: updated.recipientMobile ?? null,
   });
@@ -356,7 +384,7 @@ async function prepareInvite(
   const recipientFirstName = firstName(page.recipientName);
   // Resolve {poss}/{obj} pronoun tokens in the occasion lines.
   const situationLine = applyPronounTokens(
-    page.situationLine ?? defaultSituationLine(page.occasion ?? null),
+    page.situationLine ?? defaultSituationLine(page.occasion ?? null, page.babyStage),
     pronouns,
   );
   const openingLine = trimmed(req.openingLine).slice(0, OPENER_MAX) || null;
@@ -409,7 +437,10 @@ async function prepareInvite(
     body = trustedInviteSms({
       helperFirstName,
       recipientFirstName,
-      trustedLine: applyPronounTokens(defaultTrustedLine(page.occasion ?? null), pronouns),
+      trustedLine: applyPronounTokens(
+        page.trustedLine ?? defaultTrustedLine(page.occasion ?? null, page.babyStage),
+        pronouns,
+      ),
       pronounPoss: poss,
       link,
       openingLine,

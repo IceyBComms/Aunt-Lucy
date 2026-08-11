@@ -24,6 +24,7 @@ import {
   type SuggestedTask,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { situationHint, trustedHint } from "@/lib/inviteCopyHints";
 
 /** A task as the recipient is currently steering it, before activation. */
 interface DraftTask {
@@ -82,19 +83,6 @@ function prettyTime(hhmm: string): string {
   return `${h12}:${(mStr ?? "00").padStart(2, "0")} ${ampm}`;
 }
 
-/** Resolve {poss}/{obj} pronoun tokens in an occasion line for display. */
-function resolvePronounTokens(
-  line: string,
-  p: "she_her" | "he_him" | "they_them",
-): string {
-  const map = {
-    she_her: { poss: "her", obj: "her" },
-    he_him: { poss: "his", obj: "him" },
-    they_them: { poss: "their", obj: "them" },
-  }[p];
-  return line.replace(/\{poss\}/g, map.poss).replace(/\{obj\}/g, map.obj);
-}
-
 function todayIso(): string {
   const d = new Date();
   d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
@@ -120,8 +108,14 @@ export function GiftActivation({ token }: { token: string }) {
   const [pronouns, setPronouns] = useState<"she_her" | "he_him" | "they_them">(
     "they_them",
   );
+  // The two invite-copy lines. Both start empty and stay empty unless the
+  // recipient types over the ghost-text default — an untouched field sends null,
+  // so the occasion (and baby-stage) default is resolved live at send time.
   const [situationLine, setSituationLine] = useState("");
-  const [situationEdited, setSituationEdited] = useState(false);
+  const [trustedLine, setTrustedLine] = useState("");
+  // new_baby only: "has the baby arrived yet?" — optional, steers which default
+  // wording the two fields hint at. Null until answered.
+  const [babyStage, setBabyStage] = useState<"expecting" | "arrived" | null>(null);
   // Where to reach the recipient about their own page (Item 8). Prefilled from
   // the gift when we hold an email, asked for when we don't. Optional — skipping
   // just means notifications wait until an email is added later via /manage.
@@ -149,15 +143,6 @@ export function GiftActivation({ token }: { token: string }) {
       );
     }
   }, [data, tasks.length]);
-
-  // Seed the situation line from the occasion default the server suggests,
-  // resolving its {poss}/{obj} pronoun tokens for display. Re-resolves when the
-  // recipient changes their pronoun, until they hand-edit the line.
-  useEffect(() => {
-    if (data && !data.activated && data.situationLine && !situationEdited) {
-      setSituationLine(resolvePronounTokens(data.situationLine, pronouns));
-    }
-  }, [data, pronouns, situationEdited]);
 
   // Prefill the email from the one we already hold (from the gift), once.
   useEffect(() => {
@@ -303,6 +288,22 @@ export function GiftActivation({ token }: { token: string }) {
       </section>
     );
   }
+
+  // Ghost-text hints for the two invite-copy fields. new_baby swaps by stage;
+  // every other occasion uses the server-provided occasion default.
+  const isNewBaby = data?.occasion === "new_baby";
+  const situationPlaceholder = situationHint({
+    occasion: data?.occasion,
+    babyStage,
+    pronouns,
+    agnosticDefault: data?.situationLine ?? "just welcomed their new baby",
+  });
+  const trustedPlaceholder = trustedHint({
+    occasion: data?.occasion,
+    babyStage,
+    pronouns,
+    agnosticDefault: data?.trustedLine ?? "getting ready for the new baby",
+  });
 
   return (
     <section className="px-6 pt-[2.4rem]">
@@ -626,18 +627,23 @@ export function GiftActivation({ token }: { token: string }) {
         />
       </div>
 
-      {/* ABOUT YOU — quietly powers the warm wording of invites sent later */}
-      <div className="mt-7">
-        <h3 className="mb-1.5 font-serif text-[1.05rem] font-semibold text-[#2c2c2c]">
+      {/* ABOUT YOU — the words Aunt Lucy actually sends your people. Given a
+          little more presence than the other optional blocks: this text lands in
+          a stranger's inbox, so it's worth a second's read. */}
+      <div className="mt-8 rounded-[1.1rem] border border-[#e0d6c8] bg-[#fbf7f0] px-4 py-4">
+        <h3 className="mb-1 font-serif text-[1.12rem] font-semibold text-[#2c2c2c]">
           When Aunt Lucy writes to your people{" "}
           <span className="font-sans text-[0.85rem] font-normal text-[#8b7e74]">
             (optional)
           </span>
         </h3>
-        <p className="mb-2.5 text-[0.88rem] text-[#8b7e74]">
-          Just so the messages sound right — you can change these anytime.
+        <p className="mb-3 text-[0.9rem] leading-relaxed text-[#52493f]">
+          This becomes part of the message your people get when you invite them —
+          make it sound like you. Leave a line as-is and we'll use the gentle
+          wording shown. You can change any of it anytime.
         </p>
-        <div className="flex flex-col gap-3 rounded-[0.9rem] border border-[#e0d6c8] bg-white px-3.5 py-3">
+
+        <div className="flex flex-col gap-3.5 rounded-[0.9rem] border border-[#e7ddd0] bg-white px-3.5 py-3.5">
           <label className="text-[0.9rem] text-[#52493f]">
             Refer to you as
             <select
@@ -652,16 +658,64 @@ export function GiftActivation({ token }: { token: string }) {
               <option value="he_him">he / him</option>
             </select>
           </label>
+
+          {/* new_baby only: "has the baby arrived?" — sits directly above the
+              line it steers, so the connection is visible. Optional; never
+              blocks activation. */}
+          {isNewBaby && (
+            <div className="text-[0.9rem] text-[#52493f]">
+              Has the baby arrived yet?
+              <div className="mt-1.5 flex gap-2">
+                {[
+                  { value: "expecting" as const, label: "Not yet, we're expecting" },
+                  { value: "arrived" as const, label: "Yes, they're here" },
+                ].map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() =>
+                      setBabyStage((s) => (s === opt.value ? null : opt.value))
+                    }
+                    className={`flex-1 rounded-full border px-3 py-2 text-[0.85rem] font-semibold transition ${
+                      babyStage === opt.value
+                        ? "border-[#2d6a4f] bg-[#2d6a4f] text-white"
+                        : "border-[#e0d6c8] bg-[#faf7f2] text-[#52493f]"
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           <label className="text-[0.9rem] text-[#52493f]">
-            {data?.recipientName ? `${data.recipientName}'s…` : "What's going on"}
+            The everyday invite
+            <span className="ml-1.5 text-[0.8rem] text-[#8b7e74]">
+              — {data?.recipientName ?? "they"}'s…
+            </span>
             <input
               value={situationLine}
               maxLength={120}
-              onChange={(e) => {
-                setSituationEdited(true);
-                setSituationLine(e.target.value);
-              }}
-              placeholder="just welcomed their new baby"
+              onChange={(e) => setSituationLine(e.target.value)}
+              placeholder={`e.g. ${situationPlaceholder}`}
+              className="mt-1 w-full rounded-[0.7rem] border border-[#e0d6c8] bg-[#faf7f2] px-3 py-2.5 text-[0.95rem] text-[#2c2c2c] placeholder:text-[#b3a99d] focus:border-[#2d6a4f] focus:outline-none"
+            />
+          </label>
+
+          {/* The trusted "support circle" line (9b) — its counterpart, for the
+              close people you'd trust with the sensitive things. Same
+              placeholder-or-default behaviour. */}
+          <label className="text-[0.9rem] text-[#52493f]">
+            The note for close people
+            <span className="ml-1.5 text-[0.8rem] text-[#8b7e74]">
+              — for anyone you'd trust with pickups or minding the kids
+            </span>
+            <input
+              value={trustedLine}
+              maxLength={120}
+              onChange={(e) => setTrustedLine(e.target.value)}
+              placeholder={`e.g. ${trustedPlaceholder}`}
               className="mt-1 w-full rounded-[0.7rem] border border-[#e0d6c8] bg-[#faf7f2] px-3 py-2.5 text-[0.95rem] text-[#2c2c2c] placeholder:text-[#b3a99d] focus:border-[#2d6a4f] focus:outline-none"
             />
           </label>
@@ -769,6 +823,8 @@ export function GiftActivation({ token }: { token: string }) {
                 goodToKnow: goodToKnow.trim() || null,
                 recipientPronouns: pronouns,
                 situationLine: situationLine.trim() || null,
+                trustedLine: trustedLine.trim() || null,
+                babyStage,
                 recipientEmail: recipientEmail.trim() || null,
                 recipientMobile: recipientMobile.trim() || null,
               },

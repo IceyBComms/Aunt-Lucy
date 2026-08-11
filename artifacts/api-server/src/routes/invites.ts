@@ -102,7 +102,7 @@ router.post(
           helperFirstName,
           recipientFirstName,
           situationLine: applyPronounTokens(
-            page.situationLine ?? defaultSituationLine(page.occasion ?? null),
+            page.situationLine ?? defaultSituationLine(page.occasion ?? null, page.babyStage),
             pronounsEnum,
           ),
           pronounObj: pronouns.obj,
@@ -118,7 +118,10 @@ router.post(
         body: trustedInviteSms({
           helperFirstName,
           recipientFirstName,
-          trustedLine: applyPronounTokens(defaultTrustedLine(page.occasion ?? null), pronounsEnum),
+          trustedLine: applyPronounTokens(
+            page.trustedLine ?? defaultTrustedLine(page.occasion ?? null, page.babyStage),
+            pronounsEnum,
+          ),
           pronounPoss: pronouns.poss,
           link: `${base}/invite/${inviteToken}`,
         }),

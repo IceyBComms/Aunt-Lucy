@@ -24,8 +24,11 @@ import {
   useCancelTask,
   type InvitePreview,
   type ManageTaskSummary,
+  type BabyStage,
+  type RecipientPronouns,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { situationHint, trustedHint } from "@/lib/inviteCopyHints";
 import {
   Dialog,
   DialogHeader,
@@ -76,6 +79,9 @@ export function Manage() {
   const send = useSendInvites({ mutation: { onSuccess: invalidate } });
   const schedule = useScheduleInvites({ mutation: { onSuccess: invalidate } });
   const updateDetails = useUpdateManageDetails({ mutation: { onSuccess: invalidate } });
+  // Separate instance so the invite-copy "Save" has its own pending/success state
+  // independent of the "where should we reach you?" Save above.
+  const updateCopy = useUpdateManageDetails({ mutation: { onSuccess: invalidate } });
   const editTask = useEditTask({ mutation: { onSuccess: invalidate } });
   const cancelTask = useCancelTask({ mutation: { onSuccess: invalidate } });
 
@@ -204,6 +210,25 @@ export function Manage() {
       setReachSeeded(true);
     }
   }, [data, reachSeeded]);
+
+  // How Aunt Lucy writes to your people — the two invite-copy lines + (new_baby)
+  // baby stage + pronouns. Seeded once from the stored RAW values (null → blank,
+  // so the field shows ghost text). Blank fields save as null and fall back to
+  // the occasion/baby-stage default at send time.
+  const [situationLine, setSituationLine] = useState("");
+  const [trustedLine, setTrustedLine] = useState("");
+  const [babyStage, setBabyStage] = useState<BabyStage | null>(null);
+  const [pronouns, setPronouns] = useState<RecipientPronouns>("they_them");
+  const [copySeeded, setCopySeeded] = useState(false);
+  useEffect(() => {
+    if (data && !copySeeded) {
+      setSituationLine(data.situationLine ?? "");
+      setTrustedLine(data.trustedLine ?? "");
+      setBabyStage(data.babyStage ?? null);
+      setPronouns(data.recipientPronouns);
+      setCopySeeded(true);
+    }
+  }, [data, copySeeded]);
 
   if (isLoading) {
     return (
@@ -474,6 +499,129 @@ export function Manage() {
           {updateDetails.isError && (
             <p className="text-[0.85rem] text-[#c0563a]">
               {(updateDetails.error as Error)?.message ?? "That didn't work — try again."}
+            </p>
+          )}
+        </div>
+      </section>
+
+      {/* How Aunt Lucy writes to your people — the two invite-copy lines. Sits
+          just above the people/invite config, since it sets how those messages
+          read. Blank fields fall back to the gentle default shown as ghost text. */}
+      <section className="mb-7 rounded-[1.1rem] border border-[#e7ddd0] bg-white px-5 py-5">
+        <h2 className="mb-1 font-serif text-[1.15rem] font-semibold text-[#2c2c2c]">
+          How Aunt Lucy writes to your people
+        </h2>
+        <p className="mb-3 text-[0.88rem] text-[#8b7e74]">
+          This becomes part of the message your people get when you invite them —
+          make it sound like you. Leave a line blank to use the gentle wording
+          shown.
+        </p>
+        <div className="flex flex-col gap-3.5">
+          <label className="text-[0.9rem] text-[#52493f]">
+            Refer to {data.recipientName} as
+            <select
+              value={pronouns}
+              onChange={(e) => setPronouns(e.target.value as RecipientPronouns)}
+              className="mt-1 w-full rounded-[0.7rem] border border-[#e0d6c8] bg-[#faf7f2] px-3 py-2.5 text-[0.95rem] text-[#2c2c2c] focus:border-[#2d6a4f] focus:outline-none"
+            >
+              <option value="they_them">they / them</option>
+              <option value="she_her">she / her</option>
+              <option value="he_him">he / him</option>
+            </select>
+          </label>
+
+          {data.occasion === "new_baby" && (
+            <div className="text-[0.9rem] text-[#52493f]">
+              Has the baby arrived yet?
+              <div className="mt-1.5 flex gap-2">
+                {[
+                  { value: "expecting" as const, label: "Not yet, we're expecting" },
+                  { value: "arrived" as const, label: "Yes, they're here" },
+                ].map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() =>
+                      setBabyStage((s) => (s === opt.value ? null : opt.value))
+                    }
+                    className={`flex-1 rounded-full border px-3 py-2 text-[0.85rem] font-semibold transition ${
+                      babyStage === opt.value
+                        ? "border-[#2d6a4f] bg-[#2d6a4f] text-white"
+                        : "border-[#e0d6c8] bg-[#faf7f2] text-[#52493f]"
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <label className="text-[0.9rem] text-[#52493f]">
+            The everyday invite
+            <span className="ml-1.5 text-[0.8rem] text-[#8b7e74]">
+              — {data.recipientName}'s…
+            </span>
+            <input
+              value={situationLine}
+              maxLength={120}
+              onChange={(e) => setSituationLine(e.target.value)}
+              placeholder={`e.g. ${situationHint({
+                occasion: data.occasion,
+                babyStage,
+                pronouns,
+                agnosticDefault: data.situationLineDefault ?? "",
+              })}`}
+              className="mt-1 w-full rounded-[0.7rem] border border-[#e0d6c8] bg-[#faf7f2] px-3 py-2.5 text-[0.95rem] text-[#2c2c2c] placeholder:text-[#b3a99d] focus:border-[#2d6a4f] focus:outline-none"
+            />
+          </label>
+
+          <label className="text-[0.9rem] text-[#52493f]">
+            The note for close people
+            <span className="ml-1.5 text-[0.8rem] text-[#8b7e74]">
+              — for anyone you'd trust with pickups or minding the kids
+            </span>
+            <input
+              value={trustedLine}
+              maxLength={120}
+              onChange={(e) => setTrustedLine(e.target.value)}
+              placeholder={`e.g. ${trustedHint({
+                occasion: data.occasion,
+                babyStage,
+                pronouns,
+                agnosticDefault: data.trustedLineDefault ?? "",
+              })}`}
+              className="mt-1 w-full rounded-[0.7rem] border border-[#e0d6c8] bg-[#faf7f2] px-3 py-2.5 text-[0.95rem] text-[#2c2c2c] placeholder:text-[#b3a99d] focus:border-[#2d6a4f] focus:outline-none"
+            />
+          </label>
+
+          <button
+            type="button"
+            disabled={updateCopy.isPending}
+            onClick={() =>
+              updateCopy.mutate({
+                token,
+                data: {
+                  recipientPronouns: pronouns,
+                  situationLine: situationLine.trim() || null,
+                  trustedLine: trustedLine.trim() || null,
+                  babyStage,
+                },
+              })
+            }
+            className="mt-1 self-start rounded-full bg-[#2d6a4f] px-5 py-2.5 text-[0.9rem] font-semibold text-white disabled:opacity-50"
+          >
+            {updateCopy.isPending ? "Saving…" : "Save"}
+          </button>
+          {updateCopy.isSuccess && (
+            <p className="flex items-center gap-1.5 text-[0.88rem] text-[#2d6a4f]">
+              <Check className="h-4 w-4" />
+              Saved.
+            </p>
+          )}
+          {updateCopy.isError && (
+            <p className="text-[0.85rem] text-[#c0563a]">
+              {(updateCopy.error as Error)?.message ?? "That didn't work — try again."}
             </p>
           )}
         </div>
