@@ -450,7 +450,7 @@ export default function Employers() {
               onClick={() => setLocation("/terms")}
               className="underline underline-offset-2 hover:text-foreground transition-colors"
             >
-              Terms &amp; Refunds
+              Terms &amp; refunds
             </button>
           </div>
         </div>
