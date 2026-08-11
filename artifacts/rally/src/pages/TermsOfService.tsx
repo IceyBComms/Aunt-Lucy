@@ -61,14 +61,6 @@ function MailLink({
   );
 }
 
-function Code({ children }: { children: React.ReactNode }) {
-  return (
-    <code className="rounded bg-muted px-1.5 py-0.5 text-[0.85em] text-foreground">
-      {children}
-    </code>
-  );
-}
-
 export default function TermsOfService() {
   const [, setLocation] = useLocation();
 
@@ -436,7 +428,7 @@ export default function TermsOfService() {
             <Callout>
               This section forms part of, and should be read together with, the Terms above — it
               isn't a separate agreement, just its own clearly-marked part of this page so it's easy
-              to find and to point people to directly (<Code>/terms#refund</Code>).
+              to find.
             </Callout>
           </Section>
 
