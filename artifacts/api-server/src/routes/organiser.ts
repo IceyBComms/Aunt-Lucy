@@ -6,6 +6,8 @@ import { hashPin } from "../lib/pin";
 import { isAdminEmail } from "../lib/admin";
 import { uniqueSlug } from "../lib/slug";
 import { defaultFlexibility } from "../lib/slotFlexibility";
+import { grantRecipientAccess } from "../lib/accessGrants";
+import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
 
@@ -70,6 +72,38 @@ router.post("/organiser/pages", requireAuth as any, async (req, res) => {
       origin: "organiser",
     })
     .returning();
+
+  // Section E — the affected person's own always-on access. Optional; acted on
+  // only when the setup person has their contact AND says they're ready to be
+  // looped in. Not-ready / blank persists nothing (Option 1); the /manage nudge
+  // invites completing it later. Both outcomes logged for Option 1 sizing.
+  const recipientContact =
+    typeof (req.body as any)?.recipientContact === "string"
+      ? (req.body as any).recipientContact.trim()
+      : "";
+  const recipientReady = (req.body as any)?.recipientReady === true;
+  const contactLooksValid =
+    !!recipientContact &&
+    (recipientContact.includes("@")
+      ? /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientContact)
+      : /\d/.test(recipientContact));
+
+  if (recipientContact && recipientReady && contactLooksValid) {
+    await grantRecipientAccess({
+      pageId: page.id,
+      recipientName: nameTrimmed,
+      contact: recipientContact,
+    });
+    logger.info(
+      { event: "recipient_access_looped_in", pageId: page.id, source: "organiser_setup" },
+      "Recipient given their own access at organiser setup",
+    );
+  } else {
+    logger.info(
+      { event: "recipient_access_deferred", pageId: page.id, flow: "organiser" },
+      "Recipient's own access deferred at organiser setup (not ready or blank)",
+    );
+  }
 
   res.status(201).json({
     id: page.id,

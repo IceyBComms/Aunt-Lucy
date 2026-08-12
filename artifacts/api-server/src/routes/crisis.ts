@@ -13,6 +13,7 @@ import { sendMagicLink, sendCrisisPageSaved } from "../lib/email";
 import { getAppBaseUrl } from "../lib/appUrl";
 import { hitRateLimit } from "../lib/rateLimit";
 import { logger } from "../lib/logger";
+import { grantRecipientAccess } from "../lib/accessGrants";
 import type { Occasion } from "../lib/occasion";
 
 const router: IRouter = Router();
@@ -141,6 +142,42 @@ router.post("/crisis/pages", async (req, res) => {
       status: "draft",
     })
     .returning();
+
+  // Section E — the affected person's own always-on access ("nothing about them
+  // without them"). Optional at setup, and only acted on when the setup person
+  // both has their contact AND says they're ready to be looped in. When not
+  // ready — or left blank — we persist nothing and send nothing (per the locked
+  // Option 1 decision); the /manage nudge invites completing it later. Both
+  // outcomes are logged so we can size how often a deferred setup is ever
+  // completed, and decide later whether pending-contact storage is worth a
+  // migration. Grep event=recipient_access_deferred vs recipient_access_looped_in.
+  const recipientContact =
+    typeof (req.body as any)?.recipientContact === "string"
+      ? (req.body as any).recipientContact.trim()
+      : "";
+  const recipientReady = (req.body as any)?.recipientReady === true;
+  const contactLooksValid =
+    !!recipientContact &&
+    (recipientContact.includes("@")
+      ? /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientContact)
+      : /\d/.test(recipientContact));
+
+  if (recipientContact && recipientReady && contactLooksValid) {
+    await grantRecipientAccess({
+      pageId: page.id,
+      recipientName: nameTrimmed,
+      contact: recipientContact,
+    });
+    logger.info(
+      { event: "recipient_access_looped_in", pageId: page.id, source: "crisis_setup" },
+      "Recipient given their own access at crisis setup",
+    );
+  } else {
+    logger.info(
+      { event: "recipient_access_deferred", pageId: page.id, flow: "crisis" },
+      "Recipient's own access deferred at crisis setup (not ready or blank)",
+    );
+  }
 
   if (!hasExistingPages) {
     // Frictionless: issue a session and send them straight into setup. The

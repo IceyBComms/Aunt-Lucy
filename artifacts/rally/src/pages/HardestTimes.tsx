@@ -37,6 +37,11 @@ export default function HardestTimes() {
   const [occasion, setOccasion] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  // Section E — the affected person's own contact, so they can always get into
+  // their own page. Entirely optional; the ready toggle only appears once a
+  // contact is entered. Nothing is stored unless they're marked ready.
+  const [recipientContact, setRecipientContact] = useState("");
+  const [recipientReady, setRecipientReady] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [emailedTo, setEmailedTo] = useState<string | null>(null);
@@ -54,7 +59,13 @@ export default function HardestTimes() {
     try {
       const res = await apiFetch<CreateResponse>("/crisis/pages", {
         method: "POST",
-        body: JSON.stringify({ name, email, occasion }),
+        body: JSON.stringify({
+          name,
+          email,
+          occasion,
+          recipientContact: recipientContact.trim() || undefined,
+          recipientReady: recipientContact.trim() ? recipientReady : false,
+        }),
       });
 
       if (res.mode === "session") {
@@ -172,6 +183,40 @@ export default function HardestTimes() {
               <p className="text-xs text-muted-foreground pl-1">
                 So you can get back to the page. No password needed.
               </p>
+            </div>
+
+            {/* Section E — the affected person's own contact (optional). Copy is a
+                SUGGESTION for Kate to approve. */}
+            <div className="space-y-1.5">
+              <Label htmlFor="recipientContact" className="text-foreground/80 pl-1">
+                {name.trim() ? `${name.trim()}'s` : "Their"} own contact{" "}
+                <span className="font-normal text-muted-foreground">(optional)</span>
+              </Label>
+              <Input
+                id="recipientContact"
+                placeholder="Their mobile or email"
+                value={recipientContact}
+                onChange={(e) => setRecipientContact(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground pl-1">
+                So they can always get into their own page, if they want to. It's
+                their page — this just makes sure they can find it.
+              </p>
+              {recipientContact.trim() && (
+                <label className="mt-2 flex items-start gap-2.5 pl-1 text-sm text-foreground/80">
+                  <input
+                    type="checkbox"
+                    checked={recipientReady}
+                    onChange={(e) => setRecipientReady(e.target.checked)}
+                    className="mt-0.5 accent-primary"
+                  />
+                  <span>
+                    {name.trim() || "They"} {name.trim() ? "is" : "are"} ready to
+                    know about this page now — send them their own link. Leave
+                    this unticked and we'll hold off until you say so.
+                  </span>
+                </label>
+              )}
             </div>
 
             {error && <p className="text-sm text-destructive pl-1">{error}</p>}
