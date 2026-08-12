@@ -247,8 +247,10 @@ export interface GiftReview {
   status?: string | null;
   /** Set when the recipient chose a future go-live date. */
   scheduledActivateAt?: string | null;
-  /** The default situation line for this occasion, prefilled into the activation UI (editable). Null once activated. */
+  /** The default (stage-agnostic) situation line for this occasion, shown as a ghost-text placeholder in the activation UI. May contain {poss}/{obj} pronoun tokens for the client to resolve. Null once activated. */
   situationLine?: string | null;
+  /** The default (stage-agnostic) trusted "support circle" line for this occasion, shown as a ghost-text placeholder for the trusted-invite field. May contain {poss}/{obj} pronoun tokens. Null once activated. */
+  trustedLine?: string | null;
   /** The recipient's email as we already hold it (from the gift), to prefill the "where should we reach you?" field at activation. Null when we hold none — the field is then asked for, not assumed. */
   recipientEmail?: string | null;
   /** Present once activated — the private management token. */
@@ -283,6 +285,16 @@ export const RecipientPronouns = {
   they_them: "they_them",
 } as const;
 
+/**
+ * new_baby pages only: whether the baby has arrived yet, so the invite copy reads true either side of the birth (baby showers are gifted ahead of the event). Null/omitted means "not asked" and falls back to a stage-agnostic default. Ignored for every other occasion.
+ */
+export type BabyStage = (typeof BabyStage)[keyof typeof BabyStage];
+
+export const BabyStage = {
+  expecting: "expecting",
+  arrived: "arrived",
+} as const;
+
 export interface ActivateGiftRequest {
   /** The tasks the recipient kept, in the wording they kept them in. */
   tasks: ActivateGiftTask[];
@@ -292,8 +304,12 @@ export interface ActivateGiftRequest {
   goodToKnow?: string | null;
   /** Defaults to they_them when omitted. */
   recipientPronouns?: RecipientPronouns | null;
-  /** The short, deliberately-vague phrase used in the invite copy ("Sarah's <situationLine>"). Defaults from the occasion when omitted. */
+  /** The short, deliberately-vague phrase used in the standard invite copy ("Sarah's <situationLine>"). Omit or null to fall back to the occasion (and baby_stage) default at send time — the default is NOT baked in, so a later baby_stage change updates it. */
   situationLine?: string | null;
+  /** The trusted "support circle" counterpart to situationLine ("Sarah's <trustedLine>, and thought you might…"). Omit or null to fall back to the occasion (and baby_stage) default at send time. */
+  trustedLine?: string | null;
+  /** new_baby only — whether the baby has arrived. Steers which stage-appropriate default the invite/situation/trusted lines use. Omit or null when not asked. */
+  babyStage?: BabyStage | null;
   /** Where to reach the recipient about their own page — used for the claim notifications. Captured at activation (prefilled from the gift when held, asked for when not). Omit or null to skip; notifications then don't fire until an email is added via /manage. */
   recipientEmail?: string | null;
   /** Optional mobile for future SMS updates. Stored when supplied; no SMS is sent yet. */
@@ -425,7 +441,16 @@ export interface ManageState {
   status: string;
   occasion?: GiftOccasion | null;
   recipientPronouns: RecipientPronouns;
+  /** The RAW stored standard-invite override, or null when using the default. Null lets the UI show the field as empty with ghost text. */
   situationLine?: string | null;
+  /** The occasion (and baby_stage) default for the standard line, shown as the placeholder. May contain {poss}/{obj} tokens the client resolves. */
+  situationLineDefault?: string | null;
+  /** The RAW stored trusted "support circle" override, or null when using the default. */
+  trustedLine?: string | null;
+  /** The occasion (and baby_stage) default for the trusted line, shown as the placeholder. May contain {poss}/{obj} tokens the client resolves. */
+  trustedLineDefault?: string | null;
+  /** new_baby only — the stored baby stage, or null when not asked. Flipping it here updates the default wording for invites sent after. */
+  babyStage?: BabyStage | null;
   /** Where the recipient is notified when help arrives. Editable here so a recipient who skipped it at activation can add it. Null when none. */
   recipientEmail?: string | null;
   /** Optional mobile for future SMS updates. Null when none. */
@@ -443,6 +468,8 @@ export interface ManageState {
 export interface ManageDetails {
   recipientPronouns: RecipientPronouns;
   situationLine?: string | null;
+  trustedLine?: string | null;
+  babyStage?: BabyStage | null;
   recipientEmail?: string | null;
   recipientMobile?: string | null;
 }
@@ -450,6 +477,10 @@ export interface ManageDetails {
 export interface UpdateDetailsRequest {
   recipientPronouns?: RecipientPronouns;
   situationLine?: string | null;
+  /** Set/clear the trusted "support circle" line override. Empty or null clears it back to the occasion (and baby_stage) default. */
+  trustedLine?: string | null;
+  /** new_baby only — set/clear the baby stage. An empty or unrecognised value clears it to null (stage-agnostic default). Changing it updates the default wording for invites sent from then on. */
+  babyStage?: BabyStage | null;
   /** Set/clear where claim notifications are sent. Send an empty string or null to clear; a non-empty value must look like an email address. */
   recipientEmail?: string | null;
   /** Set/clear the optional mobile for future SMS updates. */

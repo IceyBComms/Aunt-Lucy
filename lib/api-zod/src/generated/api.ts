@@ -305,7 +305,13 @@ export const GetGiftReviewResponse = zod.object({
     .string()
     .nullish()
     .describe(
-      "The default situation line for this occasion, prefilled into the activation UI (editable). Null once activated.",
+      "The default (stage-agnostic) situation line for this occasion, shown as a ghost-text placeholder in the activation UI. May contain {poss}\/{obj} pronoun tokens for the client to resolve. Null once activated.",
+    ),
+  trustedLine: zod
+    .string()
+    .nullish()
+    .describe(
+      'The default (stage-agnostic) trusted \"support circle\" line for this occasion, shown as a ghost-text placeholder for the trusted-invite field. May contain {poss}\/{obj} pronoun tokens. Null once activated.',
     ),
   recipientEmail: zod
     .string()
@@ -420,7 +426,22 @@ export const ActivateGiftBody = zod.object({
     .string()
     .nullish()
     .describe(
-      'The short, deliberately-vague phrase used in the invite copy (\"Sarah\'s <situationLine>\"). Defaults from the occasion when omitted.',
+      'The short, deliberately-vague phrase used in the standard invite copy (\"Sarah\'s <situationLine>\"). Omit or null to fall back to the occasion (and baby_stage) default at send time — the default is NOT baked in, so a later baby_stage change updates it.',
+    ),
+  trustedLine: zod
+    .string()
+    .nullish()
+    .describe(
+      'The trusted \"support circle\" counterpart to situationLine (\"Sarah\'s <trustedLine>, and thought you might…\"). Omit or null to fall back to the occasion (and baby_stage) default at send time.',
+    ),
+  babyStage: zod
+    .enum(["expecting", "arrived"])
+    .describe(
+      'new_baby pages only: whether the baby has arrived yet, so the invite copy reads true either side of the birth (baby showers are gifted ahead of the event). Null\/omitted means \"not asked\" and falls back to a stage-agnostic default. Ignored for every other occasion.',
+    )
+    .nullish()
+    .describe(
+      "new_baby only — whether the baby has arrived. Steers which stage-appropriate default the invite\/situation\/trusted lines use. Omit or null when not asked.",
     ),
   recipientEmail: zod
     .string()
@@ -585,7 +606,39 @@ export const GetManageStateResponse = zod.object({
     .describe(
       "How the recipient is referred to in the helper invite copy. Defaults to they_them so nothing is ever assumed.",
     ),
-  situationLine: zod.string().nullish(),
+  situationLine: zod
+    .string()
+    .nullish()
+    .describe(
+      "The RAW stored standard-invite override, or null when using the default. Null lets the UI show the field as empty with ghost text.",
+    ),
+  situationLineDefault: zod
+    .string()
+    .nullish()
+    .describe(
+      "The occasion (and baby_stage) default for the standard line, shown as the placeholder. May contain {poss}\/{obj} tokens the client resolves.",
+    ),
+  trustedLine: zod
+    .string()
+    .nullish()
+    .describe(
+      'The RAW stored trusted \"support circle\" override, or null when using the default.',
+    ),
+  trustedLineDefault: zod
+    .string()
+    .nullish()
+    .describe(
+      "The occasion (and baby_stage) default for the trusted line, shown as the placeholder. May contain {poss}\/{obj} tokens the client resolves.",
+    ),
+  babyStage: zod
+    .enum(["expecting", "arrived"])
+    .describe(
+      'new_baby pages only: whether the baby has arrived yet, so the invite copy reads true either side of the birth (baby showers are gifted ahead of the event). Null\/omitted means \"not asked\" and falls back to a stage-agnostic default. Ignored for every other occasion.',
+    )
+    .nullish()
+    .describe(
+      "new_baby only — the stored baby stage, or null when not asked. Flipping it here updates the default wording for invites sent after.",
+    ),
   recipientEmail: zod
     .string()
     .nullish()
@@ -694,6 +747,21 @@ export const UpdateManageDetailsBody = zod.object({
       "How the recipient is referred to in the helper invite copy. Defaults to they_them so nothing is ever assumed.",
     ),
   situationLine: zod.string().nullish(),
+  trustedLine: zod
+    .string()
+    .nullish()
+    .describe(
+      'Set\/clear the trusted \"support circle\" line override. Empty or null clears it back to the occasion (and baby_stage) default.',
+    ),
+  babyStage: zod
+    .enum(["expecting", "arrived"])
+    .describe(
+      'new_baby pages only: whether the baby has arrived yet, so the invite copy reads true either side of the birth (baby showers are gifted ahead of the event). Null\/omitted means \"not asked\" and falls back to a stage-agnostic default. Ignored for every other occasion.',
+    )
+    .nullish()
+    .describe(
+      "new_baby only — set\/clear the baby stage. An empty or unrecognised value clears it to null (stage-agnostic default). Changing it updates the default wording for invites sent from then on.",
+    ),
   recipientEmail: zod
     .string()
     .nullish()
@@ -713,6 +781,13 @@ export const UpdateManageDetailsResponse = zod.object({
       "How the recipient is referred to in the helper invite copy. Defaults to they_them so nothing is ever assumed.",
     ),
   situationLine: zod.string().nullish(),
+  trustedLine: zod.string().nullish(),
+  babyStage: zod
+    .enum(["expecting", "arrived"])
+    .describe(
+      'new_baby pages only: whether the baby has arrived yet, so the invite copy reads true either side of the birth (baby showers are gifted ahead of the event). Null\/omitted means \"not asked\" and falls back to a stage-agnostic default. Ignored for every other occasion.',
+    )
+    .nullish(),
   recipientEmail: zod.string().nullish(),
   recipientMobile: zod.string().nullish(),
 });

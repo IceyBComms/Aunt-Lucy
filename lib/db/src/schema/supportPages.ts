@@ -33,6 +33,13 @@ export const recipientPronounsEnum = pgEnum("recipient_pronouns", [
   "they_them",
 ]);
 
+// For a new_baby page: whether the baby's arrived yet, so the invite copy can
+// read true either side of the birth (baby showers are gifted well ahead of the
+// event). Nullable — null means "not asked / don't assume", and the copy layer
+// falls back to a stage-agnostic default. Only meaningful when occasion is
+// new_baby; harmless and unused for every other occasion.
+export const babyStageEnum = pgEnum("baby_stage", ["expecting", "arrived"]);
+
 export const supportPagesTable = pgTable("support_pages", {
   id: text("id")
     .primaryKey()
@@ -80,6 +87,17 @@ export const supportPagesTable = pgTable("support_pages", {
   // at activation and editable by the recipient — never clinical, never
   // detailed (see the privacy rules in CLAUDE.md).
   situationLine: text("situation_line"),
+  // The trusted "support circle" counterpart to situationLine — the phrase the
+  // 9b invite drops in for close people ("Sarah's <trustedLine>, and thought
+  // you might…"). Same shape and fallback as situationLine: null means "use the
+  // occasion (and baby-stage) default", resolved as
+  // `page.trustedLine ?? defaultTrustedLine(occasion, babyStage)` at send time.
+  trustedLine: text("trusted_line"),
+  // new_baby only: 'expecting' | 'arrived', or null when not asked. Steers which
+  // stage-appropriate default the invite copy uses, and can be flipped later via
+  // /manage (e.g. set while pregnant, updated after the birth). Kept null-safe so
+  // nothing is assumed. See babyStageEnum above.
+  babyStage: babyStageEnum("baby_stage"),
   // Set when a recipient activates their gift but chooses a future go-live
   // date. The page and its slots exist immediately with status 'draft' (so
   // nothing is visible at /s/:slug), and the existing dispatcher flips it to

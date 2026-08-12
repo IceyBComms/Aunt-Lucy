@@ -4,7 +4,12 @@ import { db, giftsTable, giftSigningsTable, supportPagesTable, slotsTable, pageG
 import { and, eq } from "drizzle-orm";
 import { suggestionsFor, type SuggestedTask } from "../lib/occasionSuggestions";
 import { uniqueSlug } from "../lib/slug";
-import { defaultSituationLine, type RecipientPronouns } from "../lib/inviteCopy";
+import {
+  defaultSituationLine,
+  defaultTrustedLine,
+  type BabyStage,
+  type RecipientPronouns,
+} from "../lib/inviteCopy";
 import { TIERS, sellableTier } from "../lib/giftPricing";
 import { uniqueToken } from "../lib/token";
 import { defaultFlexibility } from "../lib/slotFlexibility";
@@ -41,6 +46,15 @@ function asPronouns(value: unknown): RecipientPronouns {
   return typeof value === "string" && (PRONOUN_VALUES as readonly string[]).includes(value)
     ? (value as RecipientPronouns)
     : "they_them";
+}
+
+const BABY_STAGES: readonly BabyStage[] = ["expecting", "arrived"];
+
+/** new_baby only: 'expecting' | 'arrived', else null (unanswered / other occasion). */
+function asBabyStage(value: unknown): BabyStage | null {
+  return typeof value === "string" && (BABY_STAGES as readonly string[]).includes(value)
+    ? (value as BabyStage)
+    : null;
 }
 
 /** Slot types the database accepts, for validating tasks the recipient adds. */
@@ -359,10 +373,13 @@ router.get("/gifts/:redemptionToken/review", async (req, res) => {
     recipientName: gift.recipientName,
     giftedBy: gift.purchaserName,
     occasion: gift.occasion ?? null,
-    // The default situation line for this occasion, prefilled into the
-    // activation UI where the recipient can keep or tweak it (a placeholder
-    // wording for now — see inviteCopy.ts).
+    // The stage-agnostic occasion defaults, shown as ghost-text placeholders in
+    // the activation UI (the recipient types over them only if they want to). No
+    // baby_stage yet at review time — it's chosen in the browser — so these are
+    // the null-stage defaults; the UI swaps in the stage wording locally when the
+    // recipient answers "has the baby arrived?". See inviteCopy.ts.
     situationLine: defaultSituationLine(gift.occasion ?? null),
+    trustedLine: defaultTrustedLine(gift.occasion ?? null),
     // Prefill the "where should we reach you?" field with the email we already
     // hold from the gift, if any. Null when we hold none (self-setup, future
     // physical-card gifts) — activation asks for it rather than assuming.
@@ -465,13 +482,19 @@ router.post("/gifts/:redemptionToken/activate", async (req, res) => {
   const recipientEmail = recipientEmailRaw || null;
   const recipientMobile = trimmed(body.recipientMobile).slice(0, 40) || null;
 
-  // Pronoun + situation line power the helper-invite copy sent in Item 5/6.
-  // Occasion is carried from the gift; the situation line defaults from it and
-  // is editable. Pronouns default to they/them when not supplied.
+  // Pronoun + situation/trusted lines power the helper-invite copy sent in Item
+  // 5/6. Occasion is carried from the gift; the lines default from it (and, for
+  // new_baby, from baby_stage) and are editable. Pronouns default to they/them.
+  //
+  // Stored NULL when the recipient leaves a line blank — the occasion default is
+  // resolved at SEND time (`page.situationLine ?? defaultSituationLine(...)`),
+  // not baked in here. That's what lets a later baby_stage flip (set while
+  // pregnant, changed after the birth via /manage) update invites sent from then
+  // on, rather than freezing whatever wording was current at activation.
   const recipientPronouns = asPronouns(body.recipientPronouns);
-  const situationLine =
-    trimmed(body.situationLine).slice(0, 120) ||
-    defaultSituationLine(gift.occasion ?? null);
+  const babyStage = asBabyStage(body.babyStage);
+  const situationLine = trimmed(body.situationLine).slice(0, 120) || null;
+  const trustedLine = trimmed(body.trustedLine).slice(0, 120) || null;
 
   const tasksRaw = Array.isArray(body.tasks) ? body.tasks : [];
   const tasks = tasksRaw
@@ -538,6 +561,8 @@ router.post("/gifts/:redemptionToken/activate", async (req, res) => {
         occasion: gift.occasion ?? null,
         recipientPronouns,
         situationLine,
+        trustedLine,
+        babyStage,
       })
       .returning();
 

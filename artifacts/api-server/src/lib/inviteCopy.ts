@@ -15,6 +15,13 @@ import type { Occasion } from "./occasion";
 
 export type RecipientPronouns = "she_her" | "he_him" | "they_them";
 
+/**
+ * For a new_baby page: whether the baby's arrived yet. Null means "not asked",
+ * and the copy falls back to a stage-agnostic default. Only new_baby reads this;
+ * every other occasion ignores it. Mirrors the babyStage enum in the DB schema.
+ */
+export type BabyStage = "expecting" | "arrived";
+
 /** Subject, object and possessive pronouns for the copy tokens. */
 export function resolvePronouns(
   p: RecipientPronouns,
@@ -42,9 +49,14 @@ export function applyPronounTokens(line: string, p: RecipientPronouns): string {
  * "<Name>'s <situationLine>" (9a) and "<Name>'s <situationLine>, and…" (9c).
  * Trusted line drops into "<Name>'s <trustedLine>, and thought you might…" (9b).
  * Deliberately vague, never clinical — see the privacy rules in CLAUDE.md.
+ *
+ * The new_baby entries here are the STAGE-AGNOSTIC defaults, used when baby_stage
+ * is null (unanswered). Baby showers are gifted well before the birth, so the
+ * default can't assume the baby has arrived; the stage-specific wordings live in
+ * the NEW_BABY_*_BY_STAGE maps below and are selected in the resolver functions.
  */
 export const SITUATION_LINE_DEFAULTS: Record<Occasion, string> = {
-  new_baby: "just welcomed {poss} new baby",
+  new_baby: "welcoming a new baby into the family",
   illness_recovery: "not been well lately",
   bereavement: "recently lost someone dear to {obj}",
   ongoing_support: "carrying a lot at the moment",
@@ -52,18 +64,52 @@ export const SITUATION_LINE_DEFAULTS: Record<Occasion, string> = {
 };
 
 export const TRUSTED_LINE_DEFAULTS: Record<Occasion, string> = {
-  new_baby: "finding {poss} feet with the new baby",
-  illness_recovery: "focusing on {poss} recovery at the moment",
+  new_baby: "getting ready for the new baby",
+  // Doesn't assume the procedure/event has already happened — "planned surgery"
+  // is gifted ahead of the event just as recovery is gifted after it.
+  illness_recovery: "getting some extra support with their health at the moment",
   bereavement: "going through a difficult time after a recent loss",
   ongoing_support: "could use a little extra support right now",
   other: "got a lot on right now",
 };
 
-export function defaultSituationLine(occasion: Occasion | null): string {
+/**
+ * new_baby standard-line wordings by stage. 'arrived' keeps the original default
+ * ("just welcomed {poss} new baby"); 'expecting' reads true pre-birth. baby_stage
+ * null uses the agnostic default in SITUATION_LINE_DEFAULTS above instead.
+ */
+const NEW_BABY_SITUATION_BY_STAGE: Record<BabyStage, string> = {
+  expecting: "getting ready to welcome a new baby",
+  arrived: "just welcomed {poss} new baby",
+};
+
+/**
+ * new_baby trusted-line wordings by stage. 'arrived' keeps the original default;
+ * 'expecting' deliberately reuses the agnostic pre-birth wording (it already
+ * reads right for that stage), so no separate 'expecting' variant is needed.
+ */
+const NEW_BABY_TRUSTED_BY_STAGE: Record<BabyStage, string> = {
+  expecting: "getting ready for the new baby",
+  arrived: "finding {poss} feet with the new baby",
+};
+
+export function defaultSituationLine(
+  occasion: Occasion | null,
+  babyStage: BabyStage | null = null,
+): string {
+  if (occasion === "new_baby" && babyStage) {
+    return NEW_BABY_SITUATION_BY_STAGE[babyStage];
+  }
   return SITUATION_LINE_DEFAULTS[occasion ?? "other"];
 }
 
-export function defaultTrustedLine(occasion: Occasion | null): string {
+export function defaultTrustedLine(
+  occasion: Occasion | null,
+  babyStage: BabyStage | null = null,
+): string {
+  if (occasion === "new_baby" && babyStage) {
+    return NEW_BABY_TRUSTED_BY_STAGE[babyStage];
+  }
   return TRUSTED_LINE_DEFAULTS[occasion ?? "other"];
 }
 

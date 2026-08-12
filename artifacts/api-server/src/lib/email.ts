@@ -1099,7 +1099,10 @@ function giftDeliveryParagraph(
 ): string {
   switch (occasion) {
     case "new_baby":
-      return `A tiny new person has arrived in your world. ${giverName} has set up a page so the people who love you can make the first few busy weeks a little easier — meals, the school run, a friendly face — without you having to ask or organise a thing.`;
+      // Sent pre-activation, so baby_stage isn't known here — this line must read
+      // true whether the baby has arrived yet or not (baby showers are gifted
+      // ahead of the birth). SUGGESTED COPY — Kate to bless final wording.
+      return `A new little person is part of your world now. ${giverName} has set up a page so the people who love you can make the busy weeks a little easier — meals, the school run, a friendly face — without you having to ask or organise a thing.`;
     case "illness_recovery":
     case "surgery":
       return `While you focus on getting better, ${giverName} has set up a page so the people who love you can take care of the rest — meals, the school run, a friendly face — without you having to ask or organise a thing.`;
