@@ -77,6 +77,17 @@ export const slotsTable = pgTable("slots", {
   // that rotates the token invalidates every earlier link. Null while unclaimed
   // and for any claim made before this column existed.
   cancelToken: text("cancel_token").unique(),
+  // The helper's private handle to a subscribable .ics calendar feed for this
+  // claim (GET /api/calendar/:token.ics). A sibling of cancel_token — minted
+  // fresh on the SAME claims, unique, null while unclaimed — but deliberately
+  // NOT consumed on release: the feed must survive a release so a subscribed
+  // calendar can be told STATUS:CANCELLED rather than silently 404 (which many
+  // calendar apps don't clean up). Re-claim rotates it like cancel_token, so a
+  // released helper's feed stays cancelled even if someone else later re-takes
+  // the slot (and it never resurfaces another helper's booking — the event
+  // carries no helper identity, only the recipient's first name + task). Null
+  // for any claim made before this column existed; those simply get no feed.
+  calendarToken: text("calendar_token").unique(),
   // Soft-state audit of a released claim, mirroring the gift-signing "removed"
   // pattern (a record it happened, never a full wipe). The live claim_by_*
   // columns are cleared on release so the freed slot never leaks the old

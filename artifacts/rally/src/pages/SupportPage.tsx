@@ -18,12 +18,23 @@ export default function SupportPage() {
   const [pinInput, setPinInput] = useState("");
   const [pinSubmitted, setPinSubmitted] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<SlotResponse | null>(null);
+  // The claim response once a claim succeeds — carries calendarUrl. Keeps the
+  // dialog open on a confirmation view (with the "Add to your calendar" link)
+  // instead of closing straight away, matching the trusted-invite path.
+  const [claimedResult, setClaimedResult] = useState<SlotResponse | null>(null);
+
+  const closeClaimDialog = () => {
+    setSelectedSlot(null);
+    setClaimedResult(null);
+  };
 
   const handleClaimSubmit = async (formData: ClaimSlotRequest) => {
     if (!selectedSlot || !page) return;
-    const success = await claimSlot(selectedSlot.id, formData, page.recipientName);
-    if (success) {
-      setSelectedSlot(null);
+    const result = await claimSlot(selectedSlot.id, formData);
+    if (result) {
+      // Keep the dialog open, swapped to the confirmation view so the helper
+      // gets the "Add to your calendar" link — the whole point of this change.
+      setClaimedResult(result);
     }
   };
 
@@ -239,9 +250,10 @@ export default function SupportPage() {
         slot={selectedSlot}
         recipientName={page.recipientName}
         isOpen={!!selectedSlot}
-        onClose={() => setSelectedSlot(null)}
+        onClose={closeClaimDialog}
         onSubmit={handleClaimSubmit}
         isSubmitting={isClaiming}
+        claimedResult={claimedResult}
       />
     </div>
   );

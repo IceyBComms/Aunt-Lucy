@@ -57,6 +57,10 @@ export default function InviteClaim() {
   // re-visit shows the static "already confirmed" screen), so this stays null on
   // reload, which is fine: the confirmation email carries the same link.
   const [cancelToken, setCancelToken] = useState<string | null>(null);
+  // The webcal:// subscribe link to this claim's calendar feed, returned only on
+  // a fresh claim of a dated slot. null on reload (same as cancelToken) — the
+  // link isn't re-fetched, which is fine here since this path sends no email.
+  const [calendarUrl, setCalendarUrl] = useState<string | null>(null);
 
   useEffect(() => {
     apiFetch<InviteDetails>(`/invite/${token}`)
@@ -72,10 +76,12 @@ export default function InviteClaim() {
     setIsClaiming(true);
     setClaimError(null);
     try {
-      const res = await apiFetch<{ cancelToken?: string }>(`/invite/${token}/claim`, {
-        method: "POST",
-      });
+      const res = await apiFetch<{ cancelToken?: string; calendarUrl?: string | null }>(
+        `/invite/${token}/claim`,
+        { method: "POST" },
+      );
       if (res?.cancelToken) setCancelToken(res.cancelToken);
+      if (res?.calendarUrl) setCalendarUrl(res.calendarUrl);
       setClaimed(true);
     } catch (err: any) {
       setClaimError(err.message ?? "Something went wrong. Please try again.");
@@ -137,6 +143,17 @@ export default function InviteClaim() {
           <p className="text-muted-foreground text-sm leading-relaxed">
             The family will be so grateful for your support.
           </p>
+          {/* SUGGESTED COPY — Kate to bless final wording. webcal:// hands the
+              feed to the OS calendar app as a live subscription. */}
+          {calendarUrl && (
+            <p className="text-muted-foreground text-sm leading-relaxed mt-4">
+              <a href={calendarUrl} className="text-primary font-bold underline">
+                Add this to your calendar
+              </a>
+              <br />
+              so it's there when you need it.
+            </p>
+          )}
           {cancelToken && (
             <p className="text-muted-foreground text-sm leading-relaxed mt-4">
               Plans change? You can{" "}
