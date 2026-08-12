@@ -85,6 +85,12 @@ export const GetSupportPageResponse = zod.object({
       claimedByName: zod.string().nullish(),
       claimedNote: zod.string().nullish(),
       createdAt: zod.string(),
+      calendarUrl: zod
+        .string()
+        .nullish()
+        .describe(
+          "webcal:\/\/ subscribe link to this claim's calendar feed. Populated ONLY on the response to POST \/slots\/{slotId}\/claim, and only for a task with a date (an undated \"whenever suits\" offer isn't an appointment, so it's null). Absent\/null everywhere else — the slot listing in GET \/pages never sets it. Mirrors the trusted-invite claim response's calendarUrl field so both claim paths surface the same \"Add to your calendar\" link.",
+        ),
     }),
   ),
 });
@@ -151,6 +157,12 @@ export const ClaimSlotResponse = zod.object({
   claimedByName: zod.string().nullish(),
   claimedNote: zod.string().nullish(),
   createdAt: zod.string(),
+  calendarUrl: zod
+    .string()
+    .nullish()
+    .describe(
+      "webcal:\/\/ subscribe link to this claim's calendar feed. Populated ONLY on the response to POST \/slots\/{slotId}\/claim, and only for a task with a date (an undated \"whenever suits\" offer isn't an appointment, so it's null). Absent\/null everywhere else — the slot listing in GET \/pages never sets it. Mirrors the trusted-invite claim response's calendarUrl field so both claim paths surface the same \"Add to your calendar\" link.",
+    ),
 });
 
 /**

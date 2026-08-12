@@ -30,9 +30,14 @@ interface ClaimDialogProps {
   onClose: () => void;
   onSubmit: (data: ClaimFormData) => Promise<void>;
   isSubmitting: boolean;
+  // Set once the claim succeeds: the same dialog swaps from the form to a
+  // confirmation showing an "Add to your calendar" link, mirroring the
+  // trusted-invite confirmation screen (InviteClaim.tsx). null while the form
+  // is still being filled in.
+  claimedResult?: SlotResponse | null;
 }
 
-export function ClaimDialog({ slot, recipientName, isOpen, onClose, onSubmit, isSubmitting }: ClaimDialogProps) {
+export function ClaimDialog({ slot, recipientName, isOpen, onClose, onSubmit, isSubmitting, claimedResult }: ClaimDialogProps) {
   const {
     register,
     handleSubmit,
@@ -63,6 +68,58 @@ export function ClaimDialog({ slot, recipientName, isOpen, onClose, onSubmit, is
   const formattedDate = slot.slotDate
     ? format(parseISO(slot.slotDate), "EEEE, MMMM d")
     : null;
+
+  // Post-claim confirmation. Same dialog, swapped content — surfaces the "Add
+  // to your calendar" link on the public path just as InviteClaim.tsx does on
+  // the trusted-invite path. The link is present only for a dated task (an
+  // undated offer has no calendarUrl); an undated claim simply shows the thanks.
+  if (claimedResult) {
+    return (
+      <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+        <DialogHeader>
+          <DialogTitle>You're confirmed!</DialogTitle>
+          <DialogDescription className="mt-2 text-base">
+            {formattedDate ? (
+              <>
+                Thank you for taking the{" "}
+                <strong className="text-foreground font-medium">{formattedDate}</strong>{" "}
+                slot. {recipientName} will be so grateful.
+              </>
+            ) : (
+              <>Thank you. {recipientName} will be so grateful.</>
+            )}
+          </DialogDescription>
+        </DialogHeader>
+
+        {/* SUGGESTED COPY — matches InviteClaim.tsx word-for-word; Kate to bless
+            final wording. webcal:// hands the feed to the OS calendar app as a
+            live subscription. Shown only when the claim returned a calendarUrl. */}
+        {claimedResult.calendarUrl && (
+          <p className="text-center text-sm text-muted-foreground leading-relaxed">
+            <a
+              href={claimedResult.calendarUrl}
+              className="text-primary font-bold underline"
+            >
+              Add this to your calendar
+            </a>
+            <br />
+            so it's there when you need it.
+          </p>
+        )}
+
+        <div className="pt-2">
+          <Button
+            type="button"
+            onClick={onClose}
+            className="w-full font-serif text-lg"
+            size="lg"
+          >
+            Done
+          </Button>
+        </div>
+      </Dialog>
+    );
+  }
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>

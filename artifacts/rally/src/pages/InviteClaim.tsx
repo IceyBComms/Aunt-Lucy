@@ -147,9 +147,10 @@ export default function InviteClaim() {
               feed to the OS calendar app as a live subscription. */}
           {calendarUrl && (
             <p className="text-muted-foreground text-sm leading-relaxed mt-4">
-              <a href={calendarUrl} className="text-primary font-medium underline">
+              <a href={calendarUrl} className="text-primary font-bold underline">
                 Add this to your calendar
-              </a>{" "}
+              </a>
+              <br />
               so it's there when you need it.
             </p>
           )}

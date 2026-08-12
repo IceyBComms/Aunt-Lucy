@@ -161,6 +161,13 @@ router.post("/slots/:slotId/claim", async (req, res) => {
     claimedByName: row.claimedByName ?? null,
     claimedNote: row.claimedNote ?? null,
     createdAt: row.createdAt.toISOString(),
+    // The webcal:// subscribe link to this claim's calendar feed — the SAME
+    // value already handed to the confirmation email above, now also returned so
+    // the public post-claim confirmation can show an "Add to your calendar" link
+    // (most helpers claim through the public page, not a trusted invite). Only
+    // for a dated task; an undated "whenever suits" offer isn't an appointment.
+    // Mirrors the trusted-invite claim response (routes/invites.ts).
+    calendarUrl: row.slotDate ? calendarSubscribeUrl(calendarToken) : null,
   });
 });
 

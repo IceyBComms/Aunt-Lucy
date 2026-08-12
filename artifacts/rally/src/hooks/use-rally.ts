@@ -7,7 +7,7 @@ import {
   ApiError,
 } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
-import type { ClaimSlotRequest } from "@workspace/api-client-react";
+import type { ClaimSlotRequest, SlotResponse } from "@workspace/api-client-react";
 
 export function useSupportPageFlow(slug: string) {
   const [pin, setPin] = useState<string | undefined>(undefined);
@@ -65,19 +65,20 @@ export function useSupportPageFlow(slug: string) {
     setPin(newPin);
   }, []);
 
-  const claimSlot = useCallback(async (slotId: string, data: ClaimSlotRequest, recipientName: string) => {
+  const claimSlot = useCallback(async (slotId: string, data: ClaimSlotRequest): Promise<SlotResponse | null> => {
     try {
-      await claimMutation.mutateAsync({ slotId, data: { ...data, pin: pin ?? undefined } });
-      toast({
-        title: "You've got this.",
-        description: `${recipientName} will be so grateful.`,
-        className: "bg-primary text-primary-foreground border-none rounded-2xl shadow-lg font-serif text-lg py-4",
-      });
-      return true;
+      // Success is now confirmed by the in-dialog "You're confirmed!" screen
+      // (with the calendar link), so the old success toast is gone — it was
+      // redundant with the persistent confirmation. Error toasts still fire via
+      // claimMutation.onError below.
+      const result = await claimMutation.mutateAsync({ slotId, data: { ...data, pin: pin ?? undefined } });
+      // Return the claim response (incl. calendarUrl) so the caller can show the
+      // post-claim confirmation with an "Add to your calendar" link. null on failure.
+      return result;
     } catch {
-      return false;
+      return null;
     }
-  }, [claimMutation, toast, pin]);
+  }, [claimMutation, pin]);
 
   return {
     ...query,
