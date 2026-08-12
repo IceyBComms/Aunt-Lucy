@@ -53,8 +53,13 @@ export default function BuyDetails() {
   const [deliverWhen, setDeliverWhen] = useState<"now" | "date">("now");
   const [occasion, setOccasion] = useState<GiftOccasion>("new_baby");
   const [error, setError] = useState<string | null>(null);
+  // For-self only: the buyer's "Your name" quietly becomes the recipient/page
+  // name too, so before checkout we pause once to read that name back. Any edit
+  // to the name (or switching who it's for) drops back to "not yet confirmed".
+  const [confirmingSelf, setConfirmingSelf] = useState(false);
 
   function set(field: string, value: string) {
+    if (field === "purchaserName") setConfirmingSelf(false);
     setForm((f) => ({ ...f, [field]: value }));
   }
 
@@ -94,6 +99,14 @@ export default function BuyDetails() {
     }
     if (!isForSelf && !form.recipientName.trim()) {
       setError("Just need a name and a situation — that's all.");
+      return;
+    }
+
+    // On the for-self path the one name field becomes the recipient/page name as
+    // well, so pause once to read it back before we leave for Stripe. This is the
+    // guard against a stray or autofilled value ("KT") sailing through unseen.
+    if (isForSelf && !confirmingSelf) {
+      setConfirmingSelf(true);
       return;
     }
 
@@ -169,7 +182,10 @@ export default function BuyDetails() {
                   <button
                     key={String(opt.value)}
                     type="button"
-                    onClick={() => setForSelf(opt.value)}
+                    onClick={() => {
+                      setForSelf(opt.value);
+                      setConfirmingSelf(false);
+                    }}
                     className={`p-4 rounded-2xl border-2 text-sm font-medium transition-colors ${
                       forSelf === opt.value
                         ? "border-primary bg-primary/5 text-foreground"
@@ -192,6 +208,8 @@ export default function BuyDetails() {
               placeholder="e.g. Priya"
               value={form.purchaserName}
               onChange={(e) => set("purchaserName", e.target.value)}
+              // The buyer's own name — their saved value is exactly what we want.
+              autoComplete="name"
               required
               autoFocus
             />
@@ -207,6 +225,8 @@ export default function BuyDetails() {
               placeholder="you@example.com"
               value={form.purchaserEmail}
               onChange={(e) => set("purchaserEmail", e.target.value)}
+              // The buyer's own email — where their receipt goes. Autofill welcome.
+              autoComplete="email"
               required
             />
             <p className="text-xs text-muted-foreground pl-1">
@@ -227,6 +247,9 @@ export default function BuyDetails() {
                   placeholder="e.g. Sarah"
                   value={form.recipientName}
                   onChange={(e) => set("recipientName", e.target.value)}
+                  // Someone else's name — the buyer's own remembered value landing
+                  // here is the misleading case we're guarding against.
+                  autoComplete="off"
                   required
                 />
                 <p className="text-xs text-muted-foreground pl-1">
@@ -266,6 +289,8 @@ export default function BuyDetails() {
                       placeholder="their@example.com"
                       value={form.recipientEmail}
                       onChange={(e) => set("recipientEmail", e.target.value)}
+                      // The recipient's email, not the buyer's — don't autofill it.
+                      autoComplete="off"
                       required
                     />
                     <p className="text-xs text-muted-foreground pl-1">
@@ -281,6 +306,8 @@ export default function BuyDetails() {
                       placeholder="0412 345 678"
                       value={form.recipientMobile}
                       onChange={(e) => set("recipientMobile", e.target.value)}
+                      // The recipient's mobile, not the buyer's — don't autofill it.
+                      autoComplete="off"
                     />
                     <p className="text-xs text-muted-foreground pl-1">
                       We'll send the link to you, so you can pass it on yourself
@@ -377,6 +404,28 @@ export default function BuyDetails() {
             )}
           </div>
 
+          {isForSelf && confirmingSelf && form.purchaserName.trim() && (
+            <div className="rounded-2xl border-2 border-primary/30 bg-primary/5 p-4 space-y-2">
+              <p className="text-sm text-foreground leading-relaxed">
+                We'll set up Aunt Lucy for{" "}
+                <strong className="font-semibold">
+                  {form.purchaserName.trim()}
+                </strong>{" "}
+                — that's the name your page and your helpers will use.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setConfirmingSelf(false);
+                  document.getElementById("purchaserName")?.focus();
+                }}
+                className="text-sm text-muted-foreground underline underline-offset-2 hover:text-foreground transition-colors"
+              >
+                Change the name
+              </button>
+            </div>
+          )}
+
           {error && <p className="text-sm text-destructive pl-1">{error}</p>}
 
           <div className="pt-2">
@@ -389,7 +438,9 @@ export default function BuyDetails() {
               {createGift.isPending
                 ? "Taking you to payment…"
                 : isForSelf
-                  ? "Set up for myself →"
+                  ? confirmingSelf
+                    ? "Yes, that's me →"
+                    : "Set up for myself →"
                   : isWorkplace
                     ? "Buy for a team member →"
                     : "Gift Aunt Lucy →"}
