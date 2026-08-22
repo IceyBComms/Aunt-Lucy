@@ -364,6 +364,14 @@ router.post("/internal/dispatch-invites", async (req, res) => {
 
     let ok = false;
     if (invite.channel === "email" && invite.email) {
+      // An emailed invite that carries its own grant token is slot-scoped, so it
+      // must point at the grant page — the public page hides trusted tasks and
+      // refuses to claim them (bug #031). Rows written by the manage/ invite
+      // path never carry a token on an email invite, so they keep the page link
+      // exactly as before; only the organiser per-slot path mints one.
+      const emailLink = invite.inviteToken
+        ? `${base}/invite/${invite.inviteToken}`
+        : `${base}/s/${page.slug}`;
       ok = await sendHelperInviteEmail({
         to: invite.email,
         subject: generalInviteEmailSubject(recipientFirstName),
@@ -372,11 +380,11 @@ router.post("/internal/dispatch-invites", async (req, res) => {
           recipientFirstName,
           situationLine,
           pronounObj: pronouns.obj,
-          link: `${base}/s/${page.slug}`,
+          link: emailLink,
           unsubscribeUrl: `${base}/unsubscribe/${invite.contactId}`,
           openingLine,
         }),
-        link: `${base}/s/${page.slug}`,
+        link: emailLink,
         unsubscribeUrl: `${base}/unsubscribe/${invite.contactId}`,
         openingLine,
       });

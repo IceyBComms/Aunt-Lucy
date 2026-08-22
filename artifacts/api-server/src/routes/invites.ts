@@ -10,6 +10,7 @@ import { logger } from "../lib/logger";
 import { getAppBaseUrl } from "../lib/appUrl";
 import { firstName } from "../lib/giftFulfilment";
 import { calendarSubscribeUrl } from "../lib/calendarFeed";
+import { inviteShape } from "../lib/inviteShape";
 import {
   resolvePronouns,
   applyPronounTokens,
@@ -70,9 +71,28 @@ router.post(
       return;
     }
 
+    // Two decisions, two variables — never one ternary (bug #031). A slot is
+    // always chosen on this route (it is in the path and was loaded above), so
+    // every invite minted here is a trusted, slot-scoped ask; the contact format
+    // only decides how the message travels. See lib/inviteShape.ts for why
+    // collapsing them left emailed helpers unable to claim the task they were
+    // invited to.
     const contactIsEmail = isEmail(contactTrimmed);
+    const { kind, channel, needsInviteToken } = inviteShape({
+      slotChosen: true,
+      contactIsEmail,
+    });
+
     const base = getAppBaseUrl();
-    const inviteToken = crypto.randomBytes(24).toString("hex");
+    // The grant that makes a trusted slot claimable. Minted for the invite's
+    // KIND, not its channel — an emailed trusted invite needs it exactly as much
+    // as a texted one.
+    const inviteToken = needsInviteToken
+      ? crypto.randomBytes(24).toString("hex")
+      : null;
+    // Where the invite points. A slot-scoped invite points at its own grant
+    // page (which names the task); a general one at the public page.
+    const link = inviteToken ? `${base}/invite/${inviteToken}` : `${base}/s/${page.slug}`;
     const helperFirstName = firstName(nameTrimmed);
     const recipientFirstName = firstName(page.recipientName);
     const pronounsEnum = page.recipientPronouns as RecipientPronouns;
@@ -84,19 +104,24 @@ router.post(
         pageId,
         contactId: null,
         slotId,
-        kind: contactIsEmail ? "general" : "trusted",
-        channel: contactIsEmail ? "email" : "sms",
+        kind,
+        channel,
         name: nameTrimmed,
         mobile: contactIsEmail ? null : contactTrimmed,
         email: contactIsEmail ? contactTrimmed : null,
-        inviteToken: contactIsEmail ? null : inviteToken,
+        inviteToken,
         status: "queued",
         scheduledFor: new Date(),
       })
       .returning();
 
     let ok: boolean;
-    if (contactIsEmail) {
+    if (channel === "email") {
+      // The approved 9c body, unchanged — but pointed at THIS invite's grant
+      // page rather than the public page, so the emailed helper lands on the
+      // task they were asked about instead of a listing that hides it. There is
+      // no approved trusted-invite EMAIL template (9b is SMS-only by design), so
+      // the wording stays general and the link carries the specificity.
       ok = await sendHelperInviteEmail({
         to: contactTrimmed,
         subject: generalInviteEmailSubject(recipientFirstName),
@@ -108,10 +133,10 @@ router.post(
             pronounsEnum,
           ),
           pronounObj: pronouns.obj,
-          link: `${base}/s/${page.slug}`,
+          link,
           unsubscribeUrl: `${base}/s/${page.slug}`,
         }),
-        link: `${base}/s/${page.slug}`,
+        link,
         unsubscribeUrl: `${base}/s/${page.slug}`,
       });
     } else {
@@ -126,7 +151,7 @@ router.post(
             pronounsEnum,
           ),
           pronounPoss: pronouns.poss,
-          link: `${base}/invite/${inviteToken}`,
+          link,
         }),
       });
     }
@@ -137,7 +162,7 @@ router.post(
       .where(eq(helperInvitesTable.id, invite.id));
 
     logger.info(
-      { slotId, name: nameTrimmed, via: contactIsEmail ? "email" : "sms", ok },
+      { slotId, name: nameTrimmed, kind, via: channel, ok },
       "Helper invite created (organiser)",
     );
 
@@ -145,7 +170,8 @@ router.post(
       id: invite.id,
       name: invite.name,
       contact: contactTrimmed,
-      via: contactIsEmail ? "email" : "sms",
+      via: channel,
+      kind,
     });
   },
 );
