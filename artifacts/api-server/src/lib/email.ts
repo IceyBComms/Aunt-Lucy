@@ -128,19 +128,19 @@ export function buildHtml(params: ClaimEmailParams): string {
   // Meal detail (bug #006). Rendered only when present, so non-meal slots and
   // meals with nothing to add both stay clean.
   const headcountBlock = headcount
-    ? `<tr><td style="padding:8px 0;color:#5a5a5a;font-size:14px;"><strong>Feeding:</strong> ${escapeHtml(String(headcount))} ${headcount === 1 ? "person" : "people"}</td></tr>`
+    ? `<tr><td style="padding:4px 0;color:#5a5a5a;font-size:14px;line-height:18px;mso-line-height-rule:exactly;"><strong>Feeding:</strong> ${escapeHtml(String(headcount))} ${headcount === 1 ? "person" : "people"}</td></tr>`
     : "";
 
   const dietaryBlock = dietaryNotes
-    ? `<tr><td style="padding:8px 0;color:#5a5a5a;font-size:14px;"><strong>Dietary needs:</strong> ${escapeHtml(dietaryNotes)}</td></tr>`
+    ? `<tr><td style="padding:4px 0;color:#5a5a5a;font-size:14px;line-height:18px;mso-line-height-rule:exactly;"><strong>Dietary needs:</strong> ${escapeHtml(dietaryNotes)}</td></tr>`
     : "";
 
   const notesBlock = notes
-    ? `<tr><td style="padding:8px 0;color:#5a5a5a;font-size:14px;"><strong>Notes:</strong> ${escapeHtml(notes)}</td></tr>`
+    ? `<tr><td style="padding:4px 0;color:#5a5a5a;font-size:14px;line-height:18px;mso-line-height-rule:exactly;"><strong>Notes:</strong> ${escapeHtml(notes)}</td></tr>`
     : "";
 
   const locationBlock = location
-    ? `<tr><td style="padding:8px 0;color:#5a5a5a;font-size:14px;"><strong>Location:</strong> ${escapeHtml(location)}</td></tr>`
+    ? `<tr><td style="padding:4px 0;color:#5a5a5a;font-size:14px;line-height:18px;mso-line-height-rule:exactly;"><strong>Location:</strong> ${escapeHtml(location)}</td></tr>`
     : "";
 
   return `<!DOCTYPE html>
@@ -160,13 +160,18 @@ export function buildHtml(params: ClaimEmailParams): string {
           <p style="margin:0 0 20px;color:#333;font-size:16px;line-height:1.6;">
             Thank you so much for stepping up to help <strong>${escapeHtml(recipientName)}</strong>. It really does make a difference. Here's a summary of what you've signed up for:
           </p>
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#F3F6F2;border-radius:8px;padding:20px;margin:0 0 24px;">
-            <tr><td style="padding:8px 0;color:#5a5a5a;font-size:14px;"><strong>What:</strong> ${escapeHtml(typeLabel)}</td></tr>
-            <tr><td style="padding:8px 0;color:#5a5a5a;font-size:14px;"><strong>When:</strong> ${escapeHtml(dateTimeLine)}</td></tr>
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">
+            <tr><td bgcolor="#F3F6F2" style="background-color:#F3F6F2;border-radius:8px;padding:20px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">
+            <tr><td style="padding:4px 0;color:#5a5a5a;font-size:14px;line-height:18px;mso-line-height-rule:exactly;"><strong>What:</strong> ${escapeHtml(typeLabel)}</td></tr>
+            <tr><td style="padding:4px 0;color:#5a5a5a;font-size:14px;line-height:18px;mso-line-height-rule:exactly;"><strong>When:</strong> ${escapeHtml(dateTimeLine)}</td></tr>
             ${headcountBlock}
             ${dietaryBlock}
             ${locationBlock}
             ${notesBlock}
+          </table>
+            </td></tr>
+            <tr><td height="24" style="height:24px;line-height:24px;font-size:0;">&nbsp;</td></tr>
           </table>
           <p style="margin:0 0 8px;color:#333;font-size:16px;line-height:1.6;">
             If anything changes, just let the person looking after the page know.
@@ -883,10 +888,15 @@ ${params.contentHtml}
 function renderButton(url: string, label: string): string {
   const font =
     "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
-  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 auto 24px;">
-            <tr><td align="center" bgcolor="#2D6A4F" style="border-radius:8px;background-color:#2D6A4F;">
-              <a href="${escapeHtml(url)}" style="display:inline-block;padding:14px 30px;color:#ffffff;font-family:${font};font-size:16px;font-weight:600;line-height:1.2;text-decoration:none;border-radius:8px;"><span style="color:#ffffff;text-decoration:none;">${escapeHtml(label)}</span></a>
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">
+            <tr><td align="center" style="padding:0;">
+              <table role="presentation" align="center" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;margin:0 auto;">
+                <tr><td align="center" bgcolor="#2D6A4F" style="border-radius:8px;background-color:#2D6A4F;padding:14px 30px;">
+                  <a href="${escapeHtml(url)}" style="display:block;color:#ffffff;font-family:${font};font-size:16px;font-weight:600;line-height:20px;mso-line-height-rule:exactly;text-decoration:none;"><span style="color:#ffffff;text-decoration:none;">${escapeHtml(label)}</span></a>
+                </td></tr>
+              </table>
             </td></tr>
+            <tr><td height="24" style="height:24px;line-height:24px;font-size:0;">&nbsp;</td></tr>
           </table>`;
 }
 
