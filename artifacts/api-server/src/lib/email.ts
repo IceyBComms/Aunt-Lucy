@@ -113,7 +113,7 @@ export function buildHtml(params: ClaimEmailParams): string {
   // calendarUrl only then). SUGGESTED COPY — Kate to bless final wording.
   const calendarBlock = calendarUrl
     ? `<p style="margin:0 0 8px;color:#333;font-size:16px;line-height:1.6;">
-            📅 <a href="${escapeHtml(calendarUrl)}" style="color:#7C9A72;font-weight:600;">Add this to your calendar</a> so it's there when you need it — it'll update if the time changes.
+            📅 <a href="${escapeHtml(calendarUrl)}" style="color:#2D6A4F;font-weight:600;">Add this to your calendar</a> so it's there when you need it — it'll update if the time changes.
           </p>`
     : "";
 
@@ -121,7 +121,7 @@ export function buildHtml(params: ClaimEmailParams): string {
   // link is present.
   const releaseBlock = releaseUrl
     ? `<p style="margin:0 0 8px;color:#333;font-size:16px;line-height:1.6;">
-            Can't make it after all? No worries at all — <a href="${escapeHtml(releaseUrl)}" style="color:#7C9A72;font-weight:600;">release this slot</a> and someone else can pick it up.
+            Can't make it after all? No worries at all — <a href="${escapeHtml(releaseUrl)}" style="color:#2D6A4F;font-weight:600;">release this slot</a> and someone else can pick it up.
           </p>`
     : "";
 
@@ -143,18 +143,20 @@ export function buildHtml(params: ClaimEmailParams): string {
     ? `<tr><td style="padding:4px 0;color:#5a5a5a;font-size:14px;line-height:18px;mso-line-height-rule:exactly;"><strong>Location:</strong> ${escapeHtml(location)}</td></tr>`
     : "";
 
-  return `<!DOCTYPE html>
-<html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background-color:#FAF9F6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#FAF9F6;">
-    <tr><td align="center" style="padding:40px 16px;">
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
-        <tr><td style="background-color:#7C9A72;padding:28px 32px;">
-          <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:600;">Aunt Lucy</h1>
-        </td></tr>
-        <tr><td style="padding:32px;">
-          <p style="margin:0 0 20px;color:#333;font-size:16px;line-height:1.6;">
+  // Re-homed onto the shared chrome (#043). This email used to carry its own
+  // full document — a green #7C9A72 band with the words "Aunt Lucy" set as an
+  // <h1>, a #FAF9F6 page, no preheader — because it predates renderGiftLayout.
+  // It is the one email every helper is guaranteed to receive and it was the
+  // only one that didn't look like the others. The body below is unchanged;
+  // only the chrome around it is now the approved one.
+  //
+  // The preheader is deliberately empty: every other email's was written for it,
+  // and inventing words here would be a copy change. Empty means the inbox
+  // preview falls through to "Hi <name>, Thank you so much for stepping up…",
+  // which is exactly what it does today.
+  return renderGiftLayout({
+    preheader: "",
+    contentHtml: `          <p style="margin:0 0 20px;color:#333;font-size:16px;line-height:1.6;">
             Hi ${escapeHtml(helperFirstName)},
           </p>
           <p style="margin:0 0 20px;color:#333;font-size:16px;line-height:1.6;">
@@ -178,18 +180,11 @@ export function buildHtml(params: ClaimEmailParams): string {
           </p>
           ${calendarBlock}
           ${releaseBlock}
-          <p style="margin:24px 0 0;color:#7C9A72;font-size:15px;line-height:1.6;">
+          <p style="margin:24px 0 0;color:#2D6A4F;font-size:15px;line-height:1.6;">
             Warmly,<br>The Aunt Lucy Team
-          </p>
-        </td></tr>
-        <tr><td style="padding:20px 32px;background-color:#F3F6F2;text-align:center;">
-          <p style="margin:0;color:#999;font-size:12px;">You received this email because you signed up to help via Aunt Lucy.</p>
-        </td></tr>
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>`;
+          </p>`,
+    footerHtml: "You received this email because you signed up to help via Aunt Lucy.",
+  });
 }
 
 export function buildPlainText(params: ClaimEmailParams): string {
