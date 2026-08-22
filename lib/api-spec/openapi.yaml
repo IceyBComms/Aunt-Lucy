@@ -723,6 +723,121 @@ paths:
               schema:
                 $ref: "#/components/schemas/BereavementGateError"
 
+  /manage/{token}/managers:
+    post:
+      operationId: addManager
+      tags: [manage]
+      summary: Share the running of this page with a named person (section A)
+      description: >-
+        Mints a manager grant and sends that person their own private /manage
+        link on the contact given. The list itself is read from getManageState.
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddManagerRequest"
+      responses:
+        "201":
+          description: Manager added and link sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ManageManager"
+        "400":
+          description: Invalid name or contact
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotFoundError"
+
+  /manage/{token}/managers/{grantId}:
+    delete:
+      operationId: revokeManager
+      tags: [manage]
+      summary: Take back someone's access (section C)
+      description: >-
+        Revokes a manager grant immediately — their link stops working, nobody
+        else's is affected. Refuses to remove a recipient's own grant, refuses
+        unless the caller is the recipient, and refuses the last remaining grant.
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: grantId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Access removed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResponse"
+        "403":
+          description: This grant can't be removed by the caller
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotFoundError"
+        "409":
+          description: Would leave the page with no one who can manage it
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotFoundError"
+
+  /manage/{token}/recipient-access:
+    post:
+      operationId: grantRecipientAccess
+      tags: [manage]
+      summary: Give the affected person their own always-on access (section E)
+      description: >-
+        Mints the recipient's own grant and sends them their link. Refuses if
+        they already hold one. This is the loop-in from the nudge shown when
+        recipientHasOwnAccess is false.
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GrantRecipientAccessRequest"
+      responses:
+        "201":
+          description: Recipient looped in and link sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ManageManager"
+        "400":
+          description: Invalid contact
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotFoundError"
+        "409":
+          description: The recipient already has their own access
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotFoundError"
+
   /manage/{token}/tasks/{slotId}:
     patch:
       operationId: editTask
@@ -1739,6 +1854,20 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ManageInvite"
+        managers:
+          type: array
+          description: >-
+            Everyone with active access to run this page (section B) — the
+            recipient's own grant plus any nominated managers. Each carries
+            whether the viewer may remove it (canRevoke), computed server-side.
+          items:
+            $ref: "#/components/schemas/ManageManager"
+        recipientHasOwnAccess:
+          type: boolean
+          description: >-
+            Whether the person the page is ABOUT holds their own recipient
+            grant. When false, the UI offers to give them their own always-on
+            access (the section-E nudge).
       required:
         - role
         - recipientName
@@ -1750,6 +1879,71 @@ components:
         - tasks
         - contacts
         - invites
+        - managers
+        - recipientHasOwnAccess
+
+    ManageManager:
+      type: object
+      description: One person with active access to run a page.
+      properties:
+        grantId:
+          type: string
+        role:
+          type: string
+          enum: [recipient, manager]
+        personName:
+          type: string
+          nullable: true
+          description: Null for the recipient's own self-grant (the page is already theirs).
+        personContact:
+          type: string
+          nullable: true
+          description: The single email or mobile the grant was delivered to. Null for a self-grant.
+        isSelf:
+          type: boolean
+          description: Whether this grant is the one the viewer is using right now.
+        canRevoke:
+          type: boolean
+          description: >-
+            Whether the viewer may remove this person. False for a recipient's
+            own grant (unrevocable by anyone), false unless the viewer is the
+            recipient, and false for the last remaining grant.
+        addedAt:
+          type: string
+          format: date-time
+      required:
+        - grantId
+        - role
+        - personName
+        - personContact
+        - isSelf
+        - canRevoke
+        - addedAt
+
+    AddManagerRequest:
+      type: object
+      description: Share the running of a page with a named person (section A).
+      properties:
+        name:
+          type: string
+        contact:
+          type: string
+          description: Their mobile number or email address (one is enough).
+      required:
+        - name
+        - contact
+
+    GrantRecipientAccessRequest:
+      type: object
+      description: >-
+        Give the affected person their own always-on recipient access (the
+        section-E loop-in from the nudge).
+      properties:
+        contact:
+          type: string
+          description: Their mobile number or email address.
+      required:
+        - contact
 
     ManageDetails:
       type: object

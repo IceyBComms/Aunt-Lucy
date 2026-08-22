@@ -7,10 +7,16 @@ import {
   contactsTable,
   helperInvitesTable,
   giftsTable,
+  pageGrantsTable,
   type SupportPage,
   type Contact,
 } from "@workspace/db";
 import { and, eq, isNull, desc } from "drizzle-orm";
+import {
+  listActiveGrants,
+  mintManagerGrant,
+  grantRecipientAccess,
+} from "../lib/accessGrants";
 import {
   requireManagementToken,
   type ManagementRequest,
@@ -66,7 +72,7 @@ function isEmail(v: string): boolean {
 // ─── Read: the manage home state ─────────────────────────────────────────────
 
 router.get("/manage/:token", requireManagementToken as any, async (req, res) => {
-  const { pageId, grantRole } = req as unknown as ManagementRequest;
+  const { pageId, grantId, grantRole } = req as unknown as ManagementRequest;
 
   const page = await db.query.supportPagesTable.findFirst({
     where: eq(supportPagesTable.id, pageId),
@@ -92,9 +98,38 @@ router.get("/manage/:token", requireManagementToken as any, async (req, res) => 
       ? `${getAppBaseUrl()}/gift/${gift.redemptionToken}`
       : null;
 
+  // Who has access (section B), and whether the affected person themselves holds
+  // a grant (drives the section-E "give them their own access" nudge). A grant's
+  // removability (section C) is computed here so the client never has to know the
+  // rules: a recipient's own grant is unrevocable by anyone; only the recipient
+  // can remove a manager (a manager self-revoke path is deliberately not built
+  // yet); and the last remaining grant can never be removed, so a page can't be
+  // left unmanageable.
+  const grants = await listActiveGrants(pageId);
+  const recipientHasOwnAccess = grants.some((g) => g.role === "recipient");
+  const managers = grants.map((g) => {
+    let canRevoke = true;
+    if (g.role === "recipient") canRevoke = false;
+    else if (grantRole !== "recipient") canRevoke = false;
+    else if (grants.length <= 1) canRevoke = false;
+    return {
+      grantId: g.id,
+      role: g.role,
+      // The recipient's own self-grant carries no name/contact (the page is
+      // already theirs); a nominated manager carries both.
+      personName: g.personName,
+      personContact: g.personContact,
+      isSelf: g.id === grantId,
+      canRevoke,
+      addedAt: g.createdAt.toISOString(),
+    };
+  });
+
   res.json({
     role: grantRole,
     recipientName: page.recipientName,
+    managers,
+    recipientHasOwnAccess,
     // Present only for a sealed team card — the "See your card 💛" entry point.
     cardKeepsakeUrl,
     slug: page.slug,
@@ -333,6 +368,188 @@ router.delete("/manage/:token/contacts/:contactId", requireManagementToken as an
   await db.delete(contactsTable).where(eq(contactsTable.id, contactId));
   res.json({ ok: true });
 });
+
+// ─── Access grants — share / list / revoke the running of a page ─────────────
+//
+// The list itself is returned by GET /manage (the `managers` array). These
+// endpoints add and remove people. A grant's token is its holder's own
+// /manage credential, delivered on the contact they were added with.
+
+/**
+ * POST /manage/:token/managers — share the running of this page with a named
+ * person (section A). Mints a manager grant and sends them their own link.
+ */
+router.post("/manage/:token/managers", requireManagementToken as any, async (req, res) => {
+  const { pageId, grantId } = req as unknown as ManagementRequest;
+  const body = req.body as Record<string, unknown>;
+
+  const name = trimmed(body.name);
+  const contact = trimmed(body.contact);
+  if (!name) {
+    res.status(400).json({ error: "A name is required." });
+    return;
+  }
+  if (!contact) {
+    res.status(400).json({ error: "Add their mobile number or email address." });
+    return;
+  }
+  // A value with an @ must be a valid email; a value without is treated as a
+  // mobile (the same light rule the contacts form uses).
+  if (contact.includes("@") && !isEmail(contact)) {
+    res.status(400).json({ error: "That email address doesn't look right." });
+    return;
+  }
+
+  const page = await db.query.supportPagesTable.findFirst({
+    where: eq(supportPagesTable.id, pageId),
+  });
+  if (!page) {
+    res.status(404).json({ error: "Page not found." });
+    return;
+  }
+
+  const { grant, delivered } = await mintManagerGrant({
+    pageId,
+    byGrantId: grantId,
+    recipientName: page.recipientName,
+    name,
+    contact,
+  });
+
+  logger.info({ pageId, grantId: grant.id, delivered }, "Manager grant added");
+  res.status(201).json({
+    grantId: grant.id,
+    role: grant.role,
+    personName: grant.personName,
+    personContact: grant.personContact,
+    isSelf: false,
+    canRevoke: true,
+    addedAt: grant.createdAt.toISOString(),
+    delivered,
+  });
+});
+
+/**
+ * DELETE /manage/:token/managers/:grantId — take back someone's access
+ * (section C). Enforces every rule server-side, never trusting the client:
+ * a recipient's own grant is unrevocable by anyone; only the recipient may
+ * remove a manager; and the last active grant can never be removed.
+ */
+router.delete(
+  "/manage/:token/managers/:grantId",
+  requireManagementToken as any,
+  async (req, res) => {
+    const { pageId, grantRole } = req as unknown as ManagementRequest;
+    const targetId = req.params.grantId;
+
+    const target = await db.query.pageGrantsTable.findFirst({
+      where: and(
+        eq(pageGrantsTable.id, targetId),
+        eq(pageGrantsTable.pageId, pageId),
+        isNull(pageGrantsTable.revokedAt),
+      ),
+    });
+    if (!target) {
+      res.status(404).json({ error: "That person doesn't have access, or already had it removed." });
+      return;
+    }
+
+    if (target.role === "recipient") {
+      res.status(403).json({
+        error: "This is the page owner's own access — it can't be removed by anyone else.",
+      });
+      return;
+    }
+    if (grantRole !== "recipient") {
+      res.status(403).json({
+        error: "Only the person this page is for can remove someone from running it.",
+      });
+      return;
+    }
+
+    const active = await listActiveGrants(pageId);
+    if (active.length <= 1) {
+      res.status(409).json({
+        error:
+          "This is the only person who can manage this page — add someone else first.",
+      });
+      return;
+    }
+
+    await db
+      .update(pageGrantsTable)
+      .set({ revokedAt: new Date() })
+      .where(eq(pageGrantsTable.id, targetId));
+
+    logger.info({ pageId, grantId: targetId }, "Manager grant revoked");
+    res.json({ ok: true });
+  },
+);
+
+/**
+ * POST /manage/:token/recipient-access — give the affected person their own
+ * always-on access (section E loop-in from the nudge). Mints their recipient
+ * grant and sends them their link. No-op-guarded: refuses if they already hold
+ * one. Logs the loop-in so we can measure how often deferred setups get
+ * completed (see the deferral log in crisis.ts / organiser.ts).
+ */
+router.post(
+  "/manage/:token/recipient-access",
+  requireManagementToken as any,
+  async (req, res) => {
+    const { pageId, grantId } = req as unknown as ManagementRequest;
+    const contact = trimmed((req.body as Record<string, unknown>).contact);
+
+    if (!contact) {
+      res.status(400).json({ error: "Add their mobile number or email address." });
+      return;
+    }
+    if (contact.includes("@") && !isEmail(contact)) {
+      res.status(400).json({ error: "That email address doesn't look right." });
+      return;
+    }
+
+    const page = await db.query.supportPagesTable.findFirst({
+      where: eq(supportPagesTable.id, pageId),
+    });
+    if (!page) {
+      res.status(404).json({ error: "Page not found." });
+      return;
+    }
+
+    const existing = await listActiveGrants(pageId);
+    if (existing.some((g) => g.role === "recipient")) {
+      res.status(409).json({ error: `${firstName(page.recipientName)} already has their own access.` });
+      return;
+    }
+
+    const { grant, delivered } = await grantRecipientAccess({
+      pageId,
+      recipientName: page.recipientName,
+      contact,
+      byGrantId: grantId,
+      // A bereavement or serious-illness page takes the gentler wording.
+      occasion: page.occasion,
+    });
+
+    // Instrumentation (Option 1 sizing): a deferred setup was later completed.
+    // Grep `event=recipient_access_looped_in` against the deferral count.
+    logger.info(
+      { event: "recipient_access_looped_in", pageId, source: "manage_nudge", delivered },
+      "Recipient looped in to their own page via the /manage nudge",
+    );
+    res.status(201).json({
+      grantId: grant.id,
+      role: grant.role,
+      personName: grant.personName,
+      personContact: grant.personContact,
+      isSelf: false,
+      canRevoke: false,
+      addedAt: grant.createdAt.toISOString(),
+      delivered,
+    });
+  },
+);
 
 // ─── Invite composition (shared by preview / send / schedule) ────────────────
 
