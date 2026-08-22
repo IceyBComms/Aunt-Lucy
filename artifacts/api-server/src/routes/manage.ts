@@ -50,6 +50,9 @@ import {
   secondWaveSms,
   generalInviteEmailSubject,
   generalInviteEmailText,
+  trustedInviteEmailSubject,
+  trustedInviteEmailText,
+  TRUSTED_INVITE_EMAIL_CTA,
   type RecipientPronouns,
   type BabyStage,
 } from "../lib/inviteCopy";
@@ -573,6 +576,8 @@ interface PreparedInvite {
   link: string;
   body: string;
   subject: string | null;
+  /** The CTA words in `body`, so the HTML button reads the same. Email only. */
+  ctaLabel: string | null;
   unsubscribeUrl: string | null;
 }
 
@@ -608,16 +613,18 @@ async function prepareInvite(
 
   // Resolve the kind. A slot makes it a trusted ask; otherwise general, unless
   // the caller explicitly asked for a second-wave nudge.
-  let kind: InviteKind = req.kind ?? (req.slotId ? "trusted" : "general");
+  const kind: InviteKind = req.kind ?? (req.slotId ? "trusted" : "general");
   let slotId: string | null = null;
   let inviteToken: string | null = null;
   let link = `${base}/s/${page.slug}`;
+  let slot: typeof slotsTable.$inferSelect | undefined;
 
   if (kind === "trusted") {
-    // The trusted invite still grants the specific slot (its label shows on the
-    // invite page); the SMS wording no longer names the task.
+    // The trusted invite grants the specific slot. The SMS wording doesn't name
+    // the task (its label shows on the invite page instead); the email does —
+    // see the note on trustedInviteEmailText for why the channel changes that.
     if (!req.slotId) return { error: "A trusted invite needs a task." };
-    const slot = await db.query.slotsTable.findFirst({
+    slot = await db.query.slotsTable.findFirst({
       where: and(eq(slotsTable.id, req.slotId), eq(slotsTable.pageId, page.id)),
     });
     if (!slot) return { error: "That task isn't on this page." };
@@ -631,10 +638,45 @@ async function prepareInvite(
 
   let body: string;
   let subject: string | null = null;
+  let ctaLabel: string | null = null;
 
-  if (channel === "email") {
-    // Email only carries the general 9c copy; trusted/second-wave are SMS-first
-    // by design (CLAUDE.md), so an email contact on those falls back to 9c.
+  // Two decisions, kept apart (bug #031, restated in lib/inviteShape.ts): the
+  // KIND came from whether a task was chosen, above; the CHANNEL comes from the
+  // contact format, and decides nothing else. This branch used to break that —
+  // an email address rewrote a trusted invite into a general one, dropped the
+  // slot and the grant with it, and told nobody (bug #032). It did that only
+  // because the trusted ask had no email body to send. It has one now.
+  if (kind === "trusted" && slot) {
+    const trustedLine = applyPronounTokens(
+      page.trustedLine ?? defaultTrustedLine(page.occasion ?? null, page.babyStage),
+      pronouns,
+    );
+    if (channel === "email") {
+      subject = trustedInviteEmailSubject(recipientFirstName);
+      ctaLabel = TRUSTED_INVITE_EMAIL_CTA;
+      body = trustedInviteEmailText({
+        helperFirstName,
+        recipientFirstName,
+        trustedLine,
+        taskLabel: taskLabel(slot.slotType, slot.customLabel),
+        when: whenLabel(slot.slotDate, slot.slotTime),
+        link,
+        unsubscribeUrl,
+        openingLine,
+      });
+    } else {
+      body = trustedInviteSms({
+        helperFirstName,
+        recipientFirstName,
+        trustedLine,
+        pronounPoss: poss,
+        link,
+        openingLine,
+      });
+    }
+  } else if (channel === "email") {
+    // General and second-wave invites are about the page, not one task, so they
+    // carry the 9c body and point at the public page. Unchanged.
     subject = generalInviteEmailSubject(recipientFirstName);
     body = generalInviteEmailText({
       helperFirstName,
@@ -645,23 +687,7 @@ async function prepareInvite(
       unsubscribeUrl,
       openingLine,
     });
-    // An email contact can't use a per-slot trusted token page; treat as general.
-    kind = kind === "second_wave" ? "second_wave" : "general";
-    slotId = null;
-    inviteToken = null;
     link = `${base}/s/${page.slug}`;
-  } else if (kind === "trusted") {
-    body = trustedInviteSms({
-      helperFirstName,
-      recipientFirstName,
-      trustedLine: applyPronounTokens(
-        page.trustedLine ?? defaultTrustedLine(page.occasion ?? null, page.babyStage),
-        pronouns,
-      ),
-      pronounPoss: poss,
-      link,
-      openingLine,
-    });
   } else if (kind === "second_wave") {
     body = secondWaveSms({ helperFirstName, recipientFirstName, link, openingLine });
   } else {
@@ -681,6 +707,7 @@ async function prepareInvite(
     link,
     body,
     subject,
+    ctaLabel,
     unsubscribeUrl: channel === "email" ? unsubscribeUrl : null,
   };
 }
@@ -813,6 +840,7 @@ async function dispatchOrQueue(
             subject: prepared.subject!,
             text: prepared.body,
             link: prepared.link,
+            ctaLabel: prepared.ctaLabel ?? undefined,
             unsubscribeUrl: prepared.unsubscribeUrl!,
             openingLine: prepared.openingLine,
           });

@@ -14,13 +14,14 @@ import { inviteShape } from "../lib/inviteShape";
 import {
   resolvePronouns,
   applyPronounTokens,
-  defaultSituationLine,
   defaultTrustedLine,
   trustedInviteSms,
-  generalInviteEmailSubject,
-  generalInviteEmailText,
+  trustedInviteEmailSubject,
+  trustedInviteEmailText,
+  TRUSTED_INVITE_EMAIL_CTA,
   type RecipientPronouns,
 } from "../lib/inviteCopy";
+import { taskLabel, whenLabel } from "../lib/item17Copy";
 
 const router: IRouter = Router();
 
@@ -117,26 +118,31 @@ router.post(
 
     let ok: boolean;
     if (channel === "email") {
-      // The approved 9c body, unchanged — but pointed at THIS invite's grant
-      // page rather than the public page, so the emailed helper lands on the
-      // task they were asked about instead of a listing that hides it. There is
-      // no approved trusted-invite EMAIL template (9b is SMS-only by design), so
-      // the wording stays general and the link carries the specificity.
+      // A slot is always chosen on this route, so this is always a trusted ask.
+      // PR #62 had to send the general 9c body here because the trusted copy was
+      // SMS-only and there was nothing else to send; the link carried the
+      // specificity and the wording didn't. There is an approved trusted email
+      // now (bug #032), so the words match the ask as well as the link does.
       ok = await sendHelperInviteEmail({
         to: contactTrimmed,
-        subject: generalInviteEmailSubject(recipientFirstName),
-        text: generalInviteEmailText({
+        subject: trustedInviteEmailSubject(recipientFirstName),
+        text: trustedInviteEmailText({
           helperFirstName,
           recipientFirstName,
-          situationLine: applyPronounTokens(
-            page.situationLine ?? defaultSituationLine(page.occasion ?? null, page.babyStage),
+          trustedLine: applyPronounTokens(
+            page.trustedLine ?? defaultTrustedLine(page.occasion ?? null, page.babyStage),
             pronounsEnum,
           ),
-          pronounObj: pronouns.obj,
+          taskLabel: taskLabel(slot.slotType, slot.customLabel),
+          when: whenLabel(slot.slotDate, slot.slotTime),
           link,
+          // Unchanged from what this path has always sent (see the footer note
+          // in the PR): the public page, not a real unsubscribe route. Passed
+          // through, deliberately not rewired here.
           unsubscribeUrl: `${base}/s/${page.slug}`,
         }),
         link,
+        ctaLabel: TRUSTED_INVITE_EMAIL_CTA,
         unsubscribeUrl: `${base}/s/${page.slug}`,
       });
     } else {

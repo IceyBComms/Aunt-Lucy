@@ -559,24 +559,75 @@ export async function sendInviteEmail(params: InviteEmailParams): Promise<void> 
   logger.info({ to: params.to }, "Invite email sent");
 }
 
-// ─── Helper Invite Email (9c) ─────────────────────────────────────────────────
+// ─── Helper Invite Email (9c and the trusted invite) ─────────────────────────
 //
 // The body wording is composed verbatim in inviteCopy.ts. This layer wraps that
-// exact text in the branded HTML chrome (turning the "See how you can help →"
+// exact text in the branded HTML chrome (turning the "<label> → <link>" CTA
 // line into a button and the unsubscribe line into a link) and sends it. The
 // plain-text part is the canonical copy, unchanged.
+//
+// Two bodies come through here now and they use different CTA words, so the
+// label is a parameter rather than a literal. It defaults to 9c's wording, so
+// every existing caller renders exactly what it always did.
 
 export interface HelperInviteEmailParams {
   to: string;
   subject: string;
-  /** The verbatim 9c body from inviteCopy.generalInviteEmailText. */
+  /** The verbatim body from inviteCopy — 9c, or the trusted invite email. */
   text: string;
-  /** The support-page link the CTA points at. */
+  /** The link the CTA points at: the public page, or an invite's own grant. */
   link: string;
+  /**
+   * The CTA words. They appear twice — as the button, and as the "<label> →"
+   * prefix of the line in `text` that the button replaces — so the two can
+   * never drift apart. Defaults to 9c's wording.
+   */
+  ctaLabel?: string;
   /** One-tap unsubscribe that genuinely suppresses future sends. */
   unsubscribeUrl: string;
   /** The recipient's optional personal opener, shown above the body. */
   openingLine?: string | null;
+}
+
+/**
+ * The branded HTML for a helper invite. Exported so the exact bytes that would
+ * be sent can be asserted in a test and read back before a copy change ships —
+ * a reimplementation inside a test helper would prove nothing about this one.
+ */
+export function renderHelperInviteEmailHtml(
+  params: Pick<
+    HelperInviteEmailParams,
+    "text" | "link" | "ctaLabel" | "unsubscribeUrl" | "openingLine"
+  >,
+): string {
+  const openerHtml = params.openingLine?.trim()
+    ? `<p style="margin:0 0 20px;color:#333;font-size:16px;line-height:1.6;font-style:italic;">${escapeHtml(params.openingLine.trim())}</p>`
+    : "";
+
+  // The body text minus the CTA line and the unsubscribe line, which become a
+  // button and a footer link respectively. Everything else is shown verbatim.
+  const ctaLabel = params.ctaLabel ?? "See how you can help";
+  const paragraphs = params.text
+    .split("\n\n")
+    .filter(
+      (p) =>
+        !p.startsWith(`${ctaLabel} →`) &&
+        !p.startsWith("Don't want to receive these emails?"),
+    )
+    .map(
+      (p) =>
+        `<p style="margin:0 0 20px;color:#333;font-size:16px;line-height:1.6;">${escapeHtml(p).replace(/\n/g, "<br>")}</p>`,
+    )
+    .join("\n");
+
+  const contentHtml = `${openerHtml}${paragraphs}
+          ${renderButton(params.link, ctaLabel)}`;
+
+  return renderGiftLayout({
+    preheader: "A gentle, no-pressure way to lend a hand.",
+    contentHtml,
+    footerHtml: `Don't want to receive these emails? <a href="${escapeHtml(params.unsubscribeUrl)}" style="color:#999;">Unsubscribe here</a>.`,
+  });
 }
 
 export async function sendHelperInviteEmail(
@@ -593,37 +644,11 @@ export async function sendHelperInviteEmail(
     return false;
   }
 
-  const openerHtml = params.openingLine?.trim()
-    ? `<p style="margin:0 0 20px;color:#333;font-size:16px;line-height:1.6;font-style:italic;">${escapeHtml(params.openingLine.trim())}</p>`
-    : "";
-
-  // The body text minus the CTA line and the unsubscribe line, which become a
-  // button and a footer link respectively. Everything else is shown verbatim.
-  const paragraphs = params.text
-    .split("\n\n")
-    .filter(
-      (p) =>
-        !p.startsWith("See how you can help →") &&
-        !p.startsWith("Don't want to receive these emails?"),
-    )
-    .map(
-      (p) =>
-        `<p style="margin:0 0 20px;color:#333;font-size:16px;line-height:1.6;">${escapeHtml(p).replace(/\n/g, "<br>")}</p>`,
-    )
-    .join("\n");
-
-  const contentHtml = `${openerHtml}${paragraphs}
-          ${renderButton(params.link, "See how you can help")}`;
-
   const { error } = await resend.emails.send({
     from: FROM_ADDRESS,
     to: params.to,
     subject: params.subject,
-    html: renderGiftLayout({
-      preheader: "A gentle, no-pressure way to lend a hand.",
-      contentHtml,
-      footerHtml: `Don't want to receive these emails? <a href="${escapeHtml(params.unsubscribeUrl)}" style="color:#999;">Unsubscribe here</a>.`,
-    }),
+    html: renderHelperInviteEmailHtml(params),
     text: params.text,
   });
 
