@@ -5,6 +5,7 @@ import { eq, and } from "drizzle-orm";
 import { requireAuth, type AuthRequest } from "../middleware/requireAuth";
 import { sendSms } from "../lib/sms";
 import { sendHelperInviteEmail } from "../lib/email";
+import { sendClaimConfirmationToHelper } from "../lib/claimNotify";
 import { logger } from "../lib/logger";
 import { getAppBaseUrl } from "../lib/appUrl";
 import { firstName } from "../lib/giftFulfilment";
@@ -285,6 +286,47 @@ router.post("/invite/:token/claim", async (req, res) => {
     .where(eq(helperInvitesTable.id, invite.id));
 
   logger.info({ inviteId: invite.id, name: invite.name }, "Trusted helper claimed slot");
+
+  // Confirm the claim on the helper's own channel, exactly as the public path
+  // does. This path previously sent NOTHING — it handed the release and calendar
+  // links to the confirmation SCREEN only, which is React state and is gone on
+  // reload. That left the worst-affected cohort with no durable record at all:
+  // a trusted invite is SMS-delivered by design, so these helpers are almost
+  // always phone-only (bug #013).
+  //
+  // The page is loaded for its recipient name and location, which the public
+  // claim path already has in hand and this one does not.
+  const claimPage = await db.query.supportPagesTable.findFirst({
+    where: eq(supportPagesTable.id, invite.pageId),
+  });
+  if (claimPage) {
+    void sendClaimConfirmationToHelper({
+      slotId: claimed[0].id,
+      // The invite's own name field — the trusted helper never types one.
+      helperFirstName: invite.name,
+      // Mirrors the claimed_by_contact fallback written above, so the channel is
+      // worked out from the same value that was stored. When the invite carried
+      // neither mobile nor email that value is the helper's NAME, and the
+      // dispatcher answers "unknown" and warns rather than texting a name.
+      helperContact: invite.mobile ?? invite.email ?? invite.name,
+      recipientName: claimPage.recipientName,
+      slotType: claimed[0].slotType,
+      customLabel: claimed[0].customLabel,
+      slotDate: claimed[0].slotDate,
+      slotTime: claimed[0].slotTime,
+      notes: claimed[0].notes,
+      dietaryNotes: claimed[0].dietaryNotes,
+      headcount: claimed[0].headcount,
+      location: claimPage.location,
+      cancelToken,
+      calendarToken,
+    });
+  } else {
+    logger.warn(
+      { slotId: claimed[0].id },
+      "Claim confirmation not sent — page missing for a trusted-invite claim",
+    );
+  }
 
   // Hand back the release token so the confirmed screen can offer a "Can't make
   // it?" link, matching the public path. It's the helper's own handle to the

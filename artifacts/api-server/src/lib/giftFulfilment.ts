@@ -9,6 +9,7 @@ import { db, giftsTable, giftMessagesTable, type Gift } from "@workspace/db";
 import { and, eq, isNull } from "drizzle-orm";
 import { logger } from "./logger";
 import { getAppBaseUrl } from "./appUrl";
+import { firstName } from "./names";
 import { gstBreakdown } from "./gst";
 import { giftReference, tierName } from "./giftPricing";
 import {
@@ -32,10 +33,9 @@ function addDays(date: Date, days: number): Date {
   return new Date(date.getTime() + days * 24 * 60 * 60 * 1000);
 }
 
-/** First name only — the email copy addresses people informally throughout. */
-export function firstName(fullName: string): string {
-  return fullName.trim().split(/\s+/)[0] || fullName.trim();
-}
+// Re-exported from its own module so copy/notify code can use it without
+// importing this one, which opens a database connection at module scope.
+export { firstName };
 
 export function giftLinkFor(redemptionToken: string): string {
   return `${getAppBaseUrl()}/gift/${redemptionToken}`;

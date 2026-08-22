@@ -65,6 +65,52 @@ export function whenLabel(slotDate: string | null, slotTime: string | null): str
 // ─── Messages to the HELPER (their invite channel) ───────────────────────────
 
 /**
+ * Bug #013 — the claim confirmation, as an SMS.
+ *
+ * A helper who claims with a phone number used to get nothing at all: the
+ * confirmation was email-only and returned silently on a non-email contact, so
+ * the release link (which exists nowhere else for a public claim) never reached
+ * them. This is that message.
+ *
+ * Kate's approved wording, verbatim. Written GSM-7 safe ON PURPOSE — a straight
+ * apostrophe, no em dash, no curly quotes — because one non-GSM-7 character
+ * drops the per-segment capacity from 153 characters to 67 and would turn this
+ * into five segments. Do not "tidy" the punctuation.
+ *
+ * It is expected to bill as TWO segments: the release link alone is 84
+ * characters. That is a deliberate trade — this is the one message whose job is
+ * making someone feel good about volunteering. sendSms is passed a label so PR
+ * #59's segment warning names this template in the logs.
+ *
+ * Only the release link is carried. The calendar subscription lives on the page
+ * that link opens, so the message stays to one URL.
+ */
+export function helperClaimConfirmed(params: {
+  helperFirstName: string;
+  recipientFirstName: string;
+  task: string;
+  /** Already-built "on Friday 8 August at 3:00pm" or "whenever suits". */
+  whenClause: string;
+  releaseLink: string;
+}): string {
+  return (
+    `Thanks ${params.helperFirstName}, you're helping ${params.recipientFirstName} ` +
+    `with ${params.task} ${params.whenClause}. ` +
+    `Change or cancel any time: ${params.releaseLink}`
+  );
+}
+
+/**
+ * The "{when}" half of the line above. A dated task reads "on Friday 8 August";
+ * an undated one is already a phrase ("whenever suits") and takes no "on", or
+ * the sentence would read "on whenever suits".
+ */
+export function whenClause(slotDate: string | null, slotTime: string | null): string {
+  const when = whenLabel(slotDate, slotTime);
+  return slotDate ? `on ${when}` : when;
+}
+
+/**
  * The family edited a task the helper has claimed. The claim STANDS; this is a
  * heads-up with a one-tap "can't any more" out (the release link).
  */
