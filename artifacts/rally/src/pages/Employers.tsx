@@ -165,7 +165,7 @@ export default function Employers() {
           variants={fadeUp}
           className="text-lg text-foreground font-medium leading-relaxed max-w-xl mb-10"
         >
-          Everyone signs the card. This is how your team actually shows up.
+          Everyone signs the card. This is how your team can show their support.
         </motion.p>
 
         <motion.div variants={fadeUp} className="flex flex-col items-center gap-4">
