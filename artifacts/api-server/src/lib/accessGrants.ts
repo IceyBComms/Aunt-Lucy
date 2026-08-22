@@ -44,22 +44,17 @@ export async function listActiveGrants(pageId: string): Promise<PageGrant[]> {
 // ─── Naming the granter ──────────────────────────────────────────────────────
 
 /**
- * Used when the granting person's name genuinely cannot be resolved: a page
- * stood up at crisis or organiser setup, where no grant issued the invitation
- * and the organisers table holds only an email address. Names the role rather
- * than inventing a person — the approved fallback, as used by the claim receipt.
- */
-function granterFallback(recipientFirst: string): string {
-  return `The person looking after ${recipientFirst}'s page`;
-}
-
-/**
- * The first name of whoever issued a grant, or null when it cannot be resolved
- * (the caller then falls back to granterFallback above).
+ * The first name of whoever issued a grant, or null when it cannot be resolved.
  *
  * A recipient's own grant deliberately carries no personName — the page is
  * already theirs — so when the granting grant is theirs, the granter IS the
  * recipient and the name comes from the page instead.
+ *
+ * Null happens on the two third-party setup paths, where nothing has ever
+ * captured the setter-upper's name: the organisers table stores only an email
+ * address, and /hardest-times asks only for the RECIPIENT's name. Each message
+ * below carries its own purpose-written no-name opener for that case rather
+ * than describing the person by their role.
  */
 async function granterFirstName(
   byGrantId: string | null | undefined,
@@ -79,17 +74,22 @@ async function granterFirstName(
 // Email and SMS carry deliberately different wordings — SMS is a single short
 // paragraph, email is the fuller note. Both are approved text; neither is a
 // truncation of the other.
+//
+// Every message has a named and a no-name opener. Only the opener differs; the
+// remainder of each body is identical either way.
 
 /** A. The email a newly-added manager receives. */
 function managerAccessEmail(
   personFirst: string,
-  granterFirst: string,
+  granterFirst: string | null,
   recipientFirst: string,
   link: string,
 ): string {
+  const opener = granterFirst
+    ? `Hi ${personFirst}, ${granterFirst} has asked you to help run ${recipientFirst}'s Aunt Lucy page`
+    : `Hi ${personFirst}, someone looking after ${recipientFirst}'s Aunt Lucy page has asked you to help run it`;
   return (
-    `Hi ${personFirst}, ${granterFirst} has asked you to help run ${recipientFirst}'s ` +
-    `Aunt Lucy page — a simple page where friends and family coordinate practical ` +
+    `${opener} — a simple page where friends and family coordinate practical ` +
     `help: meals, lifts, the school run.\n\n` +
     `You'll be able to see what's needed, add things and invite people. Here's your ` +
     `own private link — it's just for you:\n\n${link}\n\n` +
@@ -99,13 +99,16 @@ function managerAccessEmail(
 
 /** A. The SMS a newly-added manager receives. */
 function managerAccessSms(
-  granterFirst: string,
+  granterFirst: string | null,
   recipientFirst: string,
   link: string,
 ): string {
+  const opener = granterFirst
+    ? `${granterFirst} has asked you to help run ${recipientFirst}'s Aunt Lucy page`
+    : `Someone looking after ${recipientFirst}'s Aunt Lucy page has asked you to help run it`;
   return (
-    `${granterFirst} has asked you to help run ${recipientFirst}'s Aunt Lucy page — ` +
-    `where friends coordinate practical help like meals and lifts. Your own link: ${link}`
+    `${opener} — where friends coordinate practical help like meals and lifts. ` +
+    `Your own link: ${link}`
   );
 }
 
@@ -115,11 +118,17 @@ function managerAccessSms(
  * illness — INCLUDING a null occasion, which is why it is written to read
  * correctly at a funeral as well as at a baby shower.
  */
-function recipientAccessEmail(personFirst: string, granterFirst: string, link: string): string {
+function recipientAccessEmail(
+  personFirst: string,
+  granterFirst: string | null,
+  link: string,
+): string {
+  const opener = granterFirst
+    ? `Hi ${personFirst}, ${granterFirst} set up an Aunt Lucy page for you`
+    : `Hi ${personFirst}, someone who's looking out for you has set up an Aunt Lucy page for you`;
   return (
-    `Hi ${personFirst}, ${granterFirst} set up an Aunt Lucy page for you — one place ` +
-    `where your friends and family can pick up the practical things, without you ` +
-    `having to ask or organise anything.\n\n` +
+    `${opener} — one place where your friends and family can pick up the practical ` +
+    `things, without you having to ask or organise anything.\n\n` +
     `It's yours. You can see everything on it, change anything you like, or close it ` +
     `whenever you want:\n\n${link}\n\n` +
     `There's nothing you have to do — it's here for whenever you want it.`
@@ -127,11 +136,13 @@ function recipientAccessEmail(personFirst: string, granterFirst: string, link: s
 }
 
 /** B. The base SMS counterpart. */
-function recipientAccessSms(granterFirst: string, link: string): string {
+function recipientAccessSms(granterFirst: string | null, link: string): string {
+  const opener = granterFirst
+    ? `${granterFirst} set up an Aunt Lucy page for you`
+    : `Someone who's looking out for you has set up an Aunt Lucy page for you`;
   return (
-    `${granterFirst} set up an Aunt Lucy page for you — one place where your friends ` +
-    `and family can pick up the practical things, without you having to ask. ` +
-    `It's yours: ${link}`
+    `${opener} — one place where your friends and family can pick up the practical ` +
+    `things, without you having to ask. It's yours: ${link}`
   );
 }
 
@@ -143,13 +154,15 @@ function recipientAccessSms(granterFirst: string, link: string): string {
  */
 function recipientAccessGentleEmail(
   personFirst: string,
-  granterFirst: string,
+  granterFirst: string | null,
   link: string,
 ): string {
+  const opener = granterFirst
+    ? `Hi ${personFirst}, ${granterFirst} set up an Aunt Lucy page for you`
+    : `Hi ${personFirst}, someone who's looking out for you has set up an Aunt Lucy page for you`;
   return (
-    `Hi ${personFirst}, ${granterFirst} set up an Aunt Lucy page for you — one place ` +
-    `where the people around you can pick up the practical things: meals, lifts, the ` +
-    `school run.\n\n` +
+    `${opener} — one place where the people around you can pick up the practical ` +
+    `things: meals, lifts, the school run.\n\n` +
     `It's yours now, to use or not. You can see everything on it, change anything, or ` +
     `close it whenever you like:\n\n${link}\n\n` +
     `There's nothing you have to do. Nothing on it happens without someone offering ` +
@@ -158,10 +171,13 @@ function recipientAccessGentleEmail(
 }
 
 /** B. The gentler SMS counterpart. */
-function recipientAccessGentleSms(granterFirst: string, link: string): string {
+function recipientAccessGentleSms(granterFirst: string | null, link: string): string {
+  const opener = granterFirst
+    ? `${granterFirst} set up an Aunt Lucy page to keep track of who's helping you`
+    : `Someone who's looking out for you has set up an Aunt Lucy page to keep track of who's helping you`;
   return (
-    `${granterFirst} set up an Aunt Lucy page to keep track of who's helping you — ` +
-    `meals, lifts, the practical bits. It's yours now, to use or not: ${link}`
+    `${opener} — meals, lifts, the practical bits. It's yours now, to use or ` +
+    `not: ${link}`
   );
 }
 
@@ -177,7 +193,7 @@ export async function sendManagementAccessLink(opts: {
   recipientName: string;
   role: "recipient" | "manager";
   link: string;
-  /** Resolved granter first name; null falls back to naming the role. */
+  /** Granter first name, or null for the no-name opener. */
   granterFirst?: string | null;
   /**
    * The page's occasion (gift_occasion enum value). Only used to choose the
@@ -188,7 +204,7 @@ export async function sendManagementAccessLink(opts: {
 }): Promise<boolean> {
   const personFirst = firstName(opts.personName ?? "there");
   const recipientFirst = firstName(opts.recipientName);
-  const granterFirst = opts.granterFirst ?? granterFallback(recipientFirst);
+  const granterFirst = opts.granterFirst ?? null;
 
   // A bereavement or serious-illness page takes the quieter register, exactly as
   // the claim notification does. Every other occasion — and a null one — keeps
@@ -213,10 +229,8 @@ export async function sendManagementAccessLink(opts: {
     if (toEmail) {
       const subject =
         opts.role === "recipient"
-          ? // Only a genuinely resolved name goes in the subject; the role
-            // fallback would read oddly there, so it keeps the neutral wording.
-            opts.granterFirst
-            ? `${opts.granterFirst} set this up for you`
+          ? granterFirst
+            ? `${granterFirst} set this up for you`
             : `Your Aunt Lucy page`
           : `You've been added to help run ${recipientFirst}'s page`;
       return await sendItem17Email({ to: opts.contact, subject, body, link: opts.link });
@@ -274,9 +288,8 @@ export async function mintManagerGrant(opts: {
 /**
  * Mint the affected person's own recipient grant and send them their link — the
  * section-E "loop-in". `byGrantId` is null when this happens at setup (there is
- * no minting grant yet on a crisis/organiser page), and the granter is then
- * named by role rather than by name. Caller must ensure no recipient grant
- * already exists.
+ * no minting grant yet on a crisis/organiser page), and the message then uses
+ * its no-name opener. Caller must ensure no recipient grant already exists.
  */
 export async function grantRecipientAccess(opts: {
   pageId: string;
