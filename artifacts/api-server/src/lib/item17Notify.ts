@@ -8,12 +8,11 @@
  *       – FLEXIBLE→ email, upgraded to SMS when the task is today or tomorrow
  *         (Australia/Sydney).
  *   • If someone other than the recipient runs the page they get the same
- *     message on the same rule. In the current data model the page's
- *     recipient_email / recipient_mobile ARE that single notification target —
- *     on an admin-run (crisis / organiser) page they hold the runner's own
- *     details, and a distinct co-manager grant is a parked feature that is never
- *     minted yet, so there is exactly one target today. When manager grants gain
- *     contact channels this is the one place to fan out.
+ *     message on the same rule. Every active management grant with its own
+ *     contact is a notification target, alongside the page's own
+ *     recipient_email / recipient_mobile — so a nominated manager, and the
+ *     affected person once looped in, are all reached. Targets are de-duplicated
+ *     by contact point; a page with a single target behaves exactly as before.
  *   • HELPERS are messaged on the channel they were invited on. A public
  *     claimer was never "invited", so their channel is derived from the contact
  *     they left when claiming (an email address → email, otherwise SMS) — the
@@ -23,8 +22,8 @@
  * No new infrastructure: this rides the existing Twilio (sendSms) and Resend
  * (sendItem17Email) senders inline, exactly like the claim/release paths.
  */
-import { db, contactsTable, type SupportPage } from "@workspace/db";
-import { and, eq, isNotNull, or } from "drizzle-orm";
+import { db, contactsTable, pageGrantsTable, type SupportPage } from "@workspace/db";
+import { and, eq, isNotNull, isNull, or } from "drizzle-orm";
 import { sendSms } from "./sms";
 import { sendItem17Email } from "./email";
 import { getAppBaseUrl } from "./appUrl";
@@ -95,10 +94,41 @@ export async function notifyRecipientOfTaskEvent(
   // Never notify about a page that's been closed.
   if (page.status === "closed") return;
 
-  const mobile = page.recipientMobile?.trim() || null;
-  const email = page.recipientEmail?.trim() || null;
+  // Everyone who currently manages this page gets the same message on the same
+  // rule. The page's own recipient_email / recipient_mobile is one target (the
+  // long-standing behaviour); each active management grant with its own contact
+  // is another (a nominated manager, or the affected person once looped in). A
+  // grant's recipient self-grant carries no personContact on a gift page — its
+  // holder is the page-level target — so the common one-target case is
+  // unchanged. Targets are de-duplicated by contact point so nobody is messaged
+  // twice when the same address appears on the page and on a grant.
+  const seen = new Set<string>();
+  const targets: Array<{ mobile: string | null; email: string | null }> = [];
 
-  if (!mobile && !email) {
+  const pageMobile = page.recipientMobile?.trim() || null;
+  const pageEmail = page.recipientEmail?.trim() || null;
+  if (pageMobile || pageEmail) {
+    if (pageMobile) seen.add(pageMobile);
+    if (pageEmail) seen.add(pageEmail);
+    targets.push({ mobile: pageMobile, email: pageEmail });
+  }
+
+  const grants = await db
+    .select({ contact: pageGrantsTable.personContact })
+    .from(pageGrantsTable)
+    .where(and(eq(pageGrantsTable.pageId, page.id), isNull(pageGrantsTable.revokedAt)));
+  for (const g of grants) {
+    const contact = g.contact?.trim();
+    if (!contact || seen.has(contact)) continue;
+    seen.add(contact);
+    if (isEmailAddress(contact)) {
+      targets.push({ mobile: null, email: contact });
+    } else {
+      targets.push({ mobile: contact, email: null });
+    }
+  }
+
+  if (targets.length === 0) {
     logger.info(
       { pageId: page.id },
       "Item 17: no recipient contact on file — task-event notification skipped",
@@ -110,38 +140,47 @@ export async function notifyRecipientOfTaskEvent(
   const wantSms =
     opts.flexibility === "fixed" ||
     (opts.flexibility === "flexible" && isTodayOrTomorrowSydney(opts.slotDate));
-
-  // Build an ordered list of channels to try: the preferred one first, the other
-  // as a fallback when the preferred channel is missing or suppressed.
+  // The preferred channel first, the other as a fallback when the preferred
+  // channel is missing or suppressed for a given target.
   const order: Array<"sms" | "email"> = wantSms ? ["sms", "email"] : ["email", "sms"];
 
-  for (const channel of order) {
-    if (channel === "sms") {
-      if (!mobile) continue;
-      if (await isSuppressed(mobile)) continue;
-      const ok = await sendSms({
-        to: mobile,
-        body: opts.message.body,
-        label: "recipientTaskEvent",
-      });
-      if (ok) return;
-    } else {
-      if (!email) continue;
-      if (await isSuppressed(email)) continue;
-      const ok = await sendItem17Email({
-        to: email,
-        subject: opts.message.subject,
-        body: opts.message.body,
-        link: opts.link ?? null,
-      });
-      if (ok) return;
+  for (const target of targets) {
+    let delivered = false;
+    for (const channel of order) {
+      if (channel === "sms") {
+        if (!target.mobile) continue;
+        if (await isSuppressed(target.mobile)) continue;
+        const ok = await sendSms({
+          to: target.mobile,
+          body: opts.message.body,
+          label: "recipientTaskEvent",
+        });
+        if (ok) {
+          delivered = true;
+          break;
+        }
+      } else {
+        if (!target.email) continue;
+        if (await isSuppressed(target.email)) continue;
+        const ok = await sendItem17Email({
+          to: target.email,
+          subject: opts.message.subject,
+          body: opts.message.body,
+          link: opts.link ?? null,
+        });
+        if (ok) {
+          delivered = true;
+          break;
+        }
+      }
+    }
+    if (!delivered) {
+      logger.warn(
+        { pageId: page.id, flexibility: opts.flexibility },
+        "Item 17: a task-event notification target could not be reached on any channel",
+      );
     }
   }
-
-  logger.warn(
-    { pageId: page.id, flexibility: opts.flexibility },
-    "Item 17: recipient task-event notification could not be delivered on any channel",
-  );
 }
 
 /**

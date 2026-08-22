@@ -742,6 +742,46 @@ export const GetManageStateResponse = zod.object({
       claimedAt: zod.string().nullish(),
     }),
   ),
+  managers: zod
+    .array(
+      zod
+        .object({
+          grantId: zod.string(),
+          role: zod.enum(["recipient", "manager"]),
+          personName: zod
+            .string()
+            .nullable()
+            .describe(
+              "Null for the recipient's own self-grant (the page is already theirs).",
+            ),
+          personContact: zod
+            .string()
+            .nullable()
+            .describe(
+              "The single email or mobile the grant was delivered to. Null for a self-grant.",
+            ),
+          isSelf: zod
+            .boolean()
+            .describe(
+              "Whether this grant is the one the viewer is using right now.",
+            ),
+          canRevoke: zod
+            .boolean()
+            .describe(
+              "Whether the viewer may remove this person. False for a recipient's own grant (unrevocable by anyone), false unless the viewer is the recipient, and false for the last remaining grant.",
+            ),
+          addedAt: zod.date(),
+        })
+        .describe("One person with active access to run a page."),
+    )
+    .describe(
+      "Everyone with active access to run this page (section B) — the recipient's own grant plus any nominated managers. Each carries whether the viewer may remove it (canRevoke), computed server-side.",
+    ),
+  recipientHasOwnAccess: zod
+    .boolean()
+    .describe(
+      "Whether the person the page is ABOUT holds their own recipient grant. When false, the UI offers to give them their own always-on access (the section-E nudge).",
+    ),
 });
 
 /**
@@ -987,6 +1027,52 @@ export const ScheduleInvitesBody = zod.object({
     }),
   ),
 });
+
+/**
+ * Mints a manager grant and sends that person their own private /manage link on the contact given. The list itself is read from getManageState.
+ * @summary Share the running of this page with a named person (section A)
+ */
+export const AddManagerParams = zod.object({
+  token: zod.coerce.string(),
+});
+
+export const AddManagerBody = zod
+  .object({
+    name: zod.string(),
+    contact: zod
+      .string()
+      .describe("Their mobile number or email address (one is enough)."),
+  })
+  .describe("Share the running of a page with a named person (section A).");
+
+/**
+ * Revokes a manager grant immediately — their link stops working, nobody else's is affected. Refuses to remove a recipient's own grant, refuses unless the caller is the recipient, and refuses the last remaining grant.
+ * @summary Take back someone's access (section C)
+ */
+export const RevokeManagerParams = zod.object({
+  token: zod.coerce.string(),
+  grantId: zod.coerce.string(),
+});
+
+export const RevokeManagerResponse = zod.object({
+  ok: zod.boolean(),
+});
+
+/**
+ * Mints the recipient's own grant and sends them their link. Refuses if they already hold one. This is the loop-in from the nudge shown when recipientHasOwnAccess is false.
+ * @summary Give the affected person their own always-on access (section E)
+ */
+export const GrantRecipientAccessParams = zod.object({
+  token: zod.coerce.string(),
+});
+
+export const GrantRecipientAccessBody = zod
+  .object({
+    contact: zod.string().describe("Their mobile number or email address."),
+  })
+  .describe(
+    "Give the affected person their own always-on recipient access (the section-E loop-in from the nudge).",
+  );
 
 /**
  * Edits time, date or details of a task and can flip its flexible/fixed flag. If the task is claimed the claim stands and the helper is always told (with a one-tap "can't any more" out). Sensitivity is not editable here.

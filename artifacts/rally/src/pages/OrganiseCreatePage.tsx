@@ -19,6 +19,10 @@ export default function OrganiseCreatePage() {
     privacy: "open" as "open" | "pin_protected",
     pin: "",
   });
+  // Section E — the affected person's own contact + readiness. Optional; the
+  // toggle only appears once a contact is entered. Nothing stored unless ready.
+  const [recipientContact, setRecipientContact] = useState("");
+  const [recipientReady, setRecipientReady] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -39,7 +43,11 @@ export default function OrganiseCreatePage() {
     try {
       const page = await apiFetch<{ id: string; slug: string }>("/organiser/pages", {
         method: "POST",
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          ...form,
+          recipientContact: recipientContact.trim() || undefined,
+          recipientReady: recipientContact.trim() ? recipientReady : false,
+        }),
         token: token!,
       });
       setLocation(`/organise/create/${page.id}/slots`);
@@ -85,6 +93,39 @@ export default function OrganiseCreatePage() {
               autoFocus
             />
             <p className="text-xs text-muted-foreground pl-1">First name only is fine — this appears on the public page. It can be your own name.</p>
+          </div>
+
+          {/* Section E — the affected person's own contact (optional). Copy is a
+              SUGGESTION for Kate to approve. */}
+          <div className="space-y-1.5">
+            <Label htmlFor="recipientContact" className="text-foreground/80 pl-1">
+              {form.recipientName.trim() ? `${form.recipientName.trim()}'s` : "Their"} own contact{" "}
+              <span className="font-normal text-muted-foreground">(optional)</span>
+            </Label>
+            <Input
+              id="recipientContact"
+              placeholder="Their mobile or email"
+              value={recipientContact}
+              onChange={(e) => setRecipientContact(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground pl-1">
+              So they can always get into their own page, if they want to. Skip
+              this if you're setting it up for yourself, or aren't sure yet.
+            </p>
+            {recipientContact.trim() && (
+              <label className="mt-2 flex items-start gap-2.5 pl-1 text-sm text-foreground/80">
+                <input
+                  type="checkbox"
+                  checked={recipientReady}
+                  onChange={(e) => setRecipientReady(e.target.checked)}
+                  className="mt-0.5 accent-primary"
+                />
+                <span>
+                  They're ready to know about this page now — send them their own
+                  link. Leave unticked and we'll hold off until you say so.
+                </span>
+              </label>
+            )}
           </div>
 
           <div className="space-y-1.5">

@@ -436,6 +436,31 @@ export const ManageStateRole = {
   manager: "manager",
 } as const;
 
+export type ManageManagerRole =
+  (typeof ManageManagerRole)[keyof typeof ManageManagerRole];
+
+export const ManageManagerRole = {
+  recipient: "recipient",
+  manager: "manager",
+} as const;
+
+/**
+ * One person with active access to run a page.
+ */
+export interface ManageManager {
+  grantId: string;
+  role: ManageManagerRole;
+  /** Null for the recipient's own self-grant (the page is already theirs). */
+  personName: string | null;
+  /** The single email or mobile the grant was delivered to. Null for a self-grant. */
+  personContact: string | null;
+  /** Whether this grant is the one the viewer is using right now. */
+  isSelf: boolean;
+  /** Whether the viewer may remove this person. False for a recipient's own grant (unrevocable by anyone), false unless the viewer is the recipient, and false for the last remaining grant. */
+  canRevoke: boolean;
+  addedAt: string;
+}
+
 export interface ManageState {
   role: ManageStateRole;
   recipientName: string;
@@ -465,6 +490,27 @@ export interface ManageState {
   tasks: ManageTaskSummary[];
   contacts: ManageContact[];
   invites: ManageInvite[];
+  /** Everyone with active access to run this page (section B) — the recipient's own grant plus any nominated managers. Each carries whether the viewer may remove it (canRevoke), computed server-side. */
+  managers: ManageManager[];
+  /** Whether the person the page is ABOUT holds their own recipient grant. When false, the UI offers to give them their own always-on access (the section-E nudge). */
+  recipientHasOwnAccess: boolean;
+}
+
+/**
+ * Share the running of a page with a named person (section A).
+ */
+export interface AddManagerRequest {
+  name: string;
+  /** Their mobile number or email address (one is enough). */
+  contact: string;
+}
+
+/**
+ * Give the affected person their own always-on recipient access (the section-E loop-in from the nudge).
+ */
+export interface GrantRecipientAccessRequest {
+  /** Their mobile number or email address. */
+  contact: string;
 }
 
 export interface ManageDetails {

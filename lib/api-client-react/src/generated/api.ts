@@ -20,6 +20,7 @@ import type {
   ActivateGiftRequest,
   ActivatedPage,
   AddContactRequest,
+  AddManagerRequest,
   BereavementGateError,
   ClaimSlotRequest,
   ConflictError,
@@ -30,12 +31,14 @@ import type {
   GiftExperience,
   GiftReview,
   GiftTier,
+  GrantRecipientAccessRequest,
   HealthStatus,
   InviteBatchRequest,
   InvitePreviewResponse,
   InviteResultsResponse,
   ManageContact,
   ManageDetails,
+  ManageManager,
   ManageState,
   ManageTaskSummary,
   NotFoundError,
@@ -1994,6 +1997,269 @@ export const useScheduleInvites = <
   TContext
 > => {
   return useMutation(getScheduleInvitesMutationOptions(options));
+};
+
+/**
+ * Mints a manager grant and sends that person their own private /manage link on the contact given. The list itself is read from getManageState.
+ * @summary Share the running of this page with a named person (section A)
+ */
+export const getAddManagerUrl = (token: string) => {
+  return `/api/manage/${token}/managers`;
+};
+
+export const addManager = async (
+  token: string,
+  addManagerRequest: AddManagerRequest,
+  options?: RequestInit,
+): Promise<ManageManager> => {
+  return customFetch<ManageManager>(getAddManagerUrl(token), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(addManagerRequest),
+  });
+};
+
+export const getAddManagerMutationOptions = <
+  TError = ErrorType<NotFoundError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof addManager>>,
+    TError,
+    { token: string; data: BodyType<AddManagerRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof addManager>>,
+  TError,
+  { token: string; data: BodyType<AddManagerRequest> },
+  TContext
+> => {
+  const mutationKey = ["addManager"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof addManager>>,
+    { token: string; data: BodyType<AddManagerRequest> }
+  > = (props) => {
+    const { token, data } = props ?? {};
+
+    return addManager(token, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AddManagerMutationResult = NonNullable<
+  Awaited<ReturnType<typeof addManager>>
+>;
+export type AddManagerMutationBody = BodyType<AddManagerRequest>;
+export type AddManagerMutationError = ErrorType<NotFoundError>;
+
+/**
+ * @summary Share the running of this page with a named person (section A)
+ */
+export const useAddManager = <
+  TError = ErrorType<NotFoundError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof addManager>>,
+    TError,
+    { token: string; data: BodyType<AddManagerRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof addManager>>,
+  TError,
+  { token: string; data: BodyType<AddManagerRequest> },
+  TContext
+> => {
+  return useMutation(getAddManagerMutationOptions(options));
+};
+
+/**
+ * Revokes a manager grant immediately — their link stops working, nobody else's is affected. Refuses to remove a recipient's own grant, refuses unless the caller is the recipient, and refuses the last remaining grant.
+ * @summary Take back someone's access (section C)
+ */
+export const getRevokeManagerUrl = (token: string, grantId: string) => {
+  return `/api/manage/${token}/managers/${grantId}`;
+};
+
+export const revokeManager = async (
+  token: string,
+  grantId: string,
+  options?: RequestInit,
+): Promise<OkResponse> => {
+  return customFetch<OkResponse>(getRevokeManagerUrl(token, grantId), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getRevokeManagerMutationOptions = <
+  TError = ErrorType<NotFoundError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof revokeManager>>,
+    TError,
+    { token: string; grantId: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof revokeManager>>,
+  TError,
+  { token: string; grantId: string },
+  TContext
+> => {
+  const mutationKey = ["revokeManager"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof revokeManager>>,
+    { token: string; grantId: string }
+  > = (props) => {
+    const { token, grantId } = props ?? {};
+
+    return revokeManager(token, grantId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RevokeManagerMutationResult = NonNullable<
+  Awaited<ReturnType<typeof revokeManager>>
+>;
+
+export type RevokeManagerMutationError = ErrorType<NotFoundError>;
+
+/**
+ * @summary Take back someone's access (section C)
+ */
+export const useRevokeManager = <
+  TError = ErrorType<NotFoundError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof revokeManager>>,
+    TError,
+    { token: string; grantId: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof revokeManager>>,
+  TError,
+  { token: string; grantId: string },
+  TContext
+> => {
+  return useMutation(getRevokeManagerMutationOptions(options));
+};
+
+/**
+ * Mints the recipient's own grant and sends them their link. Refuses if they already hold one. This is the loop-in from the nudge shown when recipientHasOwnAccess is false.
+ * @summary Give the affected person their own always-on access (section E)
+ */
+export const getGrantRecipientAccessUrl = (token: string) => {
+  return `/api/manage/${token}/recipient-access`;
+};
+
+export const grantRecipientAccess = async (
+  token: string,
+  grantRecipientAccessRequest: GrantRecipientAccessRequest,
+  options?: RequestInit,
+): Promise<ManageManager> => {
+  return customFetch<ManageManager>(getGrantRecipientAccessUrl(token), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(grantRecipientAccessRequest),
+  });
+};
+
+export const getGrantRecipientAccessMutationOptions = <
+  TError = ErrorType<NotFoundError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof grantRecipientAccess>>,
+    TError,
+    { token: string; data: BodyType<GrantRecipientAccessRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof grantRecipientAccess>>,
+  TError,
+  { token: string; data: BodyType<GrantRecipientAccessRequest> },
+  TContext
+> => {
+  const mutationKey = ["grantRecipientAccess"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof grantRecipientAccess>>,
+    { token: string; data: BodyType<GrantRecipientAccessRequest> }
+  > = (props) => {
+    const { token, data } = props ?? {};
+
+    return grantRecipientAccess(token, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type GrantRecipientAccessMutationResult = NonNullable<
+  Awaited<ReturnType<typeof grantRecipientAccess>>
+>;
+export type GrantRecipientAccessMutationBody =
+  BodyType<GrantRecipientAccessRequest>;
+export type GrantRecipientAccessMutationError = ErrorType<NotFoundError>;
+
+/**
+ * @summary Give the affected person their own always-on access (section E)
+ */
+export const useGrantRecipientAccess = <
+  TError = ErrorType<NotFoundError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof grantRecipientAccess>>,
+    TError,
+    { token: string; data: BodyType<GrantRecipientAccessRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof grantRecipientAccess>>,
+  TError,
+  { token: string; data: BodyType<GrantRecipientAccessRequest> },
+  TContext
+> => {
+  return useMutation(getGrantRecipientAccessMutationOptions(options));
 };
 
 /**

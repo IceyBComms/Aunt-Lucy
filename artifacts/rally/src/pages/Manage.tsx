@@ -22,6 +22,9 @@ import {
   useUpdateManageDetails,
   useEditTask,
   useCancelTask,
+  useAddManager,
+  useRevokeManager,
+  useGrantRecipientAccess,
   type InvitePreview,
   type ManageTaskSummary,
   type BabyStage,
@@ -84,6 +87,11 @@ export function Manage() {
   const updateCopy = useUpdateManageDetails({ mutation: { onSuccess: invalidate } });
   const editTask = useEditTask({ mutation: { onSuccess: invalidate } });
   const cancelTask = useCancelTask({ mutation: { onSuccess: invalidate } });
+  // Access grants (sections A/C/E): share the running, take it back, loop the
+  // recipient in. Each refreshes the "who has access" list on success.
+  const addManager = useAddManager({ mutation: { onSuccess: invalidate } });
+  const revokeManager = useRevokeManager({ mutation: { onSuccess: invalidate } });
+  const grantAccess = useGrantRecipientAccess({ mutation: { onSuccess: invalidate } });
 
   // Item 17 — task edit / cancel. `editing` / `cancelling` hold the task whose
   // dialog is open; `flash` shows the shared "Done — Aunt Lucy's on it." line.
@@ -166,6 +174,14 @@ export function Manage() {
   const [name, setName] = useState("");
   const [contact, setContact] = useState("");
   const [trusted, setTrusted] = useState(false);
+
+  // Access-grant forms (sections A + E). Kept collapsed by default — sharing the
+  // running of a page is a considered, occasional action, not a daily one.
+  const [showAddManager, setShowAddManager] = useState(false);
+  const [managerName, setManagerName] = useState("");
+  const [managerContact, setManagerContact] = useState("");
+  const [showGiveAccess, setShowGiveAccess] = useState(false);
+  const [accessContact, setAccessContact] = useState("");
 
   // Invite composition
   const [selections, setSelections] = useState<Record<string, Selection>>({});
@@ -912,6 +928,198 @@ export function Manage() {
           </div>
         </section>
       )}
+
+      {/* ── Who has access (B) + share the running (A) + take it back (C) ──
+          A considered, occasional area — kept quiet and low on the page. All
+          copy here is a SUGGESTION for Kate to approve. */}
+      <section className="mb-7 rounded-[1.1rem] border border-[#e7ddd0] bg-white px-5 py-5">
+        <h2 className="mb-1 font-serif text-[1.15rem] font-semibold text-[#2c2c2c]">
+          Who can run this page
+        </h2>
+        <p className="mb-3 text-[0.88rem] text-[#8b7e74]">
+          The people who can see everything and help keep things organised. It's
+          never a mystery who has the keys.
+        </p>
+
+        {/* Section E — gentle, non-urgent nudge to give the affected person their
+            own always-on access, shown only while they don't yet have it. */}
+        {!data.recipientHasOwnAccess && (
+          <div className="mb-4 rounded-[1rem] border border-[#e7ddd0] bg-[#fbf3ee] px-4 py-3.5">
+            <p className="text-[0.9rem] leading-relaxed text-[#52493f]">
+              {data.recipientName} doesn't have their own way into this page yet.
+              Whenever they're ready, you can give them their own private link —
+              it's their page, after all.
+            </p>
+            {showGiveAccess ? (
+              <div className="mt-3 flex flex-col gap-2.5">
+                <input
+                  value={accessContact}
+                  onChange={(e) => setAccessContact(e.target.value)}
+                  placeholder={`${data.recipientName}'s mobile or email`}
+                  className="w-full rounded-[0.7rem] border border-[#e0d6c8] bg-[#faf7f2] px-3 py-2.5 text-[0.97rem] text-[#2c2c2c] focus:border-[#2d6a4f] focus:outline-none"
+                />
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={!accessContact.trim() || grantAccess.isPending}
+                    onClick={() =>
+                      grantAccess.mutate(
+                        { token, data: { contact: accessContact.trim() } },
+                        {
+                          onSuccess: () => {
+                            setAccessContact("");
+                            setShowGiveAccess(false);
+                          },
+                        },
+                      )
+                    }
+                    className="rounded-full bg-[#2d6a4f] px-5 py-2.5 text-[0.88rem] font-semibold text-white disabled:opacity-50"
+                  >
+                    {grantAccess.isPending ? "Sending…" : `Send ${data.recipientName} their link`}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowGiveAccess(false)}
+                    className="text-[0.85rem] text-[#8b7e74]"
+                  >
+                    Not now
+                  </button>
+                </div>
+                {grantAccess.isError && (
+                  <p className="text-[0.85rem] text-[#c0563a]">
+                    {(grantAccess.error as Error)?.message ?? "That didn't work — try again."}
+                  </p>
+                )}
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setShowGiveAccess(true)}
+                className="mt-2 text-[0.88rem] font-semibold text-[#2d6a4f] underline underline-offset-4"
+              >
+                Give {data.recipientName} their own access
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Section B — the list of everyone with an active grant. */}
+        <div className="flex flex-col gap-2">
+          {data.managers.map((m) => {
+            const isRecipient = m.role === "recipient";
+            const displayName = isRecipient
+              ? data.recipientName
+              : m.personName ?? "A helper";
+            return (
+              <div
+                key={m.grantId}
+                className="flex items-center gap-3 rounded-[1rem] border border-[#e7ddd0] bg-[#faf7f2] px-4 py-3"
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[0.98rem] text-[#2c2c2c]">
+                    {displayName}
+                    {m.isSelf && (
+                      <span className="ml-1.5 text-[0.8rem] text-[#8b7e74]">(you)</span>
+                    )}
+                    {isRecipient && (
+                      <span className="ml-2 inline-flex items-center gap-1 text-[0.72rem] font-semibold text-[#a9701f]">
+                        <ShieldCheck className="h-3 w-3" />
+                        their page
+                      </span>
+                    )}
+                  </p>
+                  <p className="truncate text-[0.8rem] text-[#8b7e74]">
+                    {isRecipient
+                      ? "Can always see everything — this can't be removed"
+                      : m.personContact ?? "Helping run the page"}
+                  </p>
+                </div>
+                {m.canRevoke && (
+                  <button
+                    type="button"
+                    disabled={revokeManager.isPending}
+                    onClick={() => revokeManager.mutate({ token, grantId: m.grantId })}
+                    aria-label={`Remove ${displayName}`}
+                    className="grid h-8 w-8 flex-none place-items-center rounded-full text-[#8b7e74] hover:bg-[#f3eadd] hover:text-[#d15b3e] disabled:opacity-50"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+        {revokeManager.isError && (
+          <p className="mt-2 text-[0.85rem] text-[#c0563a]">
+            {(revokeManager.error as Error)?.message ?? "That didn't work — try again."}
+          </p>
+        )}
+
+        {/* Section A — share the running with someone new (collapsed default). */}
+        <div className="mt-4 border-t border-[#e7ddd0] pt-4">
+          {showAddManager ? (
+            <div className="flex flex-col gap-2.5">
+              <input
+                value={managerName}
+                onChange={(e) => setManagerName(e.target.value)}
+                placeholder="Their name"
+                className="w-full rounded-[0.7rem] border border-[#e0d6c8] bg-[#faf7f2] px-3 py-2.5 text-[0.97rem] text-[#2c2c2c] focus:border-[#2d6a4f] focus:outline-none"
+              />
+              <input
+                value={managerContact}
+                onChange={(e) => setManagerContact(e.target.value)}
+                placeholder="Their mobile number or email"
+                className="w-full rounded-[0.7rem] border border-[#e0d6c8] bg-[#faf7f2] px-3 py-2.5 text-[0.97rem] text-[#2c2c2c] focus:border-[#2d6a4f] focus:outline-none"
+              />
+              <p className="text-[0.8rem] text-[#8b7e74]">
+                They'll get their own private link and can see and change
+                everything you can. You can take this back any time.
+              </p>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={!managerName.trim() || !managerContact.trim() || addManager.isPending}
+                  onClick={() =>
+                    addManager.mutate(
+                      { token, data: { name: managerName.trim(), contact: managerContact.trim() } },
+                      {
+                        onSuccess: () => {
+                          setManagerName("");
+                          setManagerContact("");
+                          setShowAddManager(false);
+                        },
+                      },
+                    )
+                  }
+                  className="rounded-full bg-[#2d6a4f] px-5 py-2.5 text-[0.88rem] font-semibold text-white disabled:opacity-50"
+                >
+                  {addManager.isPending ? "Sending…" : "Send them access"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowAddManager(false)}
+                  className="text-[0.85rem] text-[#8b7e74]"
+                >
+                  Cancel
+                </button>
+              </div>
+              {addManager.isError && (
+                <p className="text-[0.85rem] text-[#c0563a]">
+                  {(addManager.error as Error)?.message ?? "That didn't work — try again."}
+                </p>
+              )}
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setShowAddManager(true)}
+              className="text-[0.9rem] font-semibold text-[#2d6a4f] underline underline-offset-4"
+            >
+              Share the running of this page with someone
+            </button>
+          )}
+        </div>
+      </section>
 
       <div className="mt-8 text-center">
         <a
