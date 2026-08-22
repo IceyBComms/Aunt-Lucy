@@ -9,6 +9,26 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import type { ClaimSlotRequest, SlotResponse } from "@workspace/api-client-react";
 
+// pages.ts answers 404 for three different reasons — no such slug, the page is
+// closed, or the page exists but isn't active yet — and the only thing that
+// tells them apart is the message it sends back. Matching on that message is
+// deliberate: the server alone decides whether a slug resolves to a real page,
+// so a guessed or malformed slug never reaches the "not live yet" branch. It
+// gets the doesn't-exist message, which doesn't match, and falls through to the
+// generic text. Keep this string in step with
+// artifacts/api-server/src/routes/pages.ts.
+const NOT_LIVE_YET_ERROR = "This support page isn't available yet.";
+
+function isNotLiveYetError(error: unknown): boolean {
+  if (!(error instanceof ApiError) || error.status !== 404) return false;
+  const data: unknown = error.data;
+  return (
+    typeof data === "object" &&
+    data !== null &&
+    (data as { error?: unknown }).error === NOT_LIVE_YET_ERROR
+  );
+}
+
 export function useSupportPageFlow(slug: string) {
   const [pin, setPin] = useState<string | undefined>(undefined);
   const { toast } = useToast();
@@ -83,6 +103,10 @@ export function useSupportPageFlow(slug: string) {
   return {
     ...query,
     needsPin: needsPin && !query.isSuccess,
+    // A real page that simply hasn't been switched on yet — told apart from a
+    // genuine 404 so the visitor can be asked to hang on to their link rather
+    // than be told the page doesn't exist.
+    notLiveYet: query.isError && isNotLiveYetError(query.error),
     submitPin,
     claimSlot,
     isClaiming: claimMutation.isPending

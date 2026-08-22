@@ -5,7 +5,7 @@ import { SlotCard } from "@/components/SlotCard";
 import { ClaimDialog } from "@/components/ClaimDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Heart, MapPin, ShieldAlert, Loader2 } from "lucide-react";
+import { Heart, MapPin, ShieldAlert, Loader2, Clock } from "lucide-react";
 import { motion } from "framer-motion";
 import type { SlotResponse, ClaimSlotRequest } from "@workspace/api-client-react";
 
@@ -13,7 +13,7 @@ export default function SupportPage() {
   const [, params] = useRoute("/s/:slug");
   const slug = params?.slug || "";
   
-  const { data: page, isLoading, isError, needsPin, submitPin, claimSlot, isClaiming } = useSupportPageFlow(slug);
+  const { data: page, isLoading, isError, notLiveYet, needsPin, submitPin, claimSlot, isClaiming } = useSupportPageFlow(slug);
 
   const [pinInput, setPinInput] = useState("");
   const [pinSubmitted, setPinSubmitted] = useState(false);
@@ -89,6 +89,31 @@ export default function SupportPage() {
               View Page
             </Button>
           </form>
+        </motion.div>
+      </div>
+    );
+  }
+
+  // A page that exists but hasn't been switched on yet. This is checked before
+  // the generic branch below so the visitor is told to hang on to their link
+  // rather than that the page doesn't exist. Only a 404 carrying the server's
+  // own "isn't available yet" message gets here — see isNotLiveYetError in
+  // use-rally.ts — so a guessed slug still falls through to the generic text.
+  if (notLiveYet) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-6">
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="w-full max-w-md text-center"
+        >
+          <div className="w-20 h-20 bg-secondary rounded-full flex items-center justify-center mx-auto mb-6 text-primary">
+            <Clock className="w-10 h-10" />
+          </div>
+          <h1 className="text-3xl font-serif font-bold text-foreground mb-4">Not live yet</h1>
+          <p className="text-muted-foreground text-lg leading-relaxed">
+            The page is still being set up. Hang on to this link — it'll work as soon as it's switched on.
+          </p>
         </motion.div>
       </div>
     );
