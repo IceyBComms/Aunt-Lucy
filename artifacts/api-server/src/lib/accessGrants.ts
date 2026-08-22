@@ -125,7 +125,7 @@ function recipientAccessEmail(
 ): string {
   const opener = granterFirst
     ? `Hi ${personFirst}, ${granterFirst} set up an Aunt Lucy page for you`
-    : `Hi ${personFirst}, someone who's looking out for you has set up an Aunt Lucy page for you`;
+    : `Hi ${personFirst}, someone who's looking out for you has set up an Aunt Lucy page`;
   return (
     `${opener} — one place where your friends and family can pick up the practical ` +
     `things, without you having to ask or organise anything.\n\n` +
@@ -139,7 +139,7 @@ function recipientAccessEmail(
 function recipientAccessSms(granterFirst: string | null, link: string): string {
   const opener = granterFirst
     ? `${granterFirst} set up an Aunt Lucy page for you`
-    : `Someone who's looking out for you has set up an Aunt Lucy page for you`;
+    : `Someone who's looking out for you has set up an Aunt Lucy page`;
   return (
     `${opener} — one place where your friends and family can pick up the practical ` +
     `things, without you having to ask. It's yours: ${link}`
@@ -159,7 +159,7 @@ function recipientAccessGentleEmail(
 ): string {
   const opener = granterFirst
     ? `Hi ${personFirst}, ${granterFirst} set up an Aunt Lucy page for you`
-    : `Hi ${personFirst}, someone who's looking out for you has set up an Aunt Lucy page for you`;
+    : `Hi ${personFirst}, someone who's looking out for you has set up an Aunt Lucy page`;
   return (
     `${opener} — one place where the people around you can pick up the practical ` +
     `things: meals, lifts, the school run.\n\n` +
