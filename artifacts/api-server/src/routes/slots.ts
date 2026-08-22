@@ -2,9 +2,8 @@ import { Router, type IRouter } from "express";
 import crypto from "crypto";
 import { db, slotsTable, supportPagesTable } from "@workspace/db";
 import { eq, and, sql } from "drizzle-orm";
-import { sendClaimConfirmation } from "../lib/email";
+import { sendClaimConfirmationToHelper } from "../lib/claimNotify";
 import { verifyPin } from "../lib/pin";
-import { getAppBaseUrl } from "../lib/appUrl";
 import { calendarSubscribeUrl } from "../lib/calendarFeed";
 import { logger } from "../lib/logger";
 import { notifyRecipientOfTaskEvent, shareLinkFor } from "../lib/item17Notify";
@@ -126,7 +125,13 @@ router.post("/slots/:slotId/claim", async (req, res) => {
 
   const [row] = updated;
 
-  void sendClaimConfirmation({
+  // Confirm on whatever channel the helper is actually reachable on — email or
+  // SMS. This used to call the email sender directly, which returned silently
+  // for a phone contact, so phone-only helpers got no confirmation and, because
+  // the public post-claim screen doesn't show one, no release link at all
+  // (bug #013). The dispatcher owns the channel decision and the release URL.
+  void sendClaimConfirmationToHelper({
+    slotId: row.id,
     helperFirstName: firstNameTrimmed,
     helperContact: contactTrimmed,
     recipientName: page.recipientName,
@@ -138,13 +143,8 @@ router.post("/slots/:slotId/claim", async (req, res) => {
     dietaryNotes: row.dietaryNotes,
     headcount: row.headcount,
     location: page.location,
-    // The one-tap "Can't make it? Release this slot" link. Its token is unique
-    // to this claim, so it's the helper's own handle and needs no account.
-    releaseUrl: `${getAppBaseUrl()}/release/${cancelToken}`,
-    // "Add to your calendar" — the webcal:// subscribe form so a later time
-    // change or cancellation propagates. Only for dated tasks: an undated
-    // "whenever suits" offer isn't an appointment, so it gets no calendar link.
-    calendarUrl: row.slotDate ? calendarSubscribeUrl(calendarToken) : null,
+    cancelToken,
+    calendarToken,
   });
 
   res.json({
@@ -221,6 +221,21 @@ router.get("/slots/release/:token", async (req, res) => {
       claimedNote: slot.claimedNote ?? null,
     },
     helperName: slot.claimedByName,
+    // The webcal:// subscribe link to this claim's calendar feed, so this page
+    // — the claim's permanent, token-gated home — can offer "Add to your
+    // calendar" alongside release/reschedule. Previously the link existed only
+    // in the confirmation email, so an email helper who archived it lost the
+    // calendar for good and a phone-only helper never had one at all. Both
+    // tokens are minted on the same claim (see the claim handler above), so
+    // holding the release token is already proof of holding this claim.
+    //
+    // Null for an undated task (a "whenever suits" offer isn't an appointment,
+    // matching the claim response) and for any claim made before calendar_token
+    // existed, whose column is null — those simply get no calendar line.
+    calendarUrl:
+      slot.slotDate && slot.calendarToken
+        ? calendarSubscribeUrl(slot.calendarToken)
+        : null,
     page: {
       recipientName: page.recipientName,
       location: page.location,

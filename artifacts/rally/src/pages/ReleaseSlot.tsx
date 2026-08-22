@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "wouter";
 import { format, parseISO } from "date-fns";
-import { CheckCircle2, Clock, Loader2, MapPin } from "lucide-react";
+import { CalendarPlus, CheckCircle2, Clock, Loader2, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { TeacupMark } from "@/components/TeacupMark";
 import { apiFetch } from "@/lib/api";
@@ -23,6 +23,9 @@ interface ReleaseDetails {
     claimedNote: string | null;
   };
   helperName: string | null;
+  // webcal:// subscribe link to this claim's calendar feed. Null for an undated
+  // task and for claims made before calendar_token existed.
+  calendarUrl: string | null;
   page: {
     recipientName: string;
     location: string | null;
@@ -250,6 +253,26 @@ export default function ReleaseSlot() {
             <p className="text-sm text-muted-foreground flex items-center gap-1.5">
               <MapPin className="w-3.5 h-3.5" />
               {page.location}
+            </p>
+          )}
+
+          {/* The claim's calendar subscription. Sits inside the task card
+              because it belongs to the booking, not to the "change your mind"
+              controls below it. webcal:// hands the feed to the OS calendar app
+              as a live subscription, so a later reschedule or cancellation
+              follows it. Absent on an undated task. */}
+          {details.calendarUrl && (
+            <p className="mt-4 pt-4 border-t border-border/50 text-sm text-muted-foreground leading-relaxed flex items-start gap-1.5">
+              <CalendarPlus className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+              <span>
+                <a
+                  href={details.calendarUrl}
+                  className="text-primary font-medium underline underline-offset-4"
+                >
+                  {copy.calendar.link}
+                </a>{" "}
+                {copy.calendar.help}
+              </span>
             </p>
           )}
         </div>

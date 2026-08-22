@@ -92,6 +92,21 @@ export const helper = {
    */
   seeElseLink: "If another time or task suits better — see what else would help →",
 
+  /**
+   * "Add to your calendar" on the claim's own page. This page is the only
+   * durable home a helper has for their claim — the confirmation email can be
+   * archived and an SMS confirmation has no room for a second link — so the
+   * calendar subscription lives here rather than only in the email.
+   *
+   * SUGGESTED COPY — Kate to bless final wording. Mirrors the phrasing already
+   * used on the post-claim screens (InviteClaim, and the confirmation email).
+   * Shown only for a dated task; an undated offer has nothing to put in a diary.
+   */
+  calendar: {
+    link: "Add this to your calendar",
+    help: "so it's there when you need it. It updates if the time changes.",
+  },
+
   /** The "n / 200" character counter under a note field. */
   noteCounter: (n: number) => `${n} / 200`,
 

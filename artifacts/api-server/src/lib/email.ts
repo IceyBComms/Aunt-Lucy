@@ -55,7 +55,13 @@ function formatTime(timeStr: string): string {
   });
 }
 
-interface ClaimEmailParams {
+export interface ClaimEmailParams {
+  /**
+   * Named in the warning below when a contact turns out not to be an address.
+   * Carried purely so that log line can identify the claim without printing the
+   * contact itself.
+   */
+  slotId: string;
   helperFirstName: string;
   helperContact: string;
   recipientName: string;
@@ -422,8 +428,17 @@ export async function sendClaimConfirmation(params: ClaimEmailParams): Promise<v
     return;
   }
 
+  // A backstop, not the channel decision — that now happens once, up front, in
+  // claimNotify.ts, which routes a phone contact to SMS instead of dropping it
+  // (bug #013). Reaching this means a caller bypassed the dispatcher, so it is a
+  // warning rather than the info line it used to be: a confirmation that never
+  // sends is not routine, and for a public claim it also means the helper has no
+  // release link anywhere. The contact value is deliberately not logged.
   if (!isEmail(params.helperContact)) {
-    logger.info({ contact: params.helperContact }, "Contact is not an email — skipping confirmation email");
+    logger.warn(
+      { slotId: params.slotId },
+      "Claim confirmation email skipped — contact is not an email address",
+    );
     return;
   }
 
