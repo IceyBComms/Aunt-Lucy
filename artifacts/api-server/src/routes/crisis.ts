@@ -167,6 +167,8 @@ router.post("/crisis/pages", async (req, res) => {
       pageId: page.id,
       recipientName: nameTrimmed,
       contact: recipientContact,
+      // A bereavement or serious-illness page takes the gentler wording.
+      occasion: mappedOccasion,
     });
     logger.info(
       { event: "recipient_access_looped_in", pageId: page.id, source: "crisis_setup" },

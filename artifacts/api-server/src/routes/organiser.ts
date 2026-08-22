@@ -93,6 +93,10 @@ router.post("/organiser/pages", requireAuth as any, async (req, res) => {
       pageId: page.id,
       recipientName: nameTrimmed,
       contact: recipientContact,
+      // The organiser wizard never asks the occasion, so this is null by
+      // design (a separately sequenced item, deliberately not fixed here).
+      // Null takes the base wording, which reads correctly on any occasion.
+      occasion: null,
     });
     logger.info(
       { event: "recipient_access_looped_in", pageId: page.id, source: "organiser_setup" },

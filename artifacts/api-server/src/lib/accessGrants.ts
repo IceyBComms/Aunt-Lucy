@@ -13,7 +13,7 @@
  * A grant's token IS the credential: it resolves to /manage/:token exactly like
  * the recipient's own management link. Delivery of that link reuses the existing
  * transactional senders (sendSms + the generic branded email) — no new send
- * mechanism. The wording below is a SUGGESTION for Kate to approve, not final.
+ * mechanism.
  */
 import crypto from "crypto";
 import { db, pageGrantsTable, type PageGrant } from "@workspace/db";
@@ -41,35 +41,127 @@ export async function listActiveGrants(pageId: string): Promise<PageGrant[]> {
   });
 }
 
-// ─── Copy (SUGGESTION — Kate to approve the exact wording) ───────────────────
+// ─── Naming the granter ──────────────────────────────────────────────────────
 
 /**
- * The message a newly-added manager receives. Warm, plain about what they're
- * being given and why, with an explicit no-pressure out. `{recipientFirst}` is
- * the person the page is about; `{personFirst}` is the manager.
+ * Used when the granting person's name genuinely cannot be resolved: a page
+ * stood up at crisis or organiser setup, where no grant issued the invitation
+ * and the organisers table holds only an email address. Names the role rather
+ * than inventing a person — the approved fallback, as used by the claim receipt.
  */
-function managerAccessBody(personFirst: string, recipientFirst: string, link: string): string {
+function granterFallback(recipientFirst: string): string {
+  return `The person looking after ${recipientFirst}'s page`;
+}
+
+/**
+ * The first name of whoever issued a grant, or null when it cannot be resolved
+ * (the caller then falls back to granterFallback above).
+ *
+ * A recipient's own grant deliberately carries no personName — the page is
+ * already theirs — so when the granting grant is theirs, the granter IS the
+ * recipient and the name comes from the page instead.
+ */
+async function granterFirstName(
+  byGrantId: string | null | undefined,
+  recipientName: string,
+): Promise<string | null> {
+  if (!byGrantId) return null;
+  const granting = await db.query.pageGrantsTable.findFirst({
+    where: eq(pageGrantsTable.id, byGrantId),
+  });
+  if (!granting) return null;
+  if (granting.personName) return firstName(granting.personName);
+  return granting.role === "recipient" ? firstName(recipientName) : null;
+}
+
+// ─── Copy (approved 22 August 2026) ──────────────────────────────────────────
+//
+// Email and SMS carry deliberately different wordings — SMS is a single short
+// paragraph, email is the fuller note. Both are approved text; neither is a
+// truncation of the other.
+
+/** A. The email a newly-added manager receives. */
+function managerAccessEmail(
+  personFirst: string,
+  granterFirst: string,
+  recipientFirst: string,
+  link: string,
+): string {
   return (
-    `Hi ${personFirst}, ${recipientFirst} (or someone helping ${recipientFirst}) has ` +
-    `asked you to help run ${recipientFirst}'s Aunt Lucy page — the one place where ` +
-    `friends can pitch in with meals, lifts and a hand. You'll be able to see what's ` +
-    `needed and help keep things ticking along.\n\n` +
-    `Here's your own private link — it's just for you:\n${link}\n\n` +
+    `Hi ${personFirst}, ${granterFirst} has asked you to help run ${recipientFirst}'s ` +
+    `Aunt Lucy page — a simple page where friends and family coordinate practical ` +
+    `help: meals, lifts, the school run.\n\n` +
+    `You'll be able to see what's needed, add things and invite people. Here's your ` +
+    `own private link — it's just for you:\n\n${link}\n\n` +
     `No pressure at all — if now's not the time, you can simply leave it.`
   );
 }
 
-/**
- * The message the affected person receives when they're looped in to their own
- * page (section E). Framed as theirs, emphasising they hold the key.
- */
-function recipientAccessBody(personFirst: string, link: string): string {
+/** A. The SMS a newly-added manager receives. */
+function managerAccessSms(
+  granterFirst: string,
+  recipientFirst: string,
+  link: string,
+): string {
   return (
-    `Hi ${personFirst}, this is your own Aunt Lucy page — someone who cares about ` +
-    `you set it up so the people around you can help with the practical things, ` +
-    `without you having to ask.\n\n` +
-    `It's yours. You can see everything on it and change anything you like here:\n${link}\n\n` +
+    `${granterFirst} has asked you to help run ${recipientFirst}'s Aunt Lucy page — ` +
+    `where friends coordinate practical help like meals and lifts. Your own link: ${link}`
+  );
+}
+
+/**
+ * B. The email the affected person receives when looped in to their own page.
+ * The base wording, used for every occasion except bereavement and serious
+ * illness — INCLUDING a null occasion, which is why it is written to read
+ * correctly at a funeral as well as at a baby shower.
+ */
+function recipientAccessEmail(personFirst: string, granterFirst: string, link: string): string {
+  return (
+    `Hi ${personFirst}, ${granterFirst} set up an Aunt Lucy page for you — one place ` +
+    `where your friends and family can pick up the practical things, without you ` +
+    `having to ask or organise anything.\n\n` +
+    `It's yours. You can see everything on it, change anything you like, or close it ` +
+    `whenever you want:\n\n${link}\n\n` +
     `There's nothing you have to do — it's here for whenever you want it.`
+  );
+}
+
+/** B. The base SMS counterpart. */
+function recipientAccessSms(granterFirst: string, link: string): string {
+  return (
+    `${granterFirst} set up an Aunt Lucy page for you — one place where your friends ` +
+    `and family can pick up the practical things, without you having to ask. ` +
+    `It's yours: ${link}`
+  );
+}
+
+/**
+ * B. The gentler email, for a bereavement or serious-illness page. Mirrors the
+ * register-softening already applied to the recipient claim notification
+ * (lib/email.ts, PR #42): quieter, no "without having to ask" framing, and an
+ * explicit reassurance that nothing happens unprompted.
+ */
+function recipientAccessGentleEmail(
+  personFirst: string,
+  granterFirst: string,
+  link: string,
+): string {
+  return (
+    `Hi ${personFirst}, ${granterFirst} set up an Aunt Lucy page for you — one place ` +
+    `where the people around you can pick up the practical things: meals, lifts, the ` +
+    `school run.\n\n` +
+    `It's yours now, to use or not. You can see everything on it, change anything, or ` +
+    `close it whenever you like:\n\n${link}\n\n` +
+    `There's nothing you have to do. Nothing on it happens without someone offering ` +
+    `first.`
+  );
+}
+
+/** B. The gentler SMS counterpart. */
+function recipientAccessGentleSms(granterFirst: string, link: string): string {
+  return (
+    `${granterFirst} set up an Aunt Lucy page to keep track of who's helping you — ` +
+    `meals, lifts, the practical bits. It's yours now, to use or not: ${link}`
   );
 }
 
@@ -85,19 +177,47 @@ export async function sendManagementAccessLink(opts: {
   recipientName: string;
   role: "recipient" | "manager";
   link: string;
+  /** Resolved granter first name; null falls back to naming the role. */
+  granterFirst?: string | null;
+  /**
+   * The page's occasion (gift_occasion enum value). Only used to choose the
+   * gentler recipient wording; null — the organiser-wizard case — correctly
+   * takes the base wording, which reads right on any occasion.
+   */
+  occasion?: string | null;
 }): Promise<boolean> {
   const personFirst = firstName(opts.personName ?? "there");
   const recipientFirst = firstName(opts.recipientName);
+  const granterFirst = opts.granterFirst ?? granterFallback(recipientFirst);
+
+  // A bereavement or serious-illness page takes the quieter register, exactly as
+  // the claim notification does. Every other occasion — and a null one — keeps
+  // the base wording.
+  const gentle = opts.occasion === "bereavement" || opts.occasion === "illness_recovery";
+  const toEmail = isEmailAddress(opts.contact);
+
   const body =
     opts.role === "recipient"
-      ? recipientAccessBody(personFirst, opts.link)
-      : managerAccessBody(personFirst, recipientFirst, opts.link);
+      ? toEmail
+        ? gentle
+          ? recipientAccessGentleEmail(personFirst, granterFirst, opts.link)
+          : recipientAccessEmail(personFirst, granterFirst, opts.link)
+        : gentle
+          ? recipientAccessGentleSms(granterFirst, opts.link)
+          : recipientAccessSms(granterFirst, opts.link)
+      : toEmail
+        ? managerAccessEmail(personFirst, granterFirst, recipientFirst, opts.link)
+        : managerAccessSms(granterFirst, recipientFirst, opts.link);
 
   try {
-    if (isEmailAddress(opts.contact)) {
+    if (toEmail) {
       const subject =
         opts.role === "recipient"
-          ? `Your Aunt Lucy page`
+          ? // Only a genuinely resolved name goes in the subject; the role
+            // fallback would read oddly there, so it keeps the neutral wording.
+            opts.granterFirst
+            ? `${opts.granterFirst} set this up for you`
+            : `Your Aunt Lucy page`
           : `You've been added to help run ${recipientFirst}'s page`;
       return await sendItem17Email({ to: opts.contact, subject, body, link: opts.link });
     }
@@ -116,7 +236,8 @@ function newToken(): string {
 
 /**
  * Mint a manager grant and send that person their link. `byGrantId` records who
- * issued it (the audit/handover trail). Contact is a single email OR mobile.
+ * issued it (the audit/handover trail) and is also what names the granter in the
+ * message. Contact is a single email OR mobile.
  */
 export async function mintManagerGrant(opts: {
   pageId: string;
@@ -144,6 +265,7 @@ export async function mintManagerGrant(opts: {
     recipientName: opts.recipientName,
     role: "manager",
     link: manageLinkFor(token),
+    granterFirst: await granterFirstName(opts.byGrantId, opts.recipientName),
   });
 
   return { grant, delivered };
@@ -152,14 +274,17 @@ export async function mintManagerGrant(opts: {
 /**
  * Mint the affected person's own recipient grant and send them their link — the
  * section-E "loop-in". `byGrantId` is null when this happens at setup (there is
- * no minting grant yet on a crisis/organiser page). Caller must ensure no
- * recipient grant already exists.
+ * no minting grant yet on a crisis/organiser page), and the granter is then
+ * named by role rather than by name. Caller must ensure no recipient grant
+ * already exists.
  */
 export async function grantRecipientAccess(opts: {
   pageId: string;
   recipientName: string;
   contact: string;
   byGrantId?: string | null;
+  /** The page's occasion, so a bereavement page gets the gentler wording. */
+  occasion?: string | null;
 }): Promise<{ grant: PageGrant; delivered: boolean }> {
   const token = newToken();
   const [grant] = await db
@@ -179,6 +304,8 @@ export async function grantRecipientAccess(opts: {
     recipientName: opts.recipientName,
     role: "recipient",
     link: manageLinkFor(token),
+    granterFirst: await granterFirstName(opts.byGrantId, opts.recipientName),
+    occasion: opts.occasion ?? null,
   });
 
   return { grant, delivered };

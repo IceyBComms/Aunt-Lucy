@@ -528,6 +528,8 @@ router.post(
       recipientName: page.recipientName,
       contact,
       byGrantId: grantId,
+      // A bereavement or serious-illness page takes the gentler wording.
+      occasion: page.occasion,
     });
 
     // Instrumentation (Option 1 sizing): a deferred setup was later completed.
