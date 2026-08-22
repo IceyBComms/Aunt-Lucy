@@ -235,7 +235,7 @@ export async function sendManagementAccessLink(opts: {
           : `You've been added to help run ${recipientFirst}'s page`;
       return await sendItem17Email({ to: opts.contact, subject, body, link: opts.link });
     }
-    return await sendSms({ to: opts.contact, body });
+    return await sendSms({ to: opts.contact, body, label: `accessGrant:${opts.role}` });
   } catch (err) {
     logger.error({ err, role: opts.role }, "Management access link delivery failed");
     return false;

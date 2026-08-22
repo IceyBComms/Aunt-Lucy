@@ -1,5 +1,6 @@
 import twilio from "twilio";
 import { logger } from "./logger";
+import { measureSms } from "./smsSegments";
 
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
 const authToken = process.env.TWILIO_AUTH_TOKEN;
@@ -13,9 +14,37 @@ if (!client) {
 }
 
 /**
+ * Warn when a body will be billed as more than one segment, so long or
+ * non-GSM-7 copy announces itself in the logs instead of only in the bill.
+ *
+ * Deliberately logs NO message content: no body, no recipient, no link. SMS
+ * bodies carry names, situations and private tokens, and none of that belongs
+ * in stdout. Only the shape of the message is recorded, plus the caller's label.
+ *
+ * Never throws and never blocks a send — a measurement problem must not stop a
+ * message going out.
+ */
+function warnIfMultiSegment(body: string, label?: string): void {
+  try {
+    const { encoding, chars, segments } = measureSms(body);
+    if (segments > 1) {
+      logger.warn(
+        { label: label ?? "unlabelled", segments, encoding, chars },
+        "SMS will be billed as multiple segments",
+      );
+    }
+  } catch {
+    // Measurement is advisory only; a failure here is never a reason not to send.
+  }
+}
+
+/**
  * Sends an already-rendered SMS body. The invite copy is composed in
  * inviteCopy.ts (verbatim templates), so this layer only transmits — it never
  * builds the wording. Returns true if the message was handed to Twilio.
+ *
+ * `label` names the copy template for the segment warning above (e.g.
+ * "generalInviteSms"). It is only ever logged, never sent.
  *
  * Failures are logged and swallowed for the batch dispatcher's benefit (one bad
  * number must not abort a wave); callers that need the outcome use the return.
@@ -23,14 +52,17 @@ if (!client) {
 export async function sendSms({
   to,
   body,
+  label,
 }: {
   to: string;
   body: string;
+  label?: string;
 }): Promise<boolean> {
   if (!client || !fromNumber) {
     logger.warn({ to }, "SMS not sent — Twilio not configured");
     return false;
   }
+  warnIfMultiSegment(body, label);
   try {
     await client.messages.create({ body, from: fromNumber, to });
     logger.info({ to }, "SMS sent");

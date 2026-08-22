@@ -150,7 +150,12 @@ export async function notifyRecipientOfTaskEvent(
       if (channel === "sms") {
         if (!target.mobile) continue;
         if (await isSuppressed(target.mobile)) continue;
-        if (await sendSms({ to: target.mobile, body: opts.message.body })) {
+        const ok = await sendSms({
+          to: target.mobile,
+          body: opts.message.body,
+          label: "recipientTaskEvent",
+        });
+        if (ok) {
           delivered = true;
           break;
         }
@@ -206,7 +211,7 @@ export async function notifyHelperOfTaskEvent(opts: {
       link: opts.link ?? null,
     });
   } else {
-    await sendSms({ to: contact, body: opts.body });
+    await sendSms({ to: contact, body: opts.body, label: "helperTaskEvent" });
   }
 }
 
