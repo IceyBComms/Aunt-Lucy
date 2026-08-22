@@ -1024,7 +1024,7 @@ export function buildBuyerConfirmationEmail(
           <p style="margin:0 0 12px;color:#333;font-size:16px;line-height:1.6;">Here's what happens next:</p>
           <ul style="margin:0 0 20px;padding-left:20px;color:#333;font-size:16px;line-height:1.7;">
             <li style="margin-bottom:8px;">${firstBullet.html}</li>
-            <li style="margin-bottom:8px;">They can take a look and activate it whenever they're ready. No pressure, no deadline.</li>
+            <li style="margin-bottom:8px;">They can add their people and activate it whenever they need it. No pressure, no deadline.</li>
             <li>From there, Aunt Lucy quietly handles the asking, so no one ever feels put on the spot.</li>
           </ul>
           <p style="margin:0 0 24px;color:#333;font-size:16px;line-height:1.6;">
@@ -1043,7 +1043,7 @@ export function buildBuyerConfirmationEmail(
     `Here's what happens next:`,
     ``,
     `• ${firstBullet.text}`,
-    `• They can take a look and activate it whenever they're ready. No pressure, no deadline.`,
+    `• They can add their people and activate it whenever they need it. No pressure, no deadline.`,
     `• From there, Aunt Lucy quietly handles the asking, so no one ever feels put on the spot.`,
     ``,
     `Thank you for being the kind of person who shows up.`,
