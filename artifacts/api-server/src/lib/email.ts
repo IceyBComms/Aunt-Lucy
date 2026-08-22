@@ -619,8 +619,31 @@ export function renderHelperInviteEmailHtml(
   const ctaLabel = params.ctaLabel ?? "See how you can help";
   const ctaPrefix = `${ctaLabel} →`;
 
-  const paragraphs = params.text
-    .split("\n\n")
+  // Refuse to render a body whose CTA line we cannot account for (#046).
+  //
+  // The failure this catches is silent and ugly: a body carrying "Have a look →"
+  // rendered with the default label leaves that line in the text as a bare,
+  // unclickable URL AND adds a button reading different words. The helper sees
+  // two calls to action, one of them dead. The same happens if a copy edit moves
+  // the CTA onto the previous paragraph, or leaves a space in front of it.
+  //
+  // This THROWS rather than quietly carrying on, because there is no safe
+  // recovery: every fallback still puts a malformed email in someone's inbox,
+  // and an email cannot be recalled. sendHelperInviteEmail catches it and fails
+  // that one invite — see the note there for why the throw must not escape.
+  const paragraphList = params.text.split("\n\n");
+  const strayCta = paragraphList.find(
+    (p) => !p.startsWith(ctaPrefix) && /\S+ → \S*:\/\//.test(p),
+  );
+  if (strayCta) {
+    throw new Error(
+      `Helper invite body carries a CTA line that does not match ctaLabel ` +
+        `${JSON.stringify(ctaLabel)}; refusing to render two calls to action. ` +
+        `Offending paragraph: ${JSON.stringify(strayCta.slice(0, 120))}`,
+    );
+  }
+
+  const paragraphs = paragraphList
     .filter((p) => !p.startsWith("Don't want to receive these emails?"))
     .map((p) =>
       p.startsWith(ctaPrefix)
@@ -641,6 +664,28 @@ export function renderHelperInviteEmailHtml(
 export async function sendHelperInviteEmail(
   params: HelperInviteEmailParams,
 ): Promise<boolean> {
+  // Render BEFORE anything else, and let a malformed body fail this invite
+  // alone (#046). renderHelperInviteEmailHtml throws rather than emit two calls
+  // to action; if that throw escaped, it would abort the whole loop in
+  // routes/internal.ts dispatch-invites — and because that loop claims its
+  // batch by flipping queued → sent up front, every invite queued behind this
+  // one would sit marked "sent" having never been sent, with nothing to retry
+  // from. Caught here it returns false, which the dispatcher already handles by
+  // stamping the row failed/failedAt: loud, visible, and retryable, with the
+  // rest of the batch untouched.
+  //
+  // Rendering first also means the local-dev path below can't skip the check.
+  let html: string;
+  try {
+    html = renderHelperInviteEmailHtml(params);
+  } catch (err) {
+    logger.error(
+      { err, to: params.to, ctaLabel: params.ctaLabel ?? null },
+      "Refusing to send a malformed helper invite",
+    );
+    return false;
+  }
+
   if (isPlaceholderResendKey) {
     console.log(
       `\n📧 Helper invite email for ${params.to} (local dev — sending disabled):\n${params.text}\n`,
@@ -656,7 +701,7 @@ export async function sendHelperInviteEmail(
     from: FROM_ADDRESS,
     to: params.to,
     subject: params.subject,
-    html: renderHelperInviteEmailHtml(params),
+    html,
     text: params.text,
   });
 
