@@ -609,24 +609,27 @@ export function renderHelperInviteEmailHtml(
     ? `<p style="margin:0 0 20px;color:#333;font-size:16px;line-height:1.6;font-style:italic;">${escapeHtml(params.openingLine.trim())}</p>`
     : "";
 
-  // The body text minus the CTA line and the unsubscribe line, which become a
-  // button and a footer link respectively. Everything else is shown verbatim.
+  // The body is rendered verbatim, paragraph for paragraph, with two
+  // substitutions made IN PLACE: the CTA line becomes the button, and the
+  // unsubscribe line moves to the footer. In place is the point — the approved
+  // copy puts the call to action above the sign-off and the plain-text part
+  // already reads that way, but appending the button after the last paragraph
+  // pushed it below "With love, Aunt Lucy x", so the two halves of the same
+  // email disagreed about the order.
   const ctaLabel = params.ctaLabel ?? "See how you can help";
+  const ctaPrefix = `${ctaLabel} →`;
+
   const paragraphs = params.text
     .split("\n\n")
-    .filter(
-      (p) =>
-        !p.startsWith(`${ctaLabel} →`) &&
-        !p.startsWith("Don't want to receive these emails?"),
-    )
-    .map(
-      (p) =>
-        `<p style="margin:0 0 20px;color:#333;font-size:16px;line-height:1.6;">${escapeHtml(p).replace(/\n/g, "<br>")}</p>`,
+    .filter((p) => !p.startsWith("Don't want to receive these emails?"))
+    .map((p) =>
+      p.startsWith(ctaPrefix)
+        ? renderButton(params.link, ctaLabel)
+        : `<p style="margin:0 0 20px;color:#333;font-size:16px;line-height:1.6;">${escapeHtml(p).replace(/\n/g, "<br>")}</p>`,
     )
     .join("\n");
 
-  const contentHtml = `${openerHtml}${paragraphs}
-          ${renderButton(params.link, ctaLabel)}`;
+  const contentHtml = `${openerHtml}${paragraphs}`;
 
   return renderGiftLayout({
     preheader: "A gentle, no-pressure way to lend a hand.",
