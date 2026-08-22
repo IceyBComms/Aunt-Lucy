@@ -14,6 +14,8 @@ import { renderHelperInviteEmailHtml } from "./email";
 // SMS and there was no email body to send. These tests pin the approved body
 // and the chrome that carries it.
 
+const UNSUB = "https://www.auntlucy.com.au/unsubscribe/8c1f2a";
+
 const params = {
   helperFirstName: "Priya",
   recipientFirstName: "Sarah",
@@ -21,7 +23,18 @@ const params = {
   taskLabel: "School pickup for Ada",
   when: "Friday 4 September at 3:15pm",
   link: "https://www.auntlucy.com.au/invite/abc123",
+  unsubscribeUrl: UNSUB,
 };
+
+const nineC = (unsubscribeUrl = UNSUB) =>
+  generalInviteEmailText({
+    helperFirstName: "Priya",
+    recipientFirstName: "Sarah",
+    situationLine: "just welcomed her new baby",
+    pronounObj: "her",
+    link: "https://www.auntlucy.com.au/s/xK9mR2pQ4w",
+    unsubscribeUrl,
+  });
 
 describe("the trusted invite email copy", () => {
   it("uses the approved subject, led by the recipient's name", () => {
@@ -46,6 +59,8 @@ describe("the trusted invite email copy", () => {
         "Have a look → https://www.auntlucy.com.au/invite/abc123",
         "",
         "— Aunt Lucy",
+        "",
+        `Don't want to receive these emails? Unsubscribe here: ${UNSUB}`,
       ].join("\n"),
     );
   });
@@ -71,6 +86,35 @@ describe("the trusted invite email copy", () => {
     expect(body).not.toContain("thought of you for something in particular");
   });
 
+  // Kate's ruling: the plain-text opt-out line is 9c's, verbatim, in the same
+  // position — the last line, after the sign-off, with a blank line before it.
+  // Derived from 9c's own output rather than retyped, so a reword there can
+  // never leave these two silently diverged.
+  it("ends with 9c's unsubscribe line, verbatim and in the same position", () => {
+    const general = nineC().split("\n");
+    const trusted = trustedInviteEmailText(params).split("\n");
+
+    const generalLast = general[general.length - 1];
+    expect(generalLast).toBe(
+      `Don't want to receive these emails? Unsubscribe here: ${UNSUB}`,
+    );
+    expect(trusted[trusted.length - 1]).toBe(generalLast);
+    expect(trusted[trusted.length - 2]).toBe("");
+    expect(general[general.length - 2]).toBe("");
+  });
+
+  // The address is passed through from whatever the calling path already used.
+  // This PR does not rewire any of them.
+  it("spells out whatever address the caller passes, untouched", () => {
+    const viaPublicPage = trustedInviteEmailText({
+      ...params,
+      unsubscribeUrl: "https://www.auntlucy.com.au/s/xK9mR2pQ4w",
+    });
+    expect(viaPublicPage.trimEnd().endsWith("https://www.auntlucy.com.au/s/xK9mR2pQ4w")).toBe(
+      true,
+    );
+  });
+
   it("carries the recipient's optional personal opener above the body", () => {
     const body = trustedInviteEmailText({
       ...params,
@@ -87,7 +131,7 @@ describe("the branded chrome around it", () => {
     text: trustedInviteEmailText(params),
     link: params.link,
     ctaLabel: TRUSTED_INVITE_EMAIL_CTA,
-    unsubscribeUrl: "https://www.auntlucy.com.au/s/xK9mR2pQ4w",
+    unsubscribeUrl: UNSUB,
   });
 
   it("renders the CTA as a button with the body's own words", () => {
@@ -99,6 +143,13 @@ describe("the branded chrome around it", () => {
     expect(html).not.toContain("Have a look → https");
   });
 
+  // The body line and the footer link are the same opt-out. The HTML must show
+  // it once, as the footer — exactly as 9c has always behaved.
+  it("shows the unsubscribe once, in the footer, not twice", () => {
+    expect(html).not.toContain("Unsubscribe here: https");
+    expect(html.split("Unsubscribe here").length - 1).toBe(1);
+  });
+
   it("keeps every other line of the body", () => {
     expect(html).toContain("This one&#039;s only being asked of a few people".replace("&#039;", "'"));
     expect(html).toContain("School pickup for Ada — Friday 4 September at 3:15pm");
@@ -107,21 +158,12 @@ describe("the branded chrome around it", () => {
 
   it("renders the footer unsubscribe link exactly as it always has", () => {
     expect(html).toContain(
-      'Don\'t want to receive these emails? <a href="https://www.auntlucy.com.au/s/xK9mR2pQ4w" style="color:#999;">Unsubscribe here</a>.',
+      `Don't want to receive these emails? <a href="${UNSUB}" style="color:#999;">Unsubscribe here</a>.`,
     );
   });
 });
 
 describe("the general 9c email is untouched by the new parameter", () => {
-  const text = generalInviteEmailText({
-    helperFirstName: "Priya",
-    recipientFirstName: "Sarah",
-    situationLine: "just welcomed her new baby",
-    pronounObj: "her",
-    link: "https://www.auntlucy.com.au/s/xK9mR2pQ4w",
-    unsubscribeUrl: "https://www.auntlucy.com.au/unsubscribe/c1",
-  });
-
   it("keeps its own subject", () => {
     expect(generalInviteEmailSubject("Sarah")).toBe("A little way to help Sarah 💛");
   });
@@ -130,7 +172,7 @@ describe("the general 9c email is untouched by the new parameter", () => {
   // existing caller would start rendering its CTA line twice.
   it("still strips its own CTA line and titles its own button", () => {
     const html = renderHelperInviteEmailHtml({
-      text,
+      text: nineC("https://www.auntlucy.com.au/unsubscribe/c1"),
       link: "https://www.auntlucy.com.au/s/xK9mR2pQ4w",
       unsubscribeUrl: "https://www.auntlucy.com.au/unsubscribe/c1",
     });

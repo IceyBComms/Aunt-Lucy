@@ -136,6 +136,10 @@ router.post(
           taskLabel: taskLabel(slot.slotType, slot.customLabel),
           when: whenLabel(slot.slotDate, slot.slotTime),
           link,
+          // Unchanged from what this path has always sent (see the footer note
+          // in the PR): the public page, not a real unsubscribe route. Passed
+          // through, deliberately not rewired here.
+          unsubscribeUrl: `${base}/s/${page.slug}`,
         }),
         link,
         ctaLabel: TRUSTED_INVITE_EMAIL_CTA,

@@ -399,6 +399,7 @@ router.post("/internal/dispatch-invites", async (req, res) => {
               taskLabel: taskLabel(trustedSlot.slotType, trustedSlot.customLabel),
               when: whenLabel(trustedSlot.slotDate, trustedSlot.slotTime),
               link: emailLink,
+              unsubscribeUrl,
               openingLine,
             }),
             link: emailLink,

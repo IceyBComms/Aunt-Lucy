@@ -661,6 +661,7 @@ async function prepareInvite(
         taskLabel: taskLabel(slot.slotType, slot.customLabel),
         when: whenLabel(slot.slotDate, slot.slotTime),
         link,
+        unsubscribeUrl,
         openingLine,
       });
     } else {

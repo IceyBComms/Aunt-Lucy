@@ -3,9 +3,9 @@
  *
  * The message BODIES here (9a–9d, the 9c email and the trusted invite email)
  * are the approved templates and are reproduced verbatim — Aunt Lucy signs and
- * the recipient's name leads. Every SMS carries its own opt-out line; on email
- * the unsubscribe sits in the branded footer email.ts adds, so only the 9c body
- * spells one out inline. Do not reword any of them here.
+ * the recipient's name leads, and every message carries an opt-out line — the
+ * SMS bodies inline, the email bodies as a final line that email.ts lifts into
+ * the branded footer for the HTML part. Do not reword any of them here.
  *
  * The occasion phrases below (`{situationLine}` for the standard invites,
  * `{trustedLine}` for the trusted "support circle" invite) may contain the
@@ -251,6 +251,13 @@ export function trustedInviteEmailText(params: {
   taskLabel: string;
   when: string;
   link: string;
+  /**
+   * Spelled out inline as 9c's final line, verbatim. The branded HTML footer
+   * renders its own link from the same address and email.ts strips this line
+   * out of the HTML body, so the two never double up — but a plain-text reader
+   * still gets a way out. Required, so no caller can quietly omit it.
+   */
+  unsubscribeUrl: string;
   openingLine?: string | null;
 }): string {
   const body = [
@@ -267,6 +274,8 @@ export function trustedInviteEmailText(params: {
     `${TRUSTED_INVITE_EMAIL_CTA} → ${params.link}`,
     ``,
     `— Aunt Lucy`,
+    ``,
+    `Don't want to receive these emails? Unsubscribe here: ${params.unsubscribeUrl}`,
   ].join("\n");
   return withOpener(body, params.openingLine ?? null);
 }
