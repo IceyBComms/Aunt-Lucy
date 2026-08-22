@@ -115,6 +115,7 @@ router.post(
       });
     } else {
       ok = await sendSms({
+        label: "trustedInviteSms",
         to: contactTrimmed,
         body: trustedInviteSms({
           helperFirstName,

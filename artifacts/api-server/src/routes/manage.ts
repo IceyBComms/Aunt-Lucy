@@ -586,7 +586,11 @@ async function dispatchOrQueue(
     // Send now, inline, and record the outcome on the row.
     const ok =
       prepared.channel === "sms"
-        ? await sendSms({ to: prepared.mobile!, body: prepared.body })
+        ? await sendSms({
+            to: prepared.mobile!,
+            body: prepared.body,
+            label: `inviteSms:${prepared.kind}`,
+          })
         : await sendHelperInviteEmail({
             to: prepared.email!,
             subject: prepared.subject!,

@@ -399,7 +399,7 @@ router.post("/internal/dispatch-invites", async (req, res) => {
       } else {
         body = generalInviteSms({ helperFirstName, recipientFirstName, situationLine, link: `${base}/s/${page.slug}`, openingLine });
       }
-      ok = await sendSms({ to: invite.mobile, body });
+      ok = await sendSms({ to: invite.mobile, body, label: `inviteSms:${invite.kind}` });
     }
 
     if (ok) {
