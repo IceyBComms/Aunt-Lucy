@@ -1,9 +1,11 @@
 /**
  * The Aunt Lucy helper-invite copy (approved — content §9/§9e).
  *
- * The message BODIES here (9a–9d and the 9c email) are the approved templates
- * and are reproduced verbatim — Aunt Lucy signs, the recipient's name leads,
- * and every message carries an opt-out line. Do not reword them here.
+ * The message BODIES here (9a–9d, the 9c email and the trusted invite email)
+ * are the approved templates and are reproduced verbatim — Aunt Lucy signs and
+ * the recipient's name leads. Every SMS carries its own opt-out line; on email
+ * the unsubscribe sits in the branded footer email.ts adds, so only the 9c body
+ * spells one out inline. Do not reword any of them here.
  *
  * The occasion phrases below (`{situationLine}` for the standard invites,
  * `{trustedLine}` for the trusted "support circle" invite) may contain the
@@ -202,6 +204,69 @@ export function generalInviteEmailText(params: {
     `Aunt Lucy x`,
     ``,
     `Don't want to receive these emails? Unsubscribe here: ${params.unsubscribeUrl}`,
+  ].join("\n");
+  return withOpener(body, params.openingLine ?? null);
+}
+
+// ─── Trusted invite email (9b's email counterpart) ───────────────────────────
+//
+// Approved by Kate, August 2026. Until now the trusted ask existed only as an
+// SMS (9b above), so an email contact hand-picked for a specific task had their
+// invite quietly downgraded to the general 9c page invite — slot dropped, no
+// grant, nobody told (bug #032). This body is what removes the reason for that
+// downgrade, so the kind of an invite can follow the task it was written for
+// and the channel can go back to being only about how the message travels.
+//
+// Unlike 9b, this one NAMES the task and its timing. That is deliberate and it
+// is the difference the channel allows: an SMS is read over someone's shoulder
+// on a lock screen, an inbox is not, and the whole point of a trusted ask is
+// that it was meant for one person in particular.
+//
+// {organiserFirstName} is NOT available on any build site that calls this — the
+// organisers table stores an email and nothing else, the management-token path
+// knows the page but never the person typing, and page.organiser_id is null on
+// every gifted page. The approved fallback wording ("and you came to mind…") is
+// therefore the only second line, not a branch. Same gap that shaped PR #58.
+
+/** The CTA words, shared by the text line below and the HTML button. */
+export const TRUSTED_INVITE_EMAIL_CTA = "Have a look";
+
+export function trustedInviteEmailSubject(recipientFirstName: string): string {
+  return `${recipientFirstName} was hoping you might help with something`;
+}
+
+/**
+ * The trusted invite email body, plain text. trustedLine is pre-resolved (its
+ * {poss}/{obj} tokens already applied); taskLabel and when are pre-formatted by
+ * the caller from the slot — see taskLabel()/whenLabel() in item17Copy.
+ *
+ * The CTA line follows the same shape as 9c ("<label> → <link>"): email.ts
+ * lifts that line out of the text and renders it as the branded button, so the
+ * label here and the button label are the same words by construction.
+ */
+export function trustedInviteEmailText(params: {
+  helperFirstName: string;
+  recipientFirstName: string;
+  trustedLine: string;
+  taskLabel: string;
+  when: string;
+  link: string;
+  openingLine?: string | null;
+}): string {
+  const body = [
+    `Hi ${params.helperFirstName},`,
+    ``,
+    `${params.recipientFirstName}'s ${params.trustedLine}, and you came to mind for something in particular:`,
+    ``,
+    `${params.taskLabel} — ${params.when}`,
+    ``,
+    `This one's only being asked of a few people, which is why this note is just for you.`,
+    ``,
+    `Only if it suits — no pressure at all, and nothing happens if you'd rather not.`,
+    ``,
+    `${TRUSTED_INVITE_EMAIL_CTA} → ${params.link}`,
+    ``,
+    `— Aunt Lucy`,
   ].join("\n");
   return withOpener(body, params.openingLine ?? null);
 }

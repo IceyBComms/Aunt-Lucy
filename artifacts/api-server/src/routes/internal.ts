@@ -35,8 +35,12 @@ import {
   secondWaveSms,
   generalInviteEmailSubject,
   generalInviteEmailText,
+  trustedInviteEmailSubject,
+  trustedInviteEmailText,
+  TRUSTED_INVITE_EMAIL_CTA,
   type RecipientPronouns,
 } from "../lib/inviteCopy";
+import { taskLabel, whenLabel } from "../lib/item17Copy";
 
 const router: IRouter = Router();
 
@@ -366,28 +370,58 @@ router.post("/internal/dispatch-invites", async (req, res) => {
     if (invite.channel === "email" && invite.email) {
       // An emailed invite that carries its own grant token is slot-scoped, so it
       // must point at the grant page — the public page hides trusted tasks and
-      // refuses to claim them (bug #031). Rows written by the manage/ invite
-      // path never carry a token on an email invite, so they keep the page link
-      // exactly as before; only the organiser per-slot path mints one.
+      // refuses to claim them (bug #031).
       const emailLink = invite.inviteToken
         ? `${base}/invite/${invite.inviteToken}`
         : `${base}/s/${page.slug}`;
-      ok = await sendHelperInviteEmail({
-        to: invite.email,
-        subject: generalInviteEmailSubject(recipientFirstName),
-        text: generalInviteEmailText({
-          helperFirstName,
-          recipientFirstName,
-          situationLine,
-          pronounObj: pronouns.obj,
-          link: emailLink,
-          unsubscribeUrl: `${base}/unsubscribe/${invite.contactId}`,
-          openingLine,
-        }),
-        link: emailLink,
-        unsubscribeUrl: `${base}/unsubscribe/${invite.contactId}`,
-        openingLine,
-      });
+      // A queued trusted invite gets the trusted body, exactly as it would have
+      // done had the organiser pressed send instead of scheduling it (bug #032).
+      // Without this the same choice produced two different emails depending on
+      // when it went out, and the scheduled one never named the task.
+      const trustedSlot =
+        invite.kind === "trusted" && invite.slotId
+          ? await db.query.slotsTable.findFirst({
+              where: eq(slotsTable.id, invite.slotId),
+            })
+          : undefined;
+      const unsubscribeUrl = `${base}/unsubscribe/${invite.contactId}`;
+      ok = trustedSlot
+        ? await sendHelperInviteEmail({
+            to: invite.email,
+            subject: trustedInviteEmailSubject(recipientFirstName),
+            text: trustedInviteEmailText({
+              helperFirstName,
+              recipientFirstName,
+              trustedLine: applyPronounTokens(
+                page.trustedLine ?? defaultTrustedLine(page.occasion ?? null, page.babyStage),
+                pronounsEnum,
+              ),
+              taskLabel: taskLabel(trustedSlot.slotType, trustedSlot.customLabel),
+              when: whenLabel(trustedSlot.slotDate, trustedSlot.slotTime),
+              link: emailLink,
+              openingLine,
+            }),
+            link: emailLink,
+            ctaLabel: TRUSTED_INVITE_EMAIL_CTA,
+            unsubscribeUrl,
+            openingLine,
+          })
+        : await sendHelperInviteEmail({
+            to: invite.email,
+            subject: generalInviteEmailSubject(recipientFirstName),
+            text: generalInviteEmailText({
+              helperFirstName,
+              recipientFirstName,
+              situationLine,
+              pronounObj: pronouns.obj,
+              link: emailLink,
+              unsubscribeUrl,
+              openingLine,
+            }),
+            link: emailLink,
+            unsubscribeUrl,
+            openingLine,
+          });
     } else if (invite.mobile) {
       let body: string;
       if (invite.kind === "trusted" && invite.inviteToken) {
