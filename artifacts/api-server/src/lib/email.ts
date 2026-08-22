@@ -85,7 +85,7 @@ export interface ClaimEmailParams {
   calendarUrl?: string | null;
 }
 
-function buildHtml(params: ClaimEmailParams): string {
+export function buildHtml(params: ClaimEmailParams): string {
   const {
     helperFirstName,
     recipientName,
@@ -187,7 +187,7 @@ function buildHtml(params: ClaimEmailParams): string {
 </html>`;
 }
 
-function buildPlainText(params: ClaimEmailParams): string {
+export function buildPlainText(params: ClaimEmailParams): string {
   const {
     helperFirstName,
     recipientName,
