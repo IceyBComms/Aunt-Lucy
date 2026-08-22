@@ -199,43 +199,6 @@ export default function BuyDetails() {
             </div>
           )}
 
-          <div className="space-y-1.5">
-            <Label htmlFor="purchaserName" className="text-foreground/80 pl-1">
-              Your name
-            </Label>
-            <Input
-              id="purchaserName"
-              placeholder="e.g. Priya"
-              value={form.purchaserName}
-              onChange={(e) => set("purchaserName", e.target.value)}
-              // The buyer's own name — their saved value is exactly what we want.
-              autoComplete="name"
-              required
-              autoFocus
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="purchaserEmail" className="text-foreground/80 pl-1">
-              Your email
-            </Label>
-            <Input
-              id="purchaserEmail"
-              type="email"
-              placeholder="you@example.com"
-              value={form.purchaserEmail}
-              onChange={(e) => set("purchaserEmail", e.target.value)}
-              // The buyer's own email — where their receipt goes. Autofill welcome.
-              autoComplete="email"
-              required
-            />
-            <p className="text-xs text-muted-foreground pl-1">
-              {isWorkplace
-                ? "Your receipt and tax invoice (with our ABN) go here."
-                : "Your receipt goes here."}
-            </p>
-          </div>
-
           {!isForSelf && (
             <>
               <div className="space-y-1.5">
@@ -251,6 +214,7 @@ export default function BuyDetails() {
                   // here is the misleading case we're guarding against.
                   autoComplete="off"
                   required
+                  autoFocus
                 />
                 <p className="text-xs text-muted-foreground pl-1">
                   First name is plenty.
@@ -294,7 +258,8 @@ export default function BuyDetails() {
                       required
                     />
                     <p className="text-xs text-muted-foreground pl-1">
-                      We'll send their gift here — nothing else, ever.
+                      We'll use this to send their gift and keep them posted
+                      on their page — never anything else.
                     </p>
                   </div>
                 ) : (
@@ -342,6 +307,43 @@ export default function BuyDetails() {
             </div>
             <p className="text-xs text-muted-foreground pl-1">
               This only shapes the words we use — it's never shown to helpers.
+            </p>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="purchaserName" className="text-foreground/80 pl-1">
+              Your name
+            </Label>
+            <Input
+              id="purchaserName"
+              placeholder="e.g. Priya"
+              value={form.purchaserName}
+              onChange={(e) => set("purchaserName", e.target.value)}
+              // The buyer's own name — their saved value is exactly what we want.
+              autoComplete="name"
+              required
+              autoFocus={isForSelf}
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="purchaserEmail" className="text-foreground/80 pl-1">
+              Your email
+            </Label>
+            <Input
+              id="purchaserEmail"
+              type="email"
+              placeholder="you@example.com"
+              value={form.purchaserEmail}
+              onChange={(e) => set("purchaserEmail", e.target.value)}
+              // The buyer's own email — where their receipt goes. Autofill welcome.
+              autoComplete="email"
+              required
+            />
+            <p className="text-xs text-muted-foreground pl-1">
+              {isWorkplace
+                ? "Your receipt and tax invoice (with our ABN) go here."
+                : "Your receipt goes here."}
             </p>
           </div>
 
