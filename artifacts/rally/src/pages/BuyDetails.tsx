@@ -138,7 +138,7 @@ export default function BuyDetails() {
       window.location.assign(checkoutUrl);
     } catch {
       setError(
-        "Something went wrong with the payment. Try again or use a different card.",
+        "Something went wrong before we could take you to payment — you haven't been charged. Please try again.",
       );
     }
   }

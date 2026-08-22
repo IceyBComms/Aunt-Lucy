@@ -267,7 +267,7 @@ export default function InviteClaim() {
         </Button>
 
         <p className="text-center text-xs text-muted-foreground">
-          By confirming, the family will know you're coming. If plans change,
+          By confirming, the family will know you're helping. If plans change,
           please contact the organiser directly.
         </p>
       </div>
