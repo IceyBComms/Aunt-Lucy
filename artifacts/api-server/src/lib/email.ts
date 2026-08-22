@@ -1534,7 +1534,16 @@ export function buildItem17Email(params: Item17EmailParams): RenderedEmail {
         html = html
           .split(escLink)
           .join(
-            `<a href="${escLink}" style="color:#2D6A4F;font-weight:600;word-break:break-all;">${escLink}</a>`,
+            // Interim treatment only (#045). These two bodies embed their URL
+            // mid-sentence, so lifting it into a button would leave a dangling
+            // "If it doesn't:" behind — that needs new copy, written
+            // deliberately, and copy is not a layout pass's to write. Until
+            // then the link at least reads as a link: underlined, and with the
+            // colour forced on an inner span the same way renderButton does it,
+            // because Outlook web recolours bare anchors to its own purple.
+            // overflow-wrap sits alongside word-break for clients that ignore
+            // the older property.
+            `<a href="${escLink}" style="color:#2D6A4F;font-weight:600;text-decoration:underline;word-break:break-all;overflow-wrap:anywhere;"><span style="color:#2D6A4F;">${escLink}</span></a>`,
           );
       }
       return `          <p style="margin:0 0 16px;color:#333;font-size:16px;line-height:1.6;">${html}</p>`;
