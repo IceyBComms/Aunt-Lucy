@@ -258,8 +258,8 @@ export default function BuyDetails() {
                       required
                     />
                     <p className="text-xs text-muted-foreground pl-1">
-                      We'll use this to send their gift and keep them posted
-                      on their page — never anything else.
+                      We'll use this to send their gift, remind them it's
+                      waiting, and let them know when someone steps in.
                     </p>
                   </div>
                 ) : (
