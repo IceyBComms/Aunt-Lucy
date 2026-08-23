@@ -6,7 +6,7 @@
 >
 > **Why it moved:** the code lives in `Documents\Aunt-Lucy` and the notes live in `OneDrive\aunt-lucy`. Claude Code could only ever see the first, so it had no access to the history of the bugs it was fixing — it needed #039, #045 and #058 in one day and could read none of them. Kate was the courier. Now she isn't.
 >
-> **How to use it:** append new bugs at the TOP of the open table, keep the numbering sequential, and never delete a row — annotate it instead. Status: 🔴 open · 🟡 fixed, merged and deployed but NOT yet seen working · 🟢 someone has looked at the real thing and it was right.
+> **How to use it:** append new bugs at the TOP of the **OPEN BUGS** table — which is the **FIRST** table in this file, under `## Open bugs`. ⚠️ **Do NOT anchor an insert on "the last table header" — the LAST one belongs to `## Fixed bugs`, and a red row filed under Fixed is an error nobody ever notices.** *(This exact mistake happened on 23 August: an insert anchored on the last header was correct until a duplicate header was tidied out of the file, and then silently wasn't. Caught on verification.)* Keep the numbering sequential, and never delete a row — annotate it instead. Status: 🔴 open · 🟡 fixed, merged and deployed but NOT yet seen working · 🟢 someone has looked at the real thing and it was right.
 
 ---
 
