@@ -1,5 +1,6 @@
 import { Resend } from "resend";
 import { logger } from "./logger";
+import { getAppBaseUrl } from "./appUrl";
 import { formatMoney, gstRateLabel, type GstBreakdown } from "./gst";
 import type { FounderStats } from "./founderStats";
 
@@ -269,11 +270,7 @@ export function buildMagicLinkEmail(magicLink: string): RenderedEmail {
           <p style="margin:0 0 24px;color:#333;font-size:16px;line-height:1.6;">
             Here's your sign-in link. Click the button below to access your Aunt Lucy account — it's valid for one hour.
           </p>
-          <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 24px;">
-            <tr><td style="border-radius:8px;background-color:#E76F51;">
-              <a href="${magicLink}" style="display:inline-block;padding:14px 28px;color:#ffffff;font-size:16px;font-weight:600;text-decoration:none;border-radius:8px;">Sign in to Aunt Lucy</a>
-            </td></tr>
-          </table>
+          ${renderButton(magicLink, "Sign in to Aunt Lucy")}
           <p style="margin:0 0 8px;color:#888;font-size:13px;line-height:1.6;">
             If you didn't request this, you can safely ignore this email.
           </p>
@@ -282,7 +279,9 @@ export function buildMagicLinkEmail(magicLink: string): RenderedEmail {
           </p>
         </td></tr>
         <tr><td style="padding:20px 32px;background-color:#FAF7F2;text-align:center;">
-          <p style="margin:0;color:#999;font-size:12px;">Can't click the button? Copy this link: ${magicLink}</p>
+          <p style="margin:0;color:#999;font-size:12px;">Can't click the button? Copy this link:</p>
+          <p style="margin:6px 0 0;color:#999;font-size:12px;line-height:1.5;word-break:break-all;overflow-wrap:anywhere;">${escapeHtml(magicLink)}</p>
+          ${homepageFooterLine()}
         </td></tr>
       </table>
     </td></tr>
@@ -797,6 +796,21 @@ function formatAuDate(date: Date): string {
 }
 
 /**
+ * The one-line "what is this?" footer line every email carries (#051).
+ *
+ * Someone forwarded an invite, or helping for the first time, has nowhere to go
+ * to find out what Aunt Lucy is — the emails all assumed the reader already
+ * knew. This is the route to the homepage and nothing more: no button, no
+ * pitch, no "buy one". The homepage does the selling. Only the words "Aunt
+ * Lucy" link; the line sits in the same grey as the rest of the footer so it
+ * reads as a footnote, not an ask.
+ */
+function homepageFooterLine(): string {
+  const home = escapeHtml(getAppBaseUrl());
+  return `<p style="margin:12px 0 0;color:#999;font-size:12px;line-height:1.6;">New to <a href="${home}" style="color:#999;text-decoration:underline;">Aunt Lucy</a>? It's a simple way for friends and family to organise practical help — meals, lifts, the school run — without the person in the thick of it having to ask.</p>`;
+}
+
+/**
  * The shared chrome for the fulfilment emails: preheader, branded header, white
  * card, footer. `contentHtml` is the body of the card and is assumed to be
  * already escaped by the caller.
@@ -822,6 +836,7 @@ ${params.contentHtml}
         </td></tr>
         <tr><td style="padding:20px 32px;background-color:#FAF7F2;text-align:center;">
           <p style="margin:0;color:#999;font-size:12px;">${params.footerHtml ?? "auntlucy.com.au"}</p>
+          ${homepageFooterLine()}
         </td></tr>
       </table>
     </td></tr>
@@ -1428,6 +1443,15 @@ export interface Item17EmailParams {
   /** A URL that appears inside `body`, turned into an anchor for the email. */
   link?: string | null;
   preheader?: string;
+  /**
+   * When set, the paragraph that is nothing but `link` gets the branded green
+   * button ABOVE it, with the URL left underneath as the fallback (#045).
+   *
+   * Opt-in on purpose. This builder is shared with the task-changed email,
+   * whose whole point is that nothing is required of the helper — it must not
+   * grow a primary button just because its sibling needed one.
+   */
+  ctaLabel?: string | null;
 }
 
 export function buildItem17Email(params: Item17EmailParams): RenderedEmail {
@@ -1435,6 +1459,16 @@ export function buildItem17Email(params: Item17EmailParams): RenderedEmail {
   const paragraphs = params.body
     .split("\n\n")
     .map((seg) => {
+      // A paragraph that is ONLY the link is the fallback URL. With a ctaLabel
+      // the branded button goes ABOVE it and the URL stays underneath, because
+      // people forward, bookmark and screenshot a link in a way they cannot do
+      // with a button. Without a ctaLabel nothing changes at all.
+      const isBareLink = !!params.link && seg.trim() === params.link.trim();
+      const buttonHtml =
+        isBareLink && params.ctaLabel && params.link
+          ? renderButton(params.link, params.ctaLabel)
+          : "";
+
       let html = escapeHtml(seg).replace(/\n/g, "<br>");
       if (escLink) {
         html = html
@@ -1452,7 +1486,7 @@ export function buildItem17Email(params: Item17EmailParams): RenderedEmail {
             `<a href="${escLink}" style="color:#2D6A4F;font-weight:600;text-decoration:underline;word-break:break-all;overflow-wrap:anywhere;"><span style="color:#2D6A4F;">${escLink}</span></a>`,
           );
       }
-      return `          <p style="margin:0 0 16px;color:#333;font-size:16px;line-height:1.6;">${html}</p>`;
+      return `${buttonHtml}          <p style="margin:0 0 16px;color:#333;font-size:16px;line-height:1.6;">${html}</p>`;
     })
     .join("\n");
 
