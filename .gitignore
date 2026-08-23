@@ -72,3 +72,34 @@ Thumbs.db
 # (components/PostmarkMark.tsx and public/favicon.svg), so keeping the bundle
 # out avoids permanently bloating git history.
 /attached_assets/Aunt Lucy Brand Assets.html
+
+# ── Scratch at the repo root ────────────────────────────────────────────────
+# Rehearsal artefacts land here: rendered preview pages (multi-MB, every image
+# inlined as base64), the screenshots behind them, and stray pages/scripts
+# dropped in while debugging. None of it is source, all of it is regenerable,
+# and a single `git add .` would otherwise commit megabytes of it.
+# Matched by PATTERN so the next preview is covered without another edit.
+# Anchored with a leading slash: these apply to the repo root ONLY, so real
+# source of the same extension deeper in the tree is untouched.
+/*.html
+/*.js
+/*.jpg
+/*.jpeg
+/*.png
+/*.gif
+/*.webp
+# ...but a genuine root-level tool config must never be silently ignored.
+!/*.config.js
+!/*.config.mjs
+
+# Preview harnesses: throwaway entry points that stub the API to render one
+# real page in isolation. They import from src, so they have to live in src to
+# resolve the @/ alias — but they are rehearsal scaffolding, never shipped.
+# (The matching /artifacts/rally/*.html entry points are already covered above
+# by the existing rally HTML rule.)
+preview*.tsx
+
+# Dated read-only reconciliation reports. Each one states in its own header
+# that it is uncommitted and must stay that way; they are point-in-time audits,
+# superseded by the next run, and the bug record in build/ is the durable one.
+/RECONCILIATION_*.md

@@ -2,6 +2,8 @@
 
 > Read this file at the start of every session. It contains everything you need to understand what Aunt Lucy is, why it exists, how it makes money, and what to build next. Do not ask questions already answered here.
 
+> 🗂️ **Known bugs and their history live in `build/BUGS_AND_FIXES.md` in this repo — read it before asking about a bug number, and append to it directly. New bugs at the TOP of the open table, sequential numbering, never delete a row (annotate instead). Status key: 🔴 open · 🟡 fixed, merged and deployed but NOT yet seen working · 🟢 someone has looked at the real thing and it was right. Added 23 August 2026, so Claude Code stops being told its own history.**
+
 ---
 
 ## Changelog — read this first
