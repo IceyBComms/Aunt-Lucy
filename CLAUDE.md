@@ -4,6 +4,8 @@
 
 > 🗂️ **Known bugs and their history live in `build/BUGS_AND_FIXES.md` in this repo — read it before asking about a bug number, and append to it directly. New bugs at the TOP of the open table, sequential numbering, never delete a row (annotate instead). Status key: 🔴 open · 🟡 fixed, merged and deployed but NOT yet seen working · 🟢 someone has looked at the real thing and it was right. Added 23 August 2026, so Claude Code stops being told its own history.**
 
+> ⚠️ **BEFORE YOU DO ANYTHING ELSE IN A SESSION: run `git status` on `build/BUGS_AND_FIXES.md` and commit any uncommitted changes.** **Cowork edits that file directly on disk between your sessions, so the working tree is frequently AHEAD of the last commit and is the authoritative version.** **On 23 August 2026 an aborted `git checkout` had already removed `build/AUDIT_FINDINGS.md` from the working tree and came within one forced checkout of destroying Kate's edits to the bug record. Never force a checkout over that file. Diff first, preserve the newer version, then proceed. You are not the only writer.**
+
 ---
 
 ## Changelog — read this first
