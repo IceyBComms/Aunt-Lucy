@@ -26,6 +26,48 @@ const OCCASIONS: { value: GiftOccasion; emoji: string; label: string }[] = [
   { value: "other", emoji: "", label: "Something else" },
 ];
 
+/**
+ * Ghost text for the buyer's note, by tier and occasion. Display only — never
+ * sent, never stored; the buyer types their own words over it.
+ *
+ * Two dimensions, because one string was doing the job of ten: the note field
+ * previously varied by tier alone, so a workplace buyer sending a bereavement
+ * gift was shown "enjoy every minute" as the example.
+ *
+ * ⚖️ THE RULE: consumer copy may offer HELP; workplace copy may only offer CARE.
+ * A friend who buys the gift is probably one of the helpers, so "let me take the
+ * first dinner" is right — it models claiming one thing. Colleagues are not the
+ * helper pool; they chipped in for a gift, and the people who help are whoever
+ * the recipient chooses. A workplace example implying the writer will personally
+ * turn up feeds bug #061: she reads a card full of colleagues apparently
+ * volunteering, decides it is handled, and invites nobody. Care about her JOB is
+ * safe and good ("Work's covered, don't give it a thought") because it removes a
+ * worry without promising a meal.
+ *
+ * Typed as Record<GiftOccasion, string> per tier so the compiler refuses to
+ * build if an occasion is ever added without wording for it in both sets.
+ */
+const NOTE_PLACEHOLDERS: Record<"workplace" | "consumer", Record<GiftOccasion, string>> = {
+  workplace: {
+    new_baby: "e.g. From all of us at Brightpath — enjoy every minute.",
+    illness_recovery:
+      "e.g. From all of us at Brightpath — look after yourself. Work's covered, don't give it a thought.",
+    bereavement:
+      "e.g. From all of us at Brightpath — we're so sorry. Take whatever time you need.",
+    ongoing_support:
+      "e.g. From all of us at Brightpath — thinking of you. Take what you need, we'll manage.",
+    other: "e.g. From all of us at Brightpath — thinking of you.",
+  },
+  consumer: {
+    new_baby: "e.g. Can't wait to meet them. Let me take the first dinner.",
+    illness_recovery: "e.g. Thinking of you. Let us take a few things off your plate.",
+    bereavement: "e.g. I'm so sorry. I'm here, and so is everyone else.",
+    ongoing_support:
+      "e.g. Thinking of you — here for the long haul, not just this week.",
+    other: "e.g. Thinking of you. Lean on us — that's what we're here for.",
+  },
+};
+
 function today(): string {
   return new Date().toISOString().slice(0, 10);
 }
@@ -372,9 +414,12 @@ export default function BuyDetails() {
                 id="giftedByNote"
                 rows={3}
                 placeholder={
-                  isWorkplace
-                    ? "e.g. From all of us at Brightpath — enjoy every minute."
-                    : "e.g. Thinking of you. Lean on us — that's what we're here for."
+                  // `occasion` is null until the buyer picks one (bug #062).
+                  // "other" is the neutral wording in both sets, so it is the
+                  // only safe thing to show before the occasion is known.
+                  NOTE_PLACEHOLDERS[isWorkplace ? "workplace" : "consumer"][
+                    occasion ?? "other"
+                  ]
                 }
                 value={form.giftedByNote}
                 onChange={(e) => set("giftedByNote", e.target.value)}
