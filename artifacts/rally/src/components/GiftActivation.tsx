@@ -64,6 +64,15 @@ const SLOT_TYPE_OPTIONS: { value: SuggestedTask["slotType"]; label: string }[] =
  */
 const ALWAYS_TRUSTED = ["school_pickup", "child_care"];
 
+/**
+ * Bug #035a. "Trusted people only" was never explained anywhere, on the one
+ * control where getting it wrong has real consequences. Stated once, used at
+ * both spots where the checkbox is actually a choice — never on the read-only
+ * badge, which is a summary rather than a decision.
+ */
+const TRUSTED_ONLY_HINT =
+  "Only the people you tick as trusted will see this one — for things like pickups or minding the kids.";
+
 function prettyDate(iso: string): string {
   const d = new Date(iso + "T00:00:00");
   return d.toLocaleDateString("en-AU", {
@@ -307,6 +316,35 @@ export function GiftActivation({ token }: { token: string }) {
 
   return (
     <section className="px-6 pt-[2.4rem]">
+      {/* THE OPENER (bug #035) — until now this page asked her to approve a list
+          without ever saying what Aunt Lucy is. Deliberately plain prose in the
+          page's own type: the moment it looks like an ad, the page stops feeling
+          like hers. The one link opens in a new tab — she is mid-decision here,
+          and navigating her away is a leak, not a visit. */}
+      <div className="mx-auto mb-[2.2rem] flex max-w-[34ch] flex-col gap-[0.85rem] text-[1rem] leading-relaxed text-[#52493f]">
+        <p>
+          When something big happens, everyone says, "Let me know what I can
+          do."
+        </p>
+        <p>
+          But when you need it most, asking is the last thing you can face.
+        </p>
+        <p>
+          <a
+            href={import.meta.env.BASE_URL || "/"}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-semibold text-[#2d6a4f] underline underline-offset-2"
+          >
+            Aunt Lucy
+          </a>{" "}
+          is the page that sorts it out for you. You approve a short list of
+          things that would genuinely help — a meal, a lift, the school run —
+          then share one link, and your people pick what suits them. No one has
+          to ask, and you never have to organise a thing.
+        </p>
+      </div>
+
       {/* THE STEER */}
       <div className="mb-[1.4rem] text-center">
         <p className="text-[0.72rem] font-semibold uppercase tracking-[0.22em] text-[#d15b3e]">
@@ -371,23 +409,30 @@ export function GiftActivation({ token }: { token: string }) {
                       aria-label="What would help"
                     />
 
-                    <label className="flex items-center gap-2.5 text-[0.9rem] text-[#52493f]">
-                      <input
-                        type="checkbox"
-                        checked={task.trustedHelpersOnly}
-                        disabled={locked}
-                        onChange={(e) =>
-                          update(task.key, { trustedHelpersOnly: e.target.checked })
-                        }
-                        className="h-4 w-4 accent-[#2d6a4f]"
-                      />
-                      Trusted people only
-                      {locked && (
-                        <span className="text-[0.78rem] text-[#8b7e74]">
-                          — always, for anything with the kids
-                        </span>
-                      )}
-                    </label>
+                    <div className="flex flex-col gap-1">
+                      <label className="flex items-center gap-2.5 text-[0.9rem] text-[#52493f]">
+                        <input
+                          type="checkbox"
+                          checked={task.trustedHelpersOnly}
+                          disabled={locked}
+                          onChange={(e) =>
+                            update(task.key, { trustedHelpersOnly: e.target.checked })
+                          }
+                          className="h-4 w-4 accent-[#2d6a4f]"
+                        />
+                        Trusted people only
+                        {locked && (
+                          <span className="text-[0.78rem] text-[#8b7e74]">
+                            — always, for anything with the kids
+                          </span>
+                        )}
+                      </label>
+                      {/* Bug #035a: the control with the most consequence on the
+                          page, and nothing anywhere said what it did. */}
+                      <p className="pl-[1.65rem] text-[0.8rem] leading-snug text-[#8b7e74]">
+                        {TRUSTED_ONLY_HINT}
+                      </p>
+                    </div>
 
                     <div className="flex items-center gap-2">
                       <input
@@ -622,7 +667,7 @@ export function GiftActivation({ token }: { token: string }) {
           maxLength={500}
           onChange={(e) => setGoodToKnow(e.target.value)}
           rows={3}
-          placeholder="It's a bit chaotic here and hard to say what'll work — a quick text before you come saves waking the baby. Doorstep drop-offs are always perfect."
+          placeholder="For example… a quick text before you come is easier than a knock at the door. Doorstep drop-offs are always perfect."
           className="w-full rounded-[0.9rem] border border-[#e0d6c8] bg-white px-3.5 py-3 text-[0.97rem] leading-relaxed text-[#2c2c2c] placeholder:text-[#b3a99d] focus:border-[#2d6a4f] focus:outline-none"
         />
       </div>
@@ -707,9 +752,10 @@ export function GiftActivation({ token }: { token: string }) {
               close people you'd trust with the sensitive things. Same
               placeholder-or-default behaviour. */}
           <label className="text-[0.9rem] text-[#52493f]">
-            The note for close people
+            The note for trusted people
             <span className="ml-1.5 text-[0.8rem] text-[#8b7e74]">
-              — for anyone you'd trust with pickups or minding the kids
+              — for the few people you'd trust with more — a house key, a
+              pickup, the kids
             </span>
             <input
               value={trustedLine}
@@ -902,16 +948,21 @@ function AddTaskForm({
           </option>
         ))}
       </select>
-      <label className="flex items-center gap-2.5 text-[0.9rem] text-[#52493f]">
-        <input
-          type="checkbox"
-          checked={locked || trusted}
-          disabled={locked}
-          onChange={(e) => setTrusted(e.target.checked)}
-          className="h-4 w-4 accent-[#2d6a4f]"
-        />
-        Trusted people only
-      </label>
+      <div className="flex flex-col gap-1">
+        <label className="flex items-center gap-2.5 text-[0.9rem] text-[#52493f]">
+          <input
+            type="checkbox"
+            checked={locked || trusted}
+            disabled={locked}
+            onChange={(e) => setTrusted(e.target.checked)}
+            className="h-4 w-4 accent-[#2d6a4f]"
+          />
+          Trusted people only
+        </label>
+        <p className="pl-[1.65rem] text-[0.8rem] leading-snug text-[#8b7e74]">
+          {TRUSTED_ONLY_HINT}
+        </p>
+      </div>
       <div className="flex items-center gap-2">
         <button
           type="button"

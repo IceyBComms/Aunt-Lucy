@@ -534,7 +534,10 @@ export function Manage() {
         </p>
         <div className="flex flex-col gap-3.5">
           <label className="text-[0.9rem] text-[#52493f]">
-            Refer to {data.recipientName} as
+            {/* Bug #035c. `role` is derived from the grant behind *this* token,
+                so it genuinely says who is holding the link — a recipient
+                reading their own page shouldn't be addressed in third person. */}
+            {data.role === "recipient" ? "Refer to you as" : `Refer to ${data.recipientName} as`}
             <select
               value={pronouns}
               onChange={(e) => setPronouns(e.target.value as RecipientPronouns)}
@@ -593,9 +596,10 @@ export function Manage() {
           </label>
 
           <label className="text-[0.9rem] text-[#52493f]">
-            The note for close people
+            The note for trusted people
             <span className="ml-1.5 text-[0.8rem] text-[#8b7e74]">
-              — for anyone you'd trust with pickups or minding the kids
+              — for the few people you'd trust with more — a house key, a
+              pickup, the kids
             </span>
             <input
               value={trustedLine}
