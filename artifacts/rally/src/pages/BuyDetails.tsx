@@ -51,7 +51,12 @@ export default function BuyDetails() {
   });
   const [contactMethod, setContactMethod] = useState<"email" | "mobile">("email");
   const [deliverWhen, setDeliverWhen] = useState<"now" | "date">("now");
-  const [occasion, setOccasion] = useState<GiftOccasion>("new_baby");
+  // Starts unchosen, deliberately. This one field decides every word the
+  // recipient reads — the delivery email, the suggested tasks, the invite
+  // wording. Pre-selecting "new baby" meant a buyer who never looked at this
+  // row shipped new-baby copy, which on a bereavement gift reads as
+  // "A new little person is part of your world now."
+  const [occasion, setOccasion] = useState<GiftOccasion | null>(null);
   const [error, setError] = useState<string | null>(null);
   // For-self only: the buyer's "Your name" quietly becomes the recipient/page
   // name too, so before checkout we pause once to read that name back. Any edit
@@ -107,6 +112,13 @@ export default function BuyDetails() {
     // guard against a stray or autofilled value ("KT") sailing through unseen.
     if (isForSelf && !confirmingSelf) {
       setConfirmingSelf(true);
+      return;
+    }
+
+    // The button is already disabled without one; this is the second lock, so a
+    // stray submit can't post a gift with no occasion behind it.
+    if (!occasion) {
+      setError("Please choose the occasion so we use the right words.");
       return;
     }
 
@@ -293,6 +305,7 @@ export default function BuyDetails() {
                 <button
                   key={opt.value}
                   type="button"
+                  aria-pressed={occasion === opt.value}
                   onClick={() => setOccasion(opt.value)}
                   className={`px-4 py-2.5 rounded-2xl border-2 text-sm font-medium transition-colors ${
                     occasion === opt.value
@@ -435,7 +448,7 @@ export default function BuyDetails() {
               type="submit"
               size="lg"
               className="w-full font-serif text-base"
-              disabled={createGift.isPending}
+              disabled={createGift.isPending || !occasion}
             >
               {createGift.isPending
                 ? "Taking you to payment…"
@@ -447,6 +460,11 @@ export default function BuyDetails() {
                     ? "Buy for a team member →"
                     : "Gift Aunt Lucy →"}
             </Button>
+            {!occasion && (
+              <p className="text-xs text-muted-foreground text-center mt-3">
+                Choose the occasion above to continue.
+              </p>
+            )}
             <p className="text-xs text-muted-foreground text-center mt-3">
               {tier ? `${formatPrice(tier.amountCents)}, GST included. ` : ""}
               You'll pay securely with Stripe.
