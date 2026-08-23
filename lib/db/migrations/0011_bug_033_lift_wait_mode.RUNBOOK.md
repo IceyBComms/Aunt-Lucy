@@ -145,16 +145,40 @@ A green Neon dashboard and a green Railway build prove the deploy happened, not
 that the feature works. Check the running system:
 
 ```bash
-curl -s https://api.auntlucy.com.au/api/healthz
+curl -s https://www.auntlucy.com.au/api/healthz
 ```
 
-Expect the `sha` in the response to match the merge commit. If it does not, the
-deploy has not landed yet and nothing below is meaningful.
+⚠️ **The host is `www.auntlucy.com.au`, and the field is `commit`.** Both were
+wrong in the first draft of this runbook and both would have bitten at exactly
+the moment you were trying to confirm the deploy:
+
+- **There is no `api.auntlucy.com.au`.** It does not resolve — curl returns
+  nothing at all (HTTP 000), which reads like a dead backend when the backend is
+  perfectly healthy. The API is served under the same host as the site.
+  (`auntlucy.com.au` without the `www` works too, but 308-redirects, so use
+  `-L` or just use `www`.)
+- **The field is `commit`, not `sha`** — see `routes/health.ts`. Grepping for
+  `sha` finds nothing and looks like a malformed response.
+
+A healthy answer looks exactly like this:
+
+```json
+{"status":"ok","commit":"79e8384a1fee35ac22e4c84af243b8bea6c09bb4"}
+```
+
+Expect `commit` to match the merge commit. If it does not, the deploy has not
+landed and nothing below is meaningful.
+
+⚠️ **`commit` is baked into the API-SERVER build.** A merge that Railway did
+not rebuild will keep reporting the previous commit — which is precisely the
+failure this check exists to catch, and the backend half of the frontend-only
+skip that bit on 22 Aug. Do not read "the site looks fine" as "the new code is
+running".
 
 Then, against a real page:
 
 ```bash
-curl -s https://api.auntlucy.com.au/api/pages/<slug> | grep -o '"liftWaitMode":[^,]*'
+curl -s https://www.auntlucy.com.au/api/pages/<slug> | grep -o '"liftWaitMode":[^,]*'
 ```
 
 Expect `"liftWaitMode":null` on every existing task — proof the new field is
