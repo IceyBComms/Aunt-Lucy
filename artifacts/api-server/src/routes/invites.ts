@@ -7,6 +7,7 @@ import { sendSms } from "../lib/sms";
 import { sendHelperInviteEmail } from "../lib/email";
 import { sendClaimConfirmationToHelper } from "../lib/claimNotify";
 import { logger } from "../lib/logger";
+import { LIFT_WAIT_MODE_HELPER_LINES } from "../lib/liftWaitMode";
 import { getAppBaseUrl } from "../lib/appUrl";
 import { firstName } from "../lib/giftFulfilment";
 import { calendarSubscribeUrl } from "../lib/calendarFeed";
@@ -135,6 +136,11 @@ router.post(
           ),
           taskLabel: taskLabel(slot.slotType, slot.customLabel),
           when: whenLabel(slot.slotDate, slot.slotTime),
+          // Bug #033 — null on anything that isn't an answered lift, and null
+          // renders no line at all.
+          liftNote: slot.liftWaitMode
+            ? LIFT_WAIT_MODE_HELPER_LINES[slot.liftWaitMode]
+            : null,
           link,
           // Unchanged from what this path has always sent (see the footer note
           // in the PR): the public page, not a real unsubscribe route. Passed
@@ -234,6 +240,7 @@ router.get("/invite/:token", async (req, res) => {
       customLabel: slot.customLabel,
       slotDate: slot.slotDate,
       slotTime: slot.slotTime,
+      liftWaitMode: slot.liftWaitMode,
       notes: slot.notes,
     },
     page: {
@@ -346,6 +353,7 @@ router.post("/invite/:token/claim", async (req, res) => {
       customLabel: claimed[0].customLabel,
       slotDate: claimed[0].slotDate,
       slotTime: claimed[0].slotTime,
+      liftWaitMode: claimed[0].liftWaitMode,
       notes: claimed[0].notes,
       dietaryNotes: claimed[0].dietaryNotes,
       headcount: claimed[0].headcount,

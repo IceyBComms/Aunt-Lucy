@@ -1,5 +1,6 @@
 import { Resend } from "resend";
 import { logger } from "./logger";
+import { LIFT_WAIT_MODE_HELPER_LINES, type LiftWaitMode } from "./liftWaitMode";
 import { getAppBaseUrl } from "./appUrl";
 import { formatMoney, gstRateLabel, type GstBreakdown } from "./gst";
 import type { FounderStats } from "./founderStats";
@@ -70,6 +71,9 @@ export interface ClaimEmailParams {
   customLabel: string | null;
   slotDate: string | null;
   slotTime: string | null;
+  // Bug #033 — for a lift, whether the helper waits. NULL on every task that
+  // isn't an answered lift, in which case NOTHING is rendered: no row, no line.
+  liftWaitMode: LiftWaitMode | null;
   notes: string | null;
   // Meal-only detail a helper needs before cooking (bug #006). Null on every
   // other slot type, in which case neither row is rendered.
@@ -94,6 +98,7 @@ export function buildHtml(params: ClaimEmailParams): string {
     customLabel,
     slotDate,
     slotTime,
+    liftWaitMode,
     notes,
     dietaryNotes,
     headcount,
@@ -132,6 +137,13 @@ export function buildHtml(params: ClaimEmailParams): string {
     ? `<tr><td style="padding:4px 0;color:#5a5a5a;font-size:14px;line-height:18px;mso-line-height-rule:exactly;"><strong>Feeding:</strong> ${escapeHtml(String(headcount))} ${headcount === 1 ? "person" : "people"}</td></tr>`
     : "";
 
+  // Bug #033 — the wait-or-not answer, in the summary block directly under
+  // "When", because what it qualifies is the when. Rendered ONLY for an
+  // answered lift; null adds no row at all.
+  const liftBlock = liftWaitMode
+    ? `<tr><td style="padding:4px 0;color:#5a5a5a;font-size:14px;line-height:18px;mso-line-height-rule:exactly;"><strong>Getting there:</strong> ${escapeHtml(LIFT_WAIT_MODE_HELPER_LINES[liftWaitMode])}</td></tr>`
+    : "";
+
   const dietaryBlock = dietaryNotes
     ? `<tr><td style="padding:4px 0;color:#5a5a5a;font-size:14px;line-height:18px;mso-line-height-rule:exactly;"><strong>Dietary needs:</strong> ${escapeHtml(dietaryNotes)}</td></tr>`
     : "";
@@ -168,6 +180,7 @@ export function buildHtml(params: ClaimEmailParams): string {
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">
             <tr><td style="padding:4px 0;color:#5a5a5a;font-size:14px;line-height:18px;mso-line-height-rule:exactly;"><strong>What:</strong> ${escapeHtml(typeLabel)}</td></tr>
             <tr><td style="padding:4px 0;color:#5a5a5a;font-size:14px;line-height:18px;mso-line-height-rule:exactly;"><strong>When:</strong> ${escapeHtml(dateTimeLine)}</td></tr>
+            ${liftBlock}
             ${headcountBlock}
             ${dietaryBlock}
             ${locationBlock}
@@ -196,6 +209,7 @@ export function buildPlainText(params: ClaimEmailParams): string {
     customLabel,
     slotDate,
     slotTime,
+    liftWaitMode,
     notes,
     dietaryNotes,
     headcount,
@@ -217,6 +231,7 @@ export function buildPlainText(params: ClaimEmailParams): string {
   text += `Here's what you've signed up for:\n\n`;
   text += `What: ${typeLabel}\n`;
   text += `When: ${dateTimeLine}\n`;
+  if (liftWaitMode) text += `Getting there: ${LIFT_WAIT_MODE_HELPER_LINES[liftWaitMode]}\n`;
   if (headcount) text += `Feeding: ${headcount} ${headcount === 1 ? "person" : "people"}\n`;
   if (dietaryNotes) text += `Dietary needs: ${dietaryNotes}\n`;
   if (location) text += `Location: ${location}\n`;

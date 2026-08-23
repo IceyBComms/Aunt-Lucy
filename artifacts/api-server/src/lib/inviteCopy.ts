@@ -250,6 +250,16 @@ export function trustedInviteEmailText(params: {
   trustedLine: string;
   taskLabel: string;
   when: string;
+  /**
+   * Bug #033 — the lift wait-or-not line, or null. Null renders NOTHING: no
+   * blank line, no empty brackets.
+   *
+   * This is the only invite copy that names a specific task, which is why it is
+   * the only one that needs this. The SMS variants deliberately don't name the
+   * task at all (they link to the invite page, which shows it), so there is
+   * nothing there for this to qualify.
+   */
+  liftNote?: string | null;
   link: string;
   /**
    * Spelled out inline as 9c's final line, verbatim. The branded HTML footer
@@ -266,6 +276,7 @@ export function trustedInviteEmailText(params: {
     `${params.recipientFirstName}'s ${params.trustedLine}, and you came to mind for something in particular:`,
     ``,
     `${params.taskLabel} — ${params.when}`,
+    ...(params.liftNote ? [params.liftNote] : []),
     ``,
     `This one's only being asked of a few people, which is why this note is just for you.`,
     ``,

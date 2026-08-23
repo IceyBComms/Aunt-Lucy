@@ -57,6 +57,9 @@ router.get("/pages/:slug", async (req, res) => {
     customLabel: slot.customLabel,
     slotDate: slot.slotDate,
     slotTime: slot.slotTime,
+    // Bug #033 — null on every task that isn't an answered lift, and the tile
+    // renders nothing at all for null.
+    liftWaitMode: slot.liftWaitMode,
     notes: slot.notes,
     dietaryNotes: slot.dietaryNotes,
     headcount: slot.headcount,

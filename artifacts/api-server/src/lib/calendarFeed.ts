@@ -26,6 +26,12 @@
 import ical, { ICalEventStatus, ICalCalendarMethod } from "ical-generator";
 import { getAppBaseUrl } from "./appUrl";
 import { taskLabel } from "./item17Copy";
+import {
+  LIFT_WAIT_MODE_HELPER_LINES,
+  liftWaitMinutes,
+  liftWaitSummarySuffix,
+  type LiftWaitMode,
+} from "./liftWaitMode";
 
 // The domain half of each event's UID. Kept stable and derived from the slot id
 // so the SAME event is updated (not duplicated) across fetches when the time
@@ -51,6 +57,14 @@ export interface CalendarClaimData {
   location: string | null;
   /** Is the claim currently live? false once released → STATUS:CANCELLED. */
   claimed: boolean;
+  /**
+   * Bug #033 — for a lift, whether the helper waits. Null on everything else.
+   *
+   * This is the field that makes a lift a DIFFERENT DIARY ENTRY rather than the
+   * same entry with different words: see the duration logic below. Null keeps
+   * the event byte-identical to what this built before the field existed.
+   */
+  liftWaitMode: LiftWaitMode | null;
 }
 
 /**
@@ -84,6 +98,7 @@ export function buildClaimIcs(data: CalendarClaimData): string {
   if (data.slotDate) {
     const label = taskLabel(data.slotType, data.customLabel);
     const timed = !!data.slotTime;
+    const waitSuffix = liftWaitSummarySuffix(data.liftWaitMode);
     const start = floatingInstant(data.slotDate, data.slotTime);
 
     const event = cal.createEvent({
@@ -92,7 +107,12 @@ export function buildClaimIcs(data: CalendarClaimData): string {
       start,
       floating: true,
       allDay: !timed,
-      summary: `Helping ${data.recipientFirstName}: ${label}`,
+      // The wait-or-not answer rides in the TITLE as well as the duration: a
+      // helper scanning a week view sees the words without opening the event.
+      // Omitted entirely when unset, so a non-lift title is unchanged.
+      summary: waitSuffix
+        ? `Helping ${data.recipientFirstName}: ${label} (${waitSuffix})`
+        : `Helping ${data.recipientFirstName}: ${label}`,
       status: data.claimed
         ? ICalEventStatus.CONFIRMED
         : ICalEventStatus.CANCELLED,
@@ -102,7 +122,21 @@ export function buildClaimIcs(data: CalendarClaimData): string {
     });
 
     if (timed) {
-      event.end(new Date(start.getTime() + DEFAULT_EVENT_MINUTES * 60_000));
+      // Bug #033 — the duration itself carries the size of the ask, because that
+      // is what a helper's calendar actually reserves. "Lift to hospital, 45
+      // minutes" and "lift to hospital, half a day" are different diary entries;
+      // a helper who blocks out the wrong one cancels, and printing the answer
+      // in the description alone would not have changed a single calendar.
+      // Falls back to the unchanged one-hour default when there is no answer.
+      const minutes = liftWaitMinutes(data.liftWaitMode) ?? DEFAULT_EVENT_MINUTES;
+      event.end(new Date(start.getTime() + minutes * 60_000));
+    }
+
+    // Bug #033 — the full sentence in the event body, so a helper who opens the
+    // entry gets the reason the block is that long. Set only for an answered
+    // lift; every other event carries no description at all, exactly as before.
+    if (data.liftWaitMode) {
+      event.description(LIFT_WAIT_MODE_HELPER_LINES[data.liftWaitMode]);
     }
 
     // Location is page-level free text, already emailed to this same helper, so

@@ -13,6 +13,7 @@ import {
 } from "@workspace/db";
 import { and, eq, inArray, isNull, isNotNull, lte, ne, sql } from "drizzle-orm";
 import { logger } from "../lib/logger";
+import { LIFT_WAIT_MODE_HELPER_LINES } from "../lib/liftWaitMode";
 import { firstName, giftLinkFor, sealCard } from "../lib/giftFulfilment";
 import {
   sendActivationReminder,
@@ -398,6 +399,11 @@ router.post("/internal/dispatch-invites", async (req, res) => {
               ),
               taskLabel: taskLabel(trustedSlot.slotType, trustedSlot.customLabel),
               when: whenLabel(trustedSlot.slotDate, trustedSlot.slotTime),
+              // Bug #033 — null on anything that isn't an answered lift, and
+              // null renders no line at all.
+              liftNote: trustedSlot.liftWaitMode
+                ? LIFT_WAIT_MODE_HELPER_LINES[trustedSlot.liftWaitMode]
+                : null,
               link: emailLink,
               unsubscribeUrl,
               openingLine,

@@ -31,6 +31,21 @@ export const slotFlexibilityEnum = pgEnum("slot_flexibility", [
   "fixed",
 ]);
 
+// Bug #033 — for a LIFT, the one fact a helper needs before they say yes: are
+// they dropping someone off, waiting and bringing them home, or collecting them?
+// "Drop off" is a twenty-minute favour; "wait" can be half a day. Nothing in the
+// product said which, so a helper could claim expecting the first and lose an
+// afternoon to the second.
+//
+// The VALUES here are stable and semantic. The words a helper actually reads
+// live in the two liftWaitMode copy modules (api-server + rally) and can be
+// reworded without a migration — nothing keys off the display labels.
+export const liftWaitModeEnum = pgEnum("lift_wait_mode", [
+  "drop_off",
+  "wait",
+  "pick_up",
+]);
+
 export const slotsTable = pgTable("slots", {
   id: text("id")
     .primaryKey()
@@ -53,6 +68,20 @@ export const slotsTable = pgTable("slots", {
   // is the homework this product exists to remove.
   slotDate: date("slot_date"),
   slotTime: time("slot_time"),
+  // Bug #033. NULLABLE WITH NO DEFAULT, and the absence is meaningful: NULL
+  // means "not a lift, or nobody has said yet", and EVERY SURFACE RENDERS
+  // NOTHING for it — no control on the tile, no clause in the confirmation
+  // email or SMS, and the unchanged default calendar duration. A dated "pick up
+  // a prescription" errand is a NULL row and must look exactly as it did before
+  // this column existed; a wait-or-not question on a prescription is nonsense.
+  //
+  // The presence of this column is also what marks a task as a LIFT. There is no
+  // 'lift' slot type: a lift is modelled as a dated errand (see
+  // occasionSuggestions + the dated-errand reading in slotFlexibility). Adding
+  // 'lift' to slot_type would have meant an ALTER TYPE ... ADD VALUE — the shape
+  // that needed the 0003 enum catch-up — plus a new case in every switch on
+  // slotType. See migration 0011.
+  liftWaitMode: liftWaitModeEnum("lift_wait_mode"),
   notes: text("notes"),
   // Meal-specific, both nullable. A meal slot with no dietary notes and no
   // headcount is a perfectly valid flexible offer — these are encouraged, never

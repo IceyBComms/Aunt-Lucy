@@ -41,6 +41,7 @@ const base = {
   customLabel: null,
   slotDate: "2026-08-28",
   slotTime: "18:00",
+  liftWaitMode: null,
   notes: null,
   dietaryNotes: null,
   headcount: null,

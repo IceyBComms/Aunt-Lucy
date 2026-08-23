@@ -17,6 +17,7 @@ const base: CalendarClaimData = {
   customLabel: null,
   slotDate: "2026-08-15",
   slotTime: "15:00",
+  liftWaitMode: null,
   recipientFirstName: "Sarah",
   location: "12 Example St, Sydney",
   claimed: true,

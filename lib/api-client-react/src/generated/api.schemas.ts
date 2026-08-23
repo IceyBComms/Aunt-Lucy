@@ -24,6 +24,21 @@ export const SlotType = {
   other: "other",
 } as const;
 
+/**
+ * Bug #033 — for a LIFT, whether the helper drops off, waits and brings them home, or collects. "Drop off" is a twenty-minute favour; "wait" can be half a day, and nothing used to say which.
+NULL IS MEANINGFUL AND IS THE COMMON CASE: it means "not a lift, or nobody has said yet", and every surface renders nothing at all for it. A dated "pick up a prescription" errand is null and must look untouched.
+The presence of this field is also what marks a task as a lift — there is no 'lift' slot type. See migration 0011.
+ */
+export type LiftWaitMode =
+  | (typeof LiftWaitMode)[keyof typeof LiftWaitMode]
+  | null;
+
+export const LiftWaitMode = {
+  drop_off: "drop_off",
+  wait: "wait",
+  pick_up: "pick_up",
+} as const;
+
 export interface SlotResponse {
   id: string;
   pageId: string;
@@ -32,6 +47,7 @@ export interface SlotResponse {
   /** Null means the task has no fixed date — a flexible offer, claimed whenever suits. The date is set when a helper claims it. */
   slotDate?: string | null;
   slotTime?: string | null;
+  liftWaitMode?: LiftWaitMode | null;
   notes?: string | null;
   /** Meal slots only (bug #006): allergies / dietary preferences a helper needs before cooking. Null on every other slot type. */
   dietaryNotes?: string | null;
@@ -237,6 +253,7 @@ export interface SuggestedTask {
   /** When false the card shows no date at all — a flexible offer. Most suggestions are undated by design. */
   dated: boolean;
   trustedHelpersOnly: boolean;
+  liftWaitMode?: LiftWaitMode | null;
 }
 
 export interface GiftReview {
@@ -267,8 +284,9 @@ export interface ActivateGiftTask {
   label: string;
   /** Omit or null for a flexible, undated task. */
   slotDate?: string | null;
-  /** Time of day (HH:MM), reusing the existing slot_time column. The activation review flow captures it mainly for school pickups (bug #005), where the time is the whole point; omit or null otherwise. */
+  /** Time of day (HH:MM), on the existing slot_time column. Offered on EVERY dated task (bug #033) — it began as school-pickup-only (bug #005), but the column was always generic and the activation screen was the only place that gated it. Optional and never blocking: a dated task with no time renders "Time to be confirmed" rather than an empty space, because optional means "she has not said yet", not "no time matters". */
   slotTime?: string | null;
+  liftWaitMode?: LiftWaitMode | null;
   notes?: string | null;
   /** Meal tasks only (bug #006): allergies / dietary preferences. Ignored server-side for non-meal types. */
   dietaryNotes?: string | null;
@@ -393,6 +411,7 @@ export interface ManageTaskSummary {
   claimedAt?: string | null;
   slotDate?: string | null;
   slotTime?: string | null;
+  liftWaitMode?: LiftWaitMode | null;
   /** Meal slots only (bug */
   dietaryNotes?: string | null;
   /** Meal slots only (bug */
@@ -545,6 +564,7 @@ export interface EditTaskRequest {
   slotDate?: string | null;
   /** HH:MM (24h), or empty/null to clear. */
   slotTime?: string | null;
+  liftWaitMode?: LiftWaitMode | null;
   customLabel?: string | null;
   notes?: string | null;
   /** Meal tasks only; ignored on other types. */

@@ -74,6 +74,12 @@ export const GetSupportPageResponse = zod.object({
           "Null means the task has no fixed date — a flexible offer, claimed whenever suits. The date is set when a helper claims it.",
         ),
       slotTime: zod.string().nullish(),
+      liftWaitMode: zod
+        .enum(["drop_off", "wait", "pick_up"])
+        .nullish()
+        .describe(
+          'Bug #033 — for a LIFT, whether the helper drops off, waits and brings them home, or collects. \"Drop off\" is a twenty-minute favour; \"wait\" can be half a day, and nothing used to say which.\nNULL IS MEANINGFUL AND IS THE COMMON CASE: it means \"not a lift, or nobody has said yet\", and every surface renders nothing at all for it. A dated \"pick up a prescription\" errand is null and must look untouched.\nThe presence of this field is also what marks a task as a lift — there is no \'lift\' slot type. See migration 0011.',
+        ),
       notes: zod.string().nullish(),
       dietaryNotes: zod
         .string()
@@ -146,6 +152,12 @@ export const ClaimSlotResponse = zod.object({
       "Null means the task has no fixed date — a flexible offer, claimed whenever suits. The date is set when a helper claims it.",
     ),
   slotTime: zod.string().nullish(),
+  liftWaitMode: zod
+    .enum(["drop_off", "wait", "pick_up"])
+    .nullish()
+    .describe(
+      'Bug #033 — for a LIFT, whether the helper drops off, waits and brings them home, or collects. \"Drop off\" is a twenty-minute favour; \"wait\" can be half a day, and nothing used to say which.\nNULL IS MEANINGFUL AND IS THE COMMON CASE: it means \"not a lift, or nobody has said yet\", and every surface renders nothing at all for it. A dated \"pick up a prescription\" errand is null and must look untouched.\nThe presence of this field is also what marks a task as a lift — there is no \'lift\' slot type. See migration 0011.',
+    ),
   notes: zod.string().nullish(),
   dietaryNotes: zod
     .string()
@@ -362,6 +374,12 @@ export const GetGiftReviewResponse = zod.object({
             "When false the card shows no date at all — a flexible offer. Most suggestions are undated by design.",
           ),
         trustedHelpersOnly: zod.boolean(),
+        liftWaitMode: zod
+          .enum(["drop_off", "wait", "pick_up"])
+          .nullish()
+          .describe(
+            'Bug #033 — for a LIFT, whether the helper drops off, waits and brings them home, or collects. \"Drop off\" is a twenty-minute favour; \"wait\" can be half a day, and nothing used to say which.\nNULL IS MEANINGFUL AND IS THE COMMON CASE: it means \"not a lift, or nobody has said yet\", and every surface renders nothing at all for it. A dated \"pick up a prescription\" errand is null and must look untouched.\nThe presence of this field is also what marks a task as a lift — there is no \'lift\' slot type. See migration 0011.',
+          ),
       })
       .describe(
         "A proposed task shown on the review screen. Not persisted — it becomes a slot only if the recipient keeps it and activates.",
@@ -400,7 +418,13 @@ export const ActivateGiftBody = zod.object({
           .string()
           .nullish()
           .describe(
-            "Time of day (HH:MM), reusing the existing slot_time column. The activation review flow captures it mainly for school pickups (bug #005), where the time is the whole point; omit or null otherwise.",
+            'Time of day (HH:MM), on the existing slot_time column. Offered on EVERY dated task (bug #033) — it began as school-pickup-only (bug #005), but the column was always generic and the activation screen was the only place that gated it. Optional and never blocking: a dated task with no time renders \"Time to be confirmed\" rather than an empty space, because optional means \"she has not said yet\", not \"no time matters\".',
+          ),
+        liftWaitMode: zod
+          .enum(["drop_off", "wait", "pick_up"])
+          .nullish()
+          .describe(
+            'Bug #033 — for a LIFT, whether the helper drops off, waits and brings them home, or collects. \"Drop off\" is a twenty-minute favour; \"wait\" can be half a day, and nothing used to say which.\nNULL IS MEANINGFUL AND IS THE COMMON CASE: it means \"not a lift, or nobody has said yet\", and every surface renders nothing at all for it. A dated \"pick up a prescription\" errand is null and must look untouched.\nThe presence of this field is also what marks a task as a lift — there is no \'lift\' slot type. See migration 0011.',
           ),
         notes: zod.string().nullish(),
         dietaryNotes: zod
@@ -721,6 +745,12 @@ export const GetManageStateResponse = zod.object({
         .describe('When it was claimed (ISO), for the \"help arriving\" view.'),
       slotDate: zod.string().nullish(),
       slotTime: zod.string().nullish(),
+      liftWaitMode: zod
+        .enum(["drop_off", "wait", "pick_up"])
+        .nullish()
+        .describe(
+          'Bug #033 — for a LIFT, whether the helper drops off, waits and brings them home, or collects. \"Drop off\" is a twenty-minute favour; \"wait\" can be half a day, and nothing used to say which.\nNULL IS MEANINGFUL AND IS THE COMMON CASE: it means \"not a lift, or nobody has said yet\", and every surface renders nothing at all for it. A dated \"pick up a prescription\" errand is null and must look untouched.\nThe presence of this field is also what marks a task as a lift — there is no \'lift\' slot type. See migration 0011.',
+        ),
       dietaryNotes: zod.string().nullish().describe("Meal slots only (bug"),
       headcount: zod.number().nullish().describe("Meal slots only (bug"),
     }),
@@ -1101,6 +1131,12 @@ export const EditTaskBody = zod
       .string()
       .nullish()
       .describe("HH:MM (24h), or empty\/null to clear."),
+    liftWaitMode: zod
+      .enum(["drop_off", "wait", "pick_up"])
+      .nullish()
+      .describe(
+        'Bug #033 — for a LIFT, whether the helper drops off, waits and brings them home, or collects. \"Drop off\" is a twenty-minute favour; \"wait\" can be half a day, and nothing used to say which.\nNULL IS MEANINGFUL AND IS THE COMMON CASE: it means \"not a lift, or nobody has said yet\", and every surface renders nothing at all for it. A dated \"pick up a prescription\" errand is null and must look untouched.\nThe presence of this field is also what marks a task as a lift — there is no \'lift\' slot type. See migration 0011.',
+      ),
     customLabel: zod.string().nullish(),
     notes: zod.string().nullish(),
     dietaryNotes: zod
@@ -1165,6 +1201,12 @@ export const EditTaskResponse = zod.object({
     .describe('When it was claimed (ISO), for the \"help arriving\" view.'),
   slotDate: zod.string().nullish(),
   slotTime: zod.string().nullish(),
+  liftWaitMode: zod
+    .enum(["drop_off", "wait", "pick_up"])
+    .nullish()
+    .describe(
+      'Bug #033 — for a LIFT, whether the helper drops off, waits and brings them home, or collects. \"Drop off\" is a twenty-minute favour; \"wait\" can be half a day, and nothing used to say which.\nNULL IS MEANINGFUL AND IS THE COMMON CASE: it means \"not a lift, or nobody has said yet\", and every surface renders nothing at all for it. A dated \"pick up a prescription\" errand is null and must look untouched.\nThe presence of this field is also what marks a task as a lift — there is no \'lift\' slot type. See migration 0011.',
+    ),
   dietaryNotes: zod.string().nullish().describe("Meal slots only (bug"),
   headcount: zod.number().nullish().describe("Meal slots only (bug"),
 });

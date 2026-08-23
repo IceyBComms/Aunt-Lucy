@@ -970,6 +970,8 @@ components:
         slotTime:
           type: string
           nullable: true
+        liftWaitMode:
+          $ref: "#/components/schemas/LiftWaitMode"
         notes:
           type: string
           nullable: true
@@ -1382,6 +1384,8 @@ components:
             suggestions are undated by design.
         trustedHelpersOnly:
           type: boolean
+        liftWaitMode:
+          $ref: "#/components/schemas/LiftWaitMode"
       required:
         - key
         - slotType
@@ -1470,9 +1474,15 @@ components:
           type: string
           nullable: true
           description: >-
-            Time of day (HH:MM), reusing the existing slot_time column. The
-            activation review flow captures it mainly for school pickups (bug
-            #005), where the time is the whole point; omit or null otherwise.
+            Time of day (HH:MM), on the existing slot_time column. Offered on
+            EVERY dated task (bug #033) — it began as school-pickup-only (bug
+            #005), but the column was always generic and the activation screen
+            was the only place that gated it. Optional and never blocking: a
+            dated task with no time renders "Time to be confirmed" rather than
+            an empty space, because optional means "she has not said yet", not
+            "no time matters".
+        liftWaitMode:
+          $ref: "#/components/schemas/LiftWaitMode"
         notes:
           type: string
           nullable: true
@@ -1657,6 +1667,25 @@ components:
         - sms
         - email
 
+    LiftWaitMode:
+      type: string
+      nullable: true
+      description: >-
+        Bug #033 — for a LIFT, whether the helper drops off, waits and brings
+        them home, or collects. "Drop off" is a twenty-minute favour; "wait" can
+        be half a day, and nothing used to say which.
+
+        NULL IS MEANINGFUL AND IS THE COMMON CASE: it means "not a lift, or
+        nobody has said yet", and every surface renders nothing at all for it. A
+        dated "pick up a prescription" errand is null and must look untouched.
+
+        The presence of this field is also what marks a task as a lift — there is
+        no 'lift' slot type. See migration 0011.
+      enum:
+        - drop_off
+        - wait
+        - pick_up
+
     SlotFlexibility:
       type: string
       description: >-
@@ -1710,6 +1739,8 @@ components:
         slotTime:
           type: string
           nullable: true
+        liftWaitMode:
+          $ref: "#/components/schemas/LiftWaitMode"
         dietaryNotes:
           type: string
           nullable: true
@@ -2028,6 +2059,8 @@ components:
           type: string
           nullable: true
           description: HH:MM (24h), or empty/null to clear.
+        liftWaitMode:
+          $ref: "#/components/schemas/LiftWaitMode"
         customLabel:
           type: string
           nullable: true

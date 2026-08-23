@@ -24,6 +24,7 @@ import {
 import { getAppBaseUrl } from "../lib/appUrl";
 import { firstName } from "../lib/giftFulfilment";
 import { logger } from "../lib/logger";
+import { asLiftWaitMode, LIFT_WAIT_MODE_SMS_CLAUSES } from "../lib/liftWaitMode";
 import { sendSms } from "../lib/sms";
 import { sendHelperInviteEmail } from "../lib/email";
 import {
@@ -176,6 +177,7 @@ router.get("/manage/:token", requireManagementToken as any, async (req, res) => 
       claimedAt: s.claimedAt?.toISOString() ?? null,
       slotDate: s.slotDate,
       slotTime: s.slotTime,
+      liftWaitMode: s.liftWaitMode,
       dietaryNotes: s.dietaryNotes,
       headcount: s.headcount,
     })),
@@ -935,6 +937,12 @@ router.patch(
       }
       patch.slotTime = t || null;
     }
+    // Bug #033 — the wait-or-not answer is editable here, because it is the
+    // fact most likely to change after the appointment is booked. Explicit null
+    // clears it, which correctly returns the task to rendering nothing at all.
+    if (body.liftWaitMode !== undefined) {
+      patch.liftWaitMode = asLiftWaitMode(body.liftWaitMode);
+    }
     if (body.customLabel !== undefined) {
       patch.customLabel = trimmed(body.customLabel).slice(0, 120) || null;
     }
@@ -983,7 +991,19 @@ router.patch(
     // message carries the one-tap out. The effective flexibility (post-edit) also
     // decides nothing here — this notification always goes to the helper.
     if (updated.isClaimed && updated.claimedByContact) {
-      const newDetail = whenLabel(updated.slotDate, updated.slotTime);
+      // Bug #033 — if the family flipped the wait-or-not answer, the helper's
+      // commitment may just have gone from twenty minutes to half a day, so the
+      // "here's what changed" line has to say so. This adds no NEW send: this
+      // notification already fires on every edit to a claimed task. It was
+      // simply reporting the when and nothing else, which would have read as
+      // reassuringly unchanged on precisely the edit that matters most.
+      //
+      // Uses the GSM-safe SMS wording rather than the fuller email sentence,
+      // because a lift is FIXED and a fixed task's notification goes by SMS.
+      const waitClause = updated.liftWaitMode
+        ? ` (${LIFT_WAIT_MODE_SMS_CLAUSES[updated.liftWaitMode]})`
+        : "";
+      const newDetail = `${whenLabel(updated.slotDate, updated.slotTime)}${waitClause}`;
       const label = taskLabel(updated.slotType, updated.customLabel);
       const releaseLink = cancelToken ? releaseLinkFor(cancelToken) : shareLinkFor(page);
       void notifyHelperOfTaskEvent({
@@ -1023,6 +1043,7 @@ router.patch(
       flexibility: updated.flexibility,
       slotDate: updated.slotDate,
       slotTime: updated.slotTime,
+      liftWaitMode: updated.liftWaitMode,
       dietaryNotes: updated.dietaryNotes,
       headcount: updated.headcount,
       trustedHelpersOnly: updated.trustedHelpersOnly,

@@ -139,6 +139,7 @@ router.post("/slots/:slotId/claim", async (req, res) => {
     customLabel: row.customLabel,
     slotDate: row.slotDate,
     slotTime: row.slotTime,
+    liftWaitMode: row.liftWaitMode,
     notes: row.notes,
     dietaryNotes: row.dietaryNotes,
     headcount: row.headcount,
@@ -154,6 +155,7 @@ router.post("/slots/:slotId/claim", async (req, res) => {
     customLabel: row.customLabel ?? null,
     slotDate: row.slotDate,
     slotTime: row.slotTime ?? null,
+    liftWaitMode: row.liftWaitMode ?? null,
     notes: row.notes ?? null,
     dietaryNotes: row.dietaryNotes ?? null,
     headcount: row.headcount ?? null,
@@ -212,6 +214,10 @@ router.get("/slots/release/:token", async (req, res) => {
       customLabel: slot.customLabel,
       slotDate: slot.slotDate,
       slotTime: slot.slotTime,
+      // Bug #033 — the release page is the claim's permanent home, and for a
+      // phone-only helper it is where the calendar link lives too, so the
+      // wait-or-not answer has to be readable here as well.
+      liftWaitMode: slot.liftWaitMode,
       notes: slot.notes,
       // Item 17: drives which controls the claim link offers — a flexible task
       // gets the reschedule block, a fixed task gets note-only.

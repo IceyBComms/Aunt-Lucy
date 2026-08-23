@@ -18,6 +18,7 @@ import { classifyContact } from "./contactChannel";
 import { sendClaimConfirmation, type ClaimEmailParams } from "./email";
 import { sendSms } from "./sms";
 import { logger } from "./logger";
+import { LIFT_WAIT_MODE_SMS_CLAUSES, type LiftWaitMode } from "./liftWaitMode";
 import { getAppBaseUrl } from "./appUrl";
 import { calendarSubscribeUrl } from "./calendarFeed";
 import { firstName } from "./names";
@@ -38,6 +39,8 @@ export interface ClaimConfirmationParams {
   customLabel: string | null;
   slotDate: string | null;
   slotTime: string | null;
+  /** Bug #033 — null on anything that isn't an answered lift. */
+  liftWaitMode: LiftWaitMode | null;
   notes: string | null;
   dietaryNotes: string | null;
   headcount: number | null;
@@ -76,6 +79,12 @@ export async function sendClaimConfirmationToHelper(
       task: taskLabel(params.slotType, params.customLabel),
       whenClause: whenClause(params.slotDate, params.slotTime),
       releaseLink: releaseUrl,
+      // GSM-safe and only present on an answered lift (bug #033). The phone-only
+      // helper gets no email and no calendar, so this SMS is the ONLY place they
+      // are ever told whether they're waiting.
+      liftClause: params.liftWaitMode
+        ? LIFT_WAIT_MODE_SMS_CLAUSES[params.liftWaitMode]
+        : null,
     });
     // The calendar subscription is NOT in this message. It lives on the page the
     // release link opens, so the SMS carries one URL instead of two (a second
@@ -100,6 +109,7 @@ export async function sendClaimConfirmationToHelper(
     customLabel: params.customLabel,
     slotDate: params.slotDate,
     slotTime: params.slotTime,
+    liftWaitMode: params.liftWaitMode,
     notes: params.notes,
     dietaryNotes: params.dietaryNotes,
     headcount: params.headcount,

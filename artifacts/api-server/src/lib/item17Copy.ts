@@ -92,10 +92,21 @@ export function helperClaimConfirmed(params: {
   /** Already-built "on Friday 8 August at 3:00pm" or "whenever suits". */
   whenClause: string;
   releaseLink: string;
+  /**
+   * Bug #033 — the lift wait-or-not clause, already GSM-safe, or null.
+   *
+   * ⚠️ NULL IS THE COMMON CASE and must add NOTHING to the message: not a
+   * space, not a full stop. A phone-only helper is the one who most needs this
+   * (they get no email and no calendar link), and also the one whose message
+   * costs money per segment, so it is one short sentence and only ever present
+   * on an answered lift.
+   */
+  liftClause?: string | null;
 }): string {
+  const lift = params.liftClause ? `${params.liftClause} ` : "";
   return (
     `Thanks ${params.helperFirstName}, you're helping ${params.recipientFirstName} ` +
-    `with ${params.task} ${params.whenClause}. ` +
+    `with ${params.task} ${params.whenClause}. ${lift}` +
     `Change or cancel any time: ${params.releaseLink}`
   );
 }
