@@ -7,6 +7,8 @@
  */
 export interface HealthStatus {
   status: string;
+  /** The git commit this server was built from, so a deploy can be verified against the running process rather than a dashboard. Explicitly null when the build carried no commit stamp — never a placeholder string, because a reassuring "unknown" is worse than an honest absence. */
+  commit: string | null;
 }
 
 export type SlotType = (typeof SlotType)[keyof typeof SlotType];
