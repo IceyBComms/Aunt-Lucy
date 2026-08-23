@@ -81,11 +81,29 @@ describe("buildClaimIcs", () => {
     expect(ics).toContain("DTEND:20260815T190000");
   });
 
-  it("blocks out a short slot for a drop-off, and says so in the title", () => {
+  it("blocks out an hour for a drop-off, and says so in the title", () => {
     const ics = buildClaimIcs({ ...base, slotType: "errand", liftWaitMode: "drop_off" });
-    // 15:00 + 45 minutes = 15:45.
-    expect(ics).toContain("DTEND:20260815T154500");
+    // 15:00 + 60 minutes = 16:00.
+    //
+    // NOTE: 60 is also the unanswered default, so this DTEND alone does NOT
+    // prove the duration came from the lift mapping — the title and
+    // description below are what distinguish an answered drop-off from an
+    // unanswered task. The two coincide by intention, not by accident: if the
+    // default ever moves, decide deliberately whether drop_off follows it.
+    expect(ics).toContain("DTEND:20260815T160000");
     expect(ics).toMatch(/SUMMARY:.*drop off only/i);
+    expect(unfold(ics)).toMatch(/DESCRIPTION:.*not needed for the trip home/i);
+  });
+
+  it("still separates a waiting lift from a drop-off by duration alone", () => {
+    // The one comparison that cannot be satisfied by wording: whatever the
+    // labels are reworded to, these two must reserve different amounts of the
+    // helper's day. This is bug #033 in a single assertion.
+    const end = (mode: "wait" | "drop_off") =>
+      buildClaimIcs({ ...base, slotType: "errand", liftWaitMode: mode }).match(
+        /DTEND:(\d+T\d+)/,
+      )?.[1];
+    expect(end("wait")).not.toBe(end("drop_off"));
   });
 
   it("gives a waiting lift a description a helper can act on", () => {

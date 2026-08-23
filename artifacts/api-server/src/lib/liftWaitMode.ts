@@ -110,13 +110,23 @@ export const LIFT_WAIT_MODE_SMS_CLAUSES: Record<LiftWaitMode, string> = {
  * answer in the event description is not enough — the duration itself has to
  * differ, because that is what the helper's calendar actually reserves.
  *
- * ⚠️ SUGGESTED DURATIONS — Kate to bless. The shape is what matters: a waiting
- * lift must read as a substantial commitment, the other two as errands.
+ * Durations reviewed and set by Kate on 23 Aug. The governing rule, worth
+ * keeping if these are ever revisited: OVER-BLOCKING IS THE SAFE ERROR. Time
+ * handed back costs a helper nothing; time they didn't have makes them late,
+ * and a helper made late once is a helper who doesn't claim again.
  */
 export const LIFT_WAIT_MODE_MINUTES: Record<LiftWaitMode, number> = {
-  drop_off: 45,
-  wait: 240, // half a day, near enough — the point is that it isn't an hour
-  pick_up: 45,
+  // 60, not 45. Hospital parking alone can eat twenty minutes, so 45 was the
+  // optimistic case — and the errors here are not symmetrical: a helper who
+  // blocks an hour and finishes in forty minutes gets time back, while one who
+  // blocks forty-five and needs an hour is late for the next thing and quietly
+  // doesn't offer again. Over-blocking costs almost nothing; under-blocking
+  // costs a helper. (Kate's call, 23 Aug.)
+  drop_off: 60,
+  // Half a day, near enough. An appointment plus a waiting room plus travel
+  // genuinely runs that long, and the same asymmetry applies even harder here.
+  wait: 240,
+  pick_up: 60,
 };
 
 /**
