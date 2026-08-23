@@ -1297,7 +1297,7 @@ export function buildActivationReminderEmail(
             Hi ${escapeHtml(params.recipientFirstName)},
           </p>
           <p style="margin:0 0 24px;color:#333;font-size:16px;line-height:1.6;">
-            Just a gentle nudge — ${escapeHtml(params.buyerFirstName)} set up a little Aunt Lucy page to take a few things off your plate. There's nothing you need to do except take a look when it suits.
+            Just a gentle nudge — ${escapeHtml(params.buyerFirstName)} set up a little Aunt Lucy page so the people around you can take a few things off your plate. There's nothing you need to do except take a look when it suits.
           </p>
           ${renderButton(params.giftLink, "Take a look")}
           <p style="margin:0 0 24px;color:#333;font-size:16px;line-height:1.6;">
@@ -1310,7 +1310,7 @@ export function buildActivationReminderEmail(
   const text = [
     `Hi ${params.recipientFirstName},`,
     ``,
-    `Just a gentle nudge — ${params.buyerFirstName} set up a little Aunt Lucy page to take a few things off your plate. There's nothing you need to do except take a look when it suits.`,
+    `Just a gentle nudge — ${params.buyerFirstName} set up a little Aunt Lucy page so the people around you can take a few things off your plate. There's nothing you need to do except take a look when it suits.`,
     ``,
     params.giftLink,
     ``,

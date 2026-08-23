@@ -165,7 +165,8 @@ export default function Employers() {
           variants={fadeUp}
           className="text-lg text-foreground font-medium leading-relaxed max-w-xl mb-10"
         >
-          Everyone signs the card. This is how your team can show their support.
+          Everyone signs the card. Then their own people take it from there —
+          meals, lifts, the school run, organised without anyone having to ask.
         </motion.p>
 
         <motion.div variants={fadeUp} className="flex flex-col items-center gap-4">
@@ -242,8 +243,8 @@ export default function Employers() {
             Real help, not vague offers
           </h2>
           <p className="text-muted-foreground mb-12">
-            Helpers tap one link, see what's needed, and claim a slot. No app. No
-            account. No fuss.
+            Their own people tap one link, see what's needed, and claim a slot. No
+            app. No account. No fuss.
           </p>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
             {SLOT_TYPES.map((type, i) => (
