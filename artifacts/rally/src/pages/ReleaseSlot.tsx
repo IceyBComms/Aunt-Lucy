@@ -1,7 +1,12 @@
 import { useEffect, useState } from "react";
 import { useParams } from "wouter";
 import { format, parseISO } from "date-fns";
-import { CalendarPlus, CheckCircle2, Clock, Loader2, MapPin } from "lucide-react";
+import { CalendarPlus, CarFront, CheckCircle2, Clock, Loader2, MapPin } from "lucide-react";
+import {
+  LIFT_WAIT_MODE_TILE_LINES,
+  TIME_TBC,
+  asLiftWaitMode,
+} from "@/lib/liftWaitMode";
 import { Button } from "@/components/ui/button";
 import { TeacupMark } from "@/components/TeacupMark";
 import { apiFetch } from "@/lib/api";
@@ -17,6 +22,8 @@ interface ReleaseDetails {
     customLabel: string | null;
     slotDate: string | null;
     slotTime: string | null;
+    /** Bug #033 — null unless this is an answered lift. */
+    liftWaitMode: string | null;
     notes: string | null;
     // Item 17: flexible → a helper may nudge the time; fixed → note only.
     flexibility: "flexible" | "fixed";
@@ -170,6 +177,8 @@ export default function ReleaseSlot() {
     ? format(parseISO(slot.slotDate), "EEEE d MMMM")
     : null;
   const formattedTime = slot.slotDate && slot.slotTime ? formatTime(slot.slotTime) : null;
+  // Bug #033. Null renders nothing at all.
+  const waitMode = asLiftWaitMode(slot.liftWaitMode);
 
   if (released) {
     // Fixed tasks are time-sensitive: the recipient has just been texted, so the
@@ -244,8 +253,18 @@ export default function ReleaseSlot() {
               <p className="text-sm text-muted-foreground flex items-center gap-1.5">
                 <Clock className="w-3.5 h-3.5" />
                 {formattedDate ?? "Whenever suits"}
-                {formattedTime && `, ${formattedTime}`}
+                {formattedTime
+                  ? `, ${formattedTime}`
+                  : slot.slotDate
+                    ? `, ${TIME_TBC}`
+                    : ""}
               </p>
+              {waitMode && (
+                <p className="text-sm text-muted-foreground flex items-center gap-1.5">
+                  <CarFront className="w-3.5 h-3.5" />
+                  {LIFT_WAIT_MODE_TILE_LINES[waitMode]}
+                </p>
+              )}
             </div>
           </div>
 

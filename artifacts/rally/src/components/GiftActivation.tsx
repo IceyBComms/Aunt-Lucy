@@ -4,6 +4,7 @@ import {
   ArrowRight,
   Calendar,
   CalendarClock,
+  CarFront,
   Check,
   Clock,
   Copy,
@@ -25,6 +26,14 @@ import {
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { situationHint, trustedHint } from "@/lib/inviteCopyHints";
+import {
+  LIFT_WAIT_MODES,
+  LIFT_WAIT_MODE_LABELS,
+  LIFT_WAIT_MODE_HINTS,
+  LIFT_TIME_PROMPT,
+  isLiftCandidate,
+  type LiftWaitMode,
+} from "@/lib/liftWaitMode";
 
 /** A task as the recipient is currently steering it, before activation. */
 interface DraftTask {
@@ -34,11 +43,34 @@ interface DraftTask {
   /** Undated is the norm — a flexible offer claimed whenever suits. */
   slotDate: string | null;
   /**
-   * Time of day (HH:MM). Captured mainly for school pickups (bug #005), where
-   * the time is the whole point and this flow previously had no way to set one.
-   * Null everywhere else.
+   * Time of day (HH:MM). Offered on EVERY dated task (bug #033).
+   *
+   * It began as school-pickup-only (bug #005), but slot_time was always a
+   * generic nullable column and this screen was the only place in the product
+   * that gated it — the organiser form, the API, the emails, the SMS and the
+   * calendar were all type-agnostic the whole time. Worse, this screen used to
+   * NULL the time out on submit for every other type, so even a time that had
+   * been set was thrown away.
+   *
+   * Optional and never blocking. A dated task with no time renders "Time to be
+   * confirmed" rather than an empty space, because optional means "she hasn't
+   * said yet", not "no time matters".
    */
   slotTime: string | null;
+  /**
+   * Bug #033 — for a lift, whether the helper waits. Null on everything else,
+   * and null renders NOTHING once the page is live.
+   */
+  liftWaitMode: LiftWaitMode | null;
+  /**
+   * The suggestion's own "this task is meaningless without a day" flag.
+   *
+   * Previously dropped on the floor: every suggestion was mapped to
+   * slotDate: null and `dated` was never read, so "A lift to an appointment"
+   * arrived undated and nothing ever asked for the day. Carried now so a task
+   * that needs a date says so.
+   */
+  wantsDate: boolean;
   /** Meal-only detail (bug #006). Null on every other type. */
   dietaryNotes: string | null;
   headcount: number | null;
@@ -144,6 +176,11 @@ export function GiftActivation({ token }: { token: string }) {
           label: s.label,
           slotDate: null,
           slotTime: null,
+          liftWaitMode: null,
+          // Carried, not guessed: we surface a prompt for the day rather than
+          // inventing one, because there is no sensible default date for
+          // someone else's appointment.
+          wantsDate: s.dated,
           dietaryNotes: null,
           headcount: null,
           trustedHelpersOnly: s.trustedHelpersOnly,
@@ -378,6 +415,8 @@ export function GiftActivation({ token }: { token: string }) {
             const editing = editingKey === task.key;
             const isMeal = task.slotType === "meal";
             const isSchoolPickup = task.slotType === "school_pickup";
+            // A dated errand — the codebase's existing reading of a lift.
+            const isLift = isLiftCandidate(task.slotType, task.slotDate != null);
 
             // ── Killed: a quiet strip with one-tap undo, no explanation asked ──
             if (!task.kept) {
@@ -468,17 +507,23 @@ export function GiftActivation({ token }: { token: string }) {
                       )}
                     </div>
                     <p className="-mt-1 text-[0.8rem] text-[#8b7e74]">
-                      Most things don't need a date — helpers pick a time that
-                      works.
+                      {task.wantsDate && !task.slotDate
+                        ? "This one needs a day — it's tied to an appointment."
+                        : "Most things don't need a date — helpers pick a time that works."}
                     </p>
 
-                    {/* Pickup time (bug #005). School pickup is the one task
-                        where the time is the whole point — "3pm or 3:30pm?" —
-                        so the recipient can set it here. */}
-                    {isSchoolPickup && (
+                    {/* Time (bugs #005 + #033). Shown on any DATED task, not
+                        just school pickup: the column was always generic and
+                        this screen was the only thing gating it. Undated tasks
+                        still show nothing — a "whenever suits" offer has no
+                        clock to set. Exact times, never windows. */}
+                    {task.slotDate && (
                       <div className="flex flex-col gap-1">
                         <label className="text-[0.82rem] font-medium text-[#52493f]">
-                          Pickup time
+                          {isSchoolPickup ? "Pickup time" : "Time"}{" "}
+                          <span className="font-normal text-[#8b7e74]">
+                            (optional)
+                          </span>
                         </label>
                         <div className="flex items-center gap-2">
                           <input
@@ -501,7 +546,66 @@ export function GiftActivation({ token }: { token: string }) {
                           )}
                         </div>
                         <p className="text-[0.8rem] text-[#8b7e74]">
-                          So your helper knows exactly when to be there.
+                          {isLift && !task.slotTime
+                            ? LIFT_TIME_PROMPT
+                            : "So your helper knows exactly when to be there."}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* The wait-or-not control (bug #033) — the whole point of
+                        the bug. Dropping someone off is a twenty-minute favour;
+                        waiting and bringing them home can be half a day, and
+                        nothing used to say which.
+
+                        Shown for a DATED ERRAND, which is how this codebase
+                        already models a lift (see isLiftCandidate). Leaving it
+                        unanswered is allowed and renders nothing anywhere —
+                        never a half-answered question on a live page. */}
+                    {isLift && (
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-[0.82rem] font-medium text-[#52493f]">
+                          Does your helper wait?
+                        </label>
+                        <div className="flex flex-col gap-1.5">
+                          {LIFT_WAIT_MODES.map((mode) => {
+                            const active = task.liftWaitMode === mode;
+                            return (
+                              <button
+                                key={mode}
+                                type="button"
+                                aria-pressed={active}
+                                onClick={() =>
+                                  update(task.key, {
+                                    // Tapping the active one clears it — the
+                                    // question stays genuinely optional here.
+                                    liftWaitMode: active ? null : mode,
+                                  })
+                                }
+                                className={`flex flex-col items-start gap-0.5 rounded-[0.7rem] border px-3 py-2 text-left transition ${
+                                  active
+                                    ? "border-[#2d6a4f] bg-[#eef5f1]"
+                                    : "border-[#e0d6c8] bg-[#faf7f2]"
+                                }`}
+                              >
+                                <span
+                                  className={`text-[0.88rem] font-semibold ${
+                                    active ? "text-[#2d6a4f]" : "text-[#2c2c2c]"
+                                  }`}
+                                >
+                                  {LIFT_WAIT_MODE_LABELS[mode]}
+                                </span>
+                                <span className="text-[0.78rem] text-[#8b7e74]">
+                                  {LIFT_WAIT_MODE_HINTS[mode]}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <p className="text-[0.8rem] text-[#8b7e74]">
+                          {task.liftWaitMode
+                            ? "Your helper sees this before they say yes."
+                            : "Worth saying — it's the difference between a short trip and half a day. You can leave it for now."}
                         </p>
                       </div>
                     )}
@@ -591,10 +695,25 @@ export function GiftActivation({ token }: { token: string }) {
                         )}
                         {/* Pickup time (#005) and meal detail (#006), shown back
                             so the recipient sees what they set at a glance. */}
-                        {isSchoolPickup && task.slotTime && (
+                        {task.slotDate && task.slotTime && (
                           <span className="inline-flex items-center gap-1 text-[0.78rem] text-[#8b7e74]">
                             <Clock className="h-3.5 w-3.5" />
                             {prettyTime(task.slotTime)}
+                          </span>
+                        )}
+                        {/* Bug #033 — a dated task with no time yet says so,
+                            rather than showing nothing. Optional means "she
+                            hasn't said yet", not "no time matters". */}
+                        {task.slotDate && !task.slotTime && (
+                          <span className="inline-flex items-center gap-1 text-[0.78rem] text-[#8b7e74]">
+                            <Clock className="h-3.5 w-3.5" />
+                            Time to be confirmed
+                          </span>
+                        )}
+                        {task.liftWaitMode && (
+                          <span className="inline-flex items-center gap-1 text-[0.78rem] text-[#8b7e74]">
+                            <CarFront className="h-3.5 w-3.5" />
+                            {LIFT_WAIT_MODE_LABELS[task.liftWaitMode]}
                           </span>
                         )}
                         {isMeal && task.headcount && (
@@ -867,9 +986,16 @@ export function GiftActivation({ token }: { token: string }) {
                     slotType: t.slotType,
                     label: t.label.trim(),
                     slotDate: t.slotDate,
-                    // #005 pickup time + #006 meal detail. Server ignores each
-                    // on the types they don't apply to.
-                    slotTime: t.slotType === "school_pickup" ? t.slotTime : null,
+                    // Bug #033 — the time is sent for EVERY task now. This line
+                    // used to read `t.slotType === "school_pickup" ? ... : null`,
+                    // which silently discarded a time on every other type, so
+                    // even un-gating the input would not have fixed anything.
+                    // The server keeps a time only where it makes sense.
+                    slotTime: t.slotTime,
+                    // Lift-only; the server drops it on anything that isn't a
+                    // dated errand, so a stale answer can never leak onto a task
+                    // whose date was later cleared.
+                    liftWaitMode: t.liftWaitMode,
                     dietaryNotes: t.slotType === "meal" ? t.dietaryNotes : null,
                     headcount: t.slotType === "meal" ? t.headcount : null,
                     trustedHelpersOnly: t.trustedHelpersOnly,
@@ -990,6 +1116,8 @@ function AddTaskForm({
               dietaryNotes: null,
               headcount: null,
               trustedHelpersOnly: locked || trusted,
+              liftWaitMode: null,
+              wantsDate: false,
               kept: true,
             })
           }

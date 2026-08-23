@@ -39,6 +39,15 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog-framer";
 import { family as copy } from "@/lib/item17Copy";
+import {
+  LIFT_WAIT_MODES,
+  LIFT_WAIT_MODE_LABELS,
+  LIFT_WAIT_MODE_TILE_LINES,
+  TIME_TBC,
+  asLiftWaitMode,
+  isLiftCandidate,
+  type LiftWaitMode,
+} from "@/lib/liftWaitMode";
 
 /** One row of the invite selection: whether to include, and which task (trusted). */
 interface Selection {
@@ -61,8 +70,21 @@ function formatWhen(slotDate: string | null, slotTime: string | null): string {
     const ampm = h >= 12 ? "pm" : "am";
     const h12 = h % 12 || 12;
     out += ` · ${h12}:${String(min).padStart(2, "0")}${ampm}`;
+  } else {
+    // Bug #033 — a dated task with no time yet says so here too, so the
+    // recipient can see at a glance which of her tasks still need a time.
+    out += ` · ${TIME_TBC}`;
   }
   return out;
+}
+
+/**
+ * Bug #033 — the wait-or-not answer, appended to the "when" line.
+ * Returns the line unchanged when there is no answer.
+ */
+function withWait(when: string, liftWaitMode: unknown): string {
+  const mode = asLiftWaitMode(liftWaitMode);
+  return mode ? `${when} · ${LIFT_WAIT_MODE_TILE_LINES[mode]}` : when;
 }
 
 export function Manage() {
@@ -102,6 +124,7 @@ export function Manage() {
     customLabel: "",
     slotDate: "",
     slotTime: "",
+    liftWaitMode: "" as LiftWaitMode | "",
     notes: "",
     flexibility: "fixed" as "flexible" | "fixed",
     dietaryNotes: "",
@@ -119,6 +142,7 @@ export function Manage() {
       slotDate: t.slotDate ?? "",
       // A stored time may carry seconds (HH:MM:SS); the time input wants HH:MM.
       slotTime: (t.slotTime ?? "").slice(0, 5),
+      liftWaitMode: asLiftWaitMode(t.liftWaitMode) ?? "",
       notes: t.notes ?? "",
       flexibility: t.flexibility,
       dietaryNotes: t.dietaryNotes ?? "",
@@ -138,6 +162,9 @@ export function Manage() {
           customLabel: editForm.customLabel.trim() || null,
           slotDate: editForm.slotDate || null,
           slotTime: editForm.slotTime || null,
+          // Bug #033 — "" clears it, correctly returning the task to rendering
+          // nothing at all rather than a stale answer.
+          liftWaitMode: editForm.liftWaitMode || null,
           notes: editForm.notes.trim() || null,
           flexibility: editForm.flexibility,
           ...(isMeal
@@ -376,7 +403,10 @@ export function Manage() {
         ) : (
           <div className="flex flex-col gap-2.5">
             {claimedTasks.map((t) => {
-              const when = formatWhen(t.slotDate ?? null, t.slotTime ?? null);
+              const when = withWait(
+                formatWhen(t.slotDate ?? null, t.slotTime ?? null),
+                t.liftWaitMode,
+              );
               return (
                 <div
                   key={t.id}
@@ -420,7 +450,10 @@ export function Manage() {
           )}
           <div className="flex flex-col gap-2.5">
             {allTasks.map((t) => {
-              const when = formatWhen(t.slotDate ?? null, t.slotTime ?? null);
+              const when = withWait(
+                formatWhen(t.slotDate ?? null, t.slotTime ?? null),
+                t.liftWaitMode,
+              );
               return (
                 <div
                   key={t.id}
@@ -1179,6 +1212,46 @@ export function Manage() {
                   />
                 </label>
               </div>
+
+              {/* Bug #033 — the wait-or-not answer is editable here because it
+                  is the fact most likely to change once the appointment is
+                  actually booked. Shown only for a dated errand (the same
+                  isLiftCandidate rule as everywhere else), and "Not set" is a
+                  real choice: it returns the task to showing nothing at all. */}
+              {isLiftCandidate(editing?.slotType ?? "", !!editForm.slotDate) && (
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-[0.85rem] font-semibold text-foreground">
+                    Does the helper wait?
+                  </span>
+                  <div className="flex flex-col gap-1.5">
+                    {LIFT_WAIT_MODES.map((mode) => (
+                      <button
+                        key={mode}
+                        type="button"
+                        aria-pressed={editForm.liftWaitMode === mode}
+                        onClick={() =>
+                          setEditForm((f) => ({
+                            ...f,
+                            liftWaitMode: f.liftWaitMode === mode ? "" : mode,
+                          }))
+                        }
+                        className={`rounded-full border px-4 py-2 text-[0.85rem] font-semibold transition ${
+                          editForm.liftWaitMode === mode
+                            ? "border-primary bg-primary text-primary-foreground"
+                            : "border-border bg-background text-muted-foreground"
+                        }`}
+                      >
+                        {LIFT_WAIT_MODE_LABELS[mode]}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-[0.8rem] text-muted-foreground">
+                    {editForm.liftWaitMode
+                      ? "Helpers see this before they claim. Changing it tells whoever already has this one."
+                      : "Not set — helpers see nothing about waiting. Tap one to say."}
+                  </p>
+                </div>
+              )}
 
               <div className="flex flex-col gap-1.5">
                 <span className="text-[0.85rem] font-semibold text-foreground">

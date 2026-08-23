@@ -97,6 +97,18 @@ export const LIFT_WAIT_MODE_TILE_LINES: Record<LiftWaitMode, string> = {
   pick_up: "Pick up only",
 };
 
+/**
+ * The fuller sentence, for the places that are a SENTENCE rather than a pill —
+ * currently the post-claim confirmation on /invite. Mirrors the wording the
+ * backend sends in the confirmation email, so a helper who reads both sees the
+ * same thing twice rather than two slightly different promises.
+ */
+export const LIFT_WAIT_MODE_HELPER_LINES: Record<LiftWaitMode, string> = {
+  drop_off: "Drop off only — you're not needed for the trip home.",
+  wait: "Wait and bring them home — please allow for the whole appointment.",
+  pick_up: "Pick up only — someone else is handling the trip there.",
+};
+
 // ─── Shared fallbacks ────────────────────────────────────────────────────────
 
 /**
