@@ -1179,7 +1179,7 @@ export function buildGiftDeliveryEmail(params: GiftDeliveryParams): RenderedEmai
             ${bodyParagraphHtml}
           </p>
           <p style="margin:0 0 24px;color:#333;font-size:16px;line-height:1.6;">
-            Take a look whenever you're ready. When you are, Aunt Lucy will walk you through it — the only thing she'll need from you is who your people are.
+            Take a look whenever you're ready. When you are, Aunt Lucy will walk you through it — you just confirm what would actually help, and who your people are.
           </p>
           <p style="margin:0 0 24px;color:#333;font-size:16px;line-height:1.6;">
             No rush. It'll be here when you need it.
@@ -1194,7 +1194,7 @@ export function buildGiftDeliveryEmail(params: GiftDeliveryParams): RenderedEmai
     ``,
     bodyParagraphText,
     ``,
-    `Take a look whenever you're ready. When you are, Aunt Lucy will walk you through it — the only thing she'll need from you is who your people are.`,
+    `Take a look whenever you're ready. When you are, Aunt Lucy will walk you through it — you just confirm what would actually help, and who your people are.`,
     ``,
     `No rush. It'll be here when you need it.`,
     ``,
