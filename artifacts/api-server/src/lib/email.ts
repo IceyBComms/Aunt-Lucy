@@ -1256,10 +1256,10 @@ export function buildGiftDeliveryEmail(params: GiftDeliveryParams): RenderedEmai
           <p style="margin:0 0 24px;color:#333;font-size:16px;line-height:1.6;">
             Take a look whenever you're ready. When you are, Aunt Lucy will walk you through it — the only thing she'll need from you is who your people are.
           </p>
-          ${renderButton(params.giftLink, "Take a look")}
           <p style="margin:0 0 24px;color:#333;font-size:16px;line-height:1.6;">
             No rush. It'll be here when you need it.
           </p>
+          ${renderButton(params.giftLink, "Take a look")}
           <p style="margin:0;color:#2D6A4F;font-size:15px;line-height:1.6;">
             — Aunt Lucy
           </p>`;
