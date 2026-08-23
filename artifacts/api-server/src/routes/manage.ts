@@ -997,14 +997,18 @@ router.patch(
           releaseLink,
         }),
         link: releaseLink,
-        // Quiet, not primary. The point of this email is that nothing is needed
-        // from the helper; a filled green button would read as an invitation to
-        // hand the task back. Neutral label because the page it opens is
-        // already conditional — reschedule for a flexible task, note-only for a
-        // fixed one — and duplicating that rule in the copy would put the same
-        // decision in two places, with the email much the harder to keep right.
+        // Primary, matching every other email. The case for a quiet control was
+        // that it shouldn't invite people to hand tasks back — but that only
+        // bites where a quiet button sits NEXT TO a green one and loses the
+        // comparison, which is the claim confirmation (#052), not here. This is
+        // the only control in the email, so there is nothing for it to compete
+        // with, and looking like the rest of the family is worth more.
+        //
+        // Neutral label because the page it opens is already conditional —
+        // reschedule for a flexible task, note-only for a fixed one — and
+        // duplicating that rule in the copy would put the same decision in two
+        // places, with the email much the harder of the two to keep right.
         ctaLabel: "Sort it out here",
-        ctaVariant: "quiet",
       });
     }
 
