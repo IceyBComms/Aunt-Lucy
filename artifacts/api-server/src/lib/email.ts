@@ -866,12 +866,12 @@ ${params.contentHtml}
  * that forces its colours in one and forgets in the other — which is exactly
  * how the quiet variant came to render purple in Outlook classic.
  */
-const BUTTON_VARIANTS = {
+export const BUTTON_VARIANTS = {
   primary: { bg: "#2D6A4F", fg: "#ffffff", border: "" },
   quiet: { bg: "#ffffff", fg: "#2D6A4F", border: "border:1px solid #2D6A4F;" },
 } as const;
 
-type ButtonVariant = keyof typeof BUTTON_VARIANTS;
+export type ButtonVariant = keyof typeof BUTTON_VARIANTS;
 
 /**
  * The Outlook-only rule that inline styles physically cannot express.
