@@ -6,6 +6,7 @@ import { hashPin } from "../lib/pin";
 import { isAdminEmail } from "../lib/admin";
 import { uniqueSlug } from "../lib/slug";
 import { defaultFlexibility } from "../lib/slotFlexibility";
+import { asLiftWaitMode, isLiftCandidate } from "../lib/liftWaitMode";
 import { grantRecipientAccess } from "../lib/accessGrants";
 import { logger } from "../lib/logger";
 
@@ -138,7 +139,7 @@ router.post("/organiser/pages/:pageId/slots", requireAuth as any, async (req, re
     return;
   }
 
-  const { slotType, customLabel, slotDate, slotTime, notes, trustedHelpersOnly, dietaryNotes, headcount } = req.body as {
+  const { slotType, customLabel, slotDate, slotTime, notes, trustedHelpersOnly, dietaryNotes, headcount, liftWaitMode } = req.body as {
     slotType?: string;
     customLabel?: string;
     slotDate?: string;
@@ -147,6 +148,7 @@ router.post("/organiser/pages/:pageId/slots", requireAuth as any, async (req, re
     trustedHelpersOnly?: boolean;
     dietaryNotes?: string | null;
     headcount?: number | string | null;
+    liftWaitMode?: string | null;
   };
 
   const validTypes = ["meal", "school_pickup", "child_care", "errand", "dog_walking", "shopping", "visit", "other"];
@@ -156,6 +158,29 @@ router.post("/organiser/pages/:pageId/slots", requireAuth as any, async (req, re
   }
   if (!slotDate || !/^\d{4}-\d{2}-\d{2}$/.test(slotDate)) {
     res.status(400).json({ error: "A valid date (YYYY-MM-DD) is required." });
+    return;
+  }
+
+  // Bug #033 — the wait-or-not answer, lift-only. Organiser slots are ALWAYS
+  // dated (the date check above returns 400), so every errand here is a lift
+  // candidate. A mode sent on any other type is dropped, never stored: a
+  // wait-or-not question on a meal is nonsense.
+  const isLift = isLiftCandidate(slotType, true);
+  const waitMode = isLift ? asLiftWaitMode(liftWaitMode) : null;
+
+  // BOTH are REQUIRED on the organiser path, and only here. This is the setup
+  // person or page runner, who knows the details — unlike the recipient's
+  // activation screen, where the same two are strongly prompted but never
+  // block, because someone whose hospital hasn't given them a time yet must
+  // still be able to make their page live.
+  if (isLift && !waitMode) {
+    res.status(400).json({
+      error: "For a lift, say whether the helper waits — it's the difference between a short trip and half a day.",
+    });
+    return;
+  }
+  if (isLift && !slotTime) {
+    res.status(400).json({ error: "A lift needs a time so the helper knows when to be there." });
     return;
   }
 
@@ -176,6 +201,7 @@ router.post("/organiser/pages/:pageId/slots", requireAuth as any, async (req, re
       customLabel: customLabel?.trim() || null,
       slotDate,
       slotTime: slotTime || null,
+      liftWaitMode: waitMode,
       notes: typeof notes === "string" ? notes.trim() || null : null,
       trustedHelpersOnly: isTrustedOnly,
       dietaryNotes: dietaryValue,
@@ -194,6 +220,7 @@ router.post("/organiser/pages/:pageId/slots", requireAuth as any, async (req, re
     customLabel: slot.customLabel,
     slotDate: slot.slotDate,
     slotTime: slot.slotTime,
+    liftWaitMode: slot.liftWaitMode,
     notes: slot.notes,
     dietaryNotes: slot.dietaryNotes,
     headcount: slot.headcount,
@@ -306,6 +333,7 @@ router.get("/organiser/pages/:pageId", requireAuth as any, async (req, res) => {
       customLabel: s.customLabel,
       slotDate: s.slotDate,
       slotTime: s.slotTime,
+      liftWaitMode: s.liftWaitMode,
       notes: s.notes,
       dietaryNotes: s.dietaryNotes,
       headcount: s.headcount,

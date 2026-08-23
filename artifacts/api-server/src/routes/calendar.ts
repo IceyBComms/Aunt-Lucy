@@ -41,6 +41,8 @@ router.get("/calendar/:token", async (req, res) => {
     customLabel: slot.customLabel,
     slotDate: slot.slotDate,
     slotTime: slot.slotTime,
+    // Bug #033 — drives the event DURATION, not just its words.
+    liftWaitMode: slot.liftWaitMode,
     recipientFirstName: firstName(page.recipientName),
     location: page.location,
     // is_claimed drives CONFIRMED vs CANCELLED. A released slot keeps its

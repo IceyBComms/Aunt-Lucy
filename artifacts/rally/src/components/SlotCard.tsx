@@ -1,7 +1,12 @@
 import type { SlotResponse } from "@workspace/api-client-react";
 import { Button } from "./ui/button";
 import { format, parseISO } from "date-fns";
-import { CheckCircle2, Clock, ClipboardList, Users, Utensils } from "lucide-react";
+import { CarFront, CheckCircle2, Clock, ClipboardList, Users, Utensils } from "lucide-react";
+import {
+  LIFT_WAIT_MODE_TILE_LINES,
+  TIME_TBC,
+  asLiftWaitMode,
+} from "@/lib/liftWaitMode";
 import { motion } from "framer-motion";
 
 interface SlotCardProps {
@@ -31,15 +36,30 @@ export function SlotCard({ slot, onClaim, index }: SlotCardProps) {
   const hasMealDetail =
     slot.slotType === "meal" && (!!slot.headcount || !!slot.dietaryNotes);
 
-  const mealDetail = hasMealDetail ? (
+  // Bug #033 — does the helper wait? THIS is the line that fixes the bug:
+  // without it a helper sees a lift and a time and nothing about whether the
+  // afternoon is gone, and only finds out after they've already claimed.
+  //
+  // Rendered ONLY when answered. Null is the common case — every non-lift task,
+  // and any lift nobody has answered — and renders nothing at all: no pill, no
+  // gap. A dated "pick up a prescription" errand looks exactly as it did.
+  const waitMode = asLiftWaitMode(slot.liftWaitMode);
+
+  const detailPills = waitMode || hasMealDetail ? (
     <div className="mb-4 flex flex-wrap gap-2">
-      {!!slot.headcount && (
+      {waitMode && (
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary/70 px-3 py-1 text-xs font-medium text-foreground/80">
+          <CarFront className="w-3.5 h-3.5" />
+          {LIFT_WAIT_MODE_TILE_LINES[waitMode]}
+        </span>
+      )}
+      {hasMealDetail && !!slot.headcount && (
         <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary/70 px-3 py-1 text-xs font-medium text-foreground/80">
           <Users className="w-3.5 h-3.5" />
           Feeds {slot.headcount}
         </span>
       )}
-      {slot.dietaryNotes && (
+      {hasMealDetail && slot.dietaryNotes && (
         <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary/70 px-3 py-1 text-xs font-medium text-foreground/80">
           <Utensils className="w-3.5 h-3.5" />
           {slot.dietaryNotes}
@@ -53,7 +73,12 @@ export function SlotCard({ slot, onClaim, index }: SlotCardProps) {
     ? format(parseISO(slot.slotDate), "EEEE, MMMM d")
     : "Whenever suits";
 
-  let formattedTime = "";
+  // A DATED task whose time nobody has set yet says so out loud (bug #033).
+  // Showing nothing here read as "any time is fine", which is the opposite of
+  // the truth: optional means "she hasn't said yet", not "no time matters".
+  // Only ever for a dated task — an undated offer already says "Whenever suits"
+  // and has no clock to confirm.
+  let formattedTime = slot.slotDate ? TIME_TBC : "";
   if (slot.slotDate && slot.slotTime) {
     const [hours, minutes] = slot.slotTime.split(":");
     const h = parseInt(hours, 10);
@@ -89,7 +114,7 @@ export function SlotCard({ slot, onClaim, index }: SlotCardProps) {
           </div>
         </div>
         
-        {mealDetail}
+        {detailPills}
 
         <div className="mt-auto pt-4 border-t border-border/50">
           <p className="text-sm font-medium text-primary flex items-center gap-2">
@@ -123,7 +148,7 @@ export function SlotCard({ slot, onClaim, index }: SlotCardProps) {
         </div>
       </div>
       
-      {mealDetail}
+      {detailPills}
 
       {slot.notes && (
         <div className="mb-6 rounded-2xl bg-primary/5 border border-primary/10 p-4">

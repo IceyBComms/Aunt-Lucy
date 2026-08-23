@@ -13,6 +13,7 @@ import {
 import { TIERS, sellableTier } from "../lib/giftPricing";
 import { uniqueToken } from "../lib/token";
 import { defaultFlexibility } from "../lib/slotFlexibility";
+import { asLiftWaitMode, isLiftCandidate } from "../lib/liftWaitMode";
 import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
@@ -513,18 +514,29 @@ router.post("/gifts/:redemptionToken/activate", async (req, res) => {
       // is dropped rather than stored, matching the organiser path.
       const isMeal = slotType === "meal";
 
+      // The wait-or-not answer (#033) is lift-only, on the same principle: a
+      // mode sent on a task that isn't a dated errand is DROPPED, not stored,
+      // so a hand-crafted request can never make a meal or a prescription
+      // pickup start asking helpers whether they wait. Null stays null — an
+      // unanswered lift renders nothing anywhere rather than guessing.
+      const slotDate = asSlotDate(t.slotDate);
+      const liftWaitMode = isLiftCandidate(slotType, slotDate != null)
+        ? asLiftWaitMode(t.liftWaitMode)
+        : null;
+
       return {
         slotType,
         // The label carries the recipient's own wording, so it goes in
         // customLabel for every type — the live page shows what they wrote,
         // not a generic enum name.
         customLabel: label.slice(0, 120),
-        slotDate: asSlotDate(t.slotDate),
+        slotDate,
         // A time on the existing slot_time column (#005). Kept even when the
         // task is undated — an undated slot with a time reads as "whenever
         // suits, but pickup is at 3pm"; the display layer only pairs a clock
         // with a real date, so a stray time never renders oddly.
         slotTime: asSlotTime(t.slotTime),
+        liftWaitMode,
         notes: trimmed(t.notes).slice(0, 500) || null,
         dietaryNotes: isMeal ? trimmed(t.dietaryNotes).slice(0, 500) || null : null,
         headcount: isMeal ? asHeadcount(t.headcount) : null,
@@ -575,6 +587,7 @@ router.post("/gifts/:redemptionToken/activate", async (req, res) => {
           // Null is the common case: a flexible offer, dated when claimed.
           slotDate: t.slotDate,
           slotTime: t.slotTime,
+          liftWaitMode: t.liftWaitMode,
           notes: t.notes,
           dietaryNotes: t.dietaryNotes,
           headcount: t.headcount,

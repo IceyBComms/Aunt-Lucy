@@ -18,6 +18,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { format, addDays, parseISO } from "date-fns";
+import {
+  LIFT_WAIT_MODES,
+  LIFT_WAIT_MODE_LABELS,
+  LIFT_WAIT_MODE_HINTS,
+  isLiftCandidate,
+  type LiftWaitMode,
+} from "@/lib/liftWaitMode";
 
 const SLOT_TYPES = [
   { value: "meal", icon: "🍲", label: "Meal", trusted: false },
@@ -39,6 +46,7 @@ interface TrustedHelper {
 }
 
 interface SlotDraft {
+  // NOTE: liftWaitMode lives below with the other per-task fields.
   id: string;
   slotType: string;
   customLabel: string;
@@ -49,6 +57,16 @@ interface SlotDraft {
   // the slot is a meal, coerced server-side.
   dietaryNotes: string;
   headcount: string;
+  /**
+   * Bug #033 — for a lift, whether the helper waits. "" means unanswered.
+   *
+   * REQUIRED before submit on this path only (see the guard below): this is the
+   * setup person or page runner, who knows the details. On the recipient's own
+   * activation screen the same question is strongly prompted but never blocks,
+   * because someone whose hospital hasn't given them a time yet must still be
+   * able to make their page live.
+   */
+  liftWaitMode: LiftWaitMode | "";
   repeatDays: number;
   trustedHelpersOnly: boolean;
   trustedHelpers: TrustedHelper[];
@@ -68,6 +86,7 @@ function emptySlot(): SlotDraft {
     notes: "",
     dietaryNotes: "",
     headcount: "",
+    liftWaitMode: "",
     repeatDays: 1,
     trustedHelpersOnly: false,
     trustedHelpers: [],
@@ -135,6 +154,10 @@ function SlotForm({
   const isTrusted = isSensitiveType || slot.trustedHelpersOnly;
   const isMeal = slot.slotType === "meal";
   const isSchoolPickup = slot.slotType === "school_pickup";
+  // Organiser slots are ALWAYS dated (the date input is required), so every
+  // errand on this path is a lift. Same rule as the server and the recipient's
+  // activation screen — one definition of a lift, in one place.
+  const isLift = isLiftCandidate(slot.slotType, true);
 
   function addHelper(h: TrustedHelper) {
     onChange({ ...slot, trustedHelpers: [...slot.trustedHelpers, h] });
@@ -199,6 +222,10 @@ function SlotForm({
                     t.value === "school_pickup" && slot.slotTime === "18:00"
                       ? "15:00"
                       : slot.slotTime,
+                  // Bug #033 — drop the wait answer if this stops being a lift,
+                  // so switching errand → meal can never carry a stale
+                  // "wait and bring them home" onto a lasagne.
+                  liftWaitMode: t.value === "errand" ? slot.liftWaitMode : "",
                 })
               }
               className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-sm transition-colors text-left ${
@@ -279,6 +306,51 @@ function SlotForm({
         <p className="-mt-2 text-xs text-muted-foreground pl-1">
           Set the pickup time so your helper knows exactly when to be there.
         </p>
+      )}
+
+      {/* The wait-or-not control (bug #033). Organiser slots are always dated,
+          so every errand here is a lift. REQUIRED on this path — the submit
+          guard below refuses without it — because this is the person who knows
+          the details. Functional labels by design; they live in one copy module
+          so a review reword costs one line. */}
+      {isLift && (
+        <div className="space-y-1.5">
+          <Label className="text-foreground/80 pl-1 text-sm">
+            Does the helper wait?{" "}
+            <span className="font-normal text-muted-foreground">(required)</span>
+          </Label>
+          <div className="grid gap-2">
+            {LIFT_WAIT_MODES.map((mode) => {
+              const active = slot.liftWaitMode === mode;
+              return (
+                <button
+                  key={mode}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => onChange({ ...slot, liftWaitMode: mode })}
+                  className={`flex flex-col items-start gap-0.5 rounded-xl border px-3 py-2 text-left transition-colors ${
+                    active
+                      ? "border-primary bg-primary/5"
+                      : "border-border hover:border-primary/40"
+                  }`}
+                >
+                  <span
+                    className={`text-sm ${active ? "text-foreground font-medium" : "text-muted-foreground"}`}
+                  >
+                    {LIFT_WAIT_MODE_LABELS[mode]}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {LIFT_WAIT_MODE_HINTS[mode]}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          <p className="pl-1 text-xs text-muted-foreground">
+            Helpers see this before they claim — it's the difference between a
+            short trip and half a day.
+          </p>
+        </div>
       )}
 
       {/* Meal detail (bug #006) — headcount + dietary needs, both encouraged,
@@ -444,12 +516,32 @@ export default function OrganiseAddSlots() {
       s.trustedHelpers.length === 0,
   );
 
+  // Bug #033 — a lift needs both halves before it can go out on this path. The
+  // server enforces the same two rules (400s without them); this is just the
+  // kinder, earlier version of the same refusal.
+  const liftMissingWaitMode = slots.some(
+    (s) => isLiftCandidate(s.slotType, true) && !s.liftWaitMode,
+  );
+  const liftMissingTime = slots.some(
+    (s) => isLiftCandidate(s.slotType, true) && !s.slotTime,
+  );
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (hasTrustedWithNoHelpers) {
       setError(
         "Please add at least one trusted helper for each invitation-only slot.",
       );
+      return;
+    }
+    if (liftMissingWaitMode) {
+      setError(
+        "For a lift, say whether the helper waits — it's the difference between a short trip and half a day.",
+      );
+      return;
+    }
+    if (liftMissingTime) {
+      setError("A lift needs a time so the helper knows when to be there.");
       return;
     }
     setError(null);
@@ -472,6 +564,8 @@ export default function OrganiseAddSlots() {
                 customLabel: slot.customLabel || null,
                 slotDate: date,
                 slotTime: slot.slotTime || null,
+                // Bug #033 — lift-only; the server drops it on other types.
+                liftWaitMode: slot.liftWaitMode || null,
                 notes: slot.notes || null,
                 trustedHelpersOnly: isTrusted,
                 // Meal-only (bug #006); the server ignores these on other types.

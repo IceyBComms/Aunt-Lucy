@@ -1,7 +1,13 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "wouter";
 import { format, parseISO } from "date-fns";
-import { CheckCircle2, Clock, Loader2, XCircle, MapPin, ShieldCheck } from "lucide-react";
+import {
+  LIFT_WAIT_MODE_HELPER_LINES,
+  LIFT_WAIT_MODE_TILE_LINES,
+  TIME_TBC,
+  asLiftWaitMode,
+} from "@/lib/liftWaitMode";
+import { CarFront, CheckCircle2, Clock, Loader2, XCircle, MapPin, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { apiFetch } from "@/lib/api";
 
@@ -16,6 +22,8 @@ interface InviteDetails {
     customLabel: string | null;
     slotDate: string;
     slotTime: string | null;
+    /** Bug #033 — null unless this is an answered lift. */
+    liftWaitMode: string | null;
     notes: string | null;
   };
   page: {
@@ -123,6 +131,8 @@ export default function InviteClaim() {
   const dateObj = parseISO(slot.slotDate);
   const formattedDate = format(dateObj, "EEEE, MMMM d");
   const formattedTime = slot.slotTime ? formatTime(slot.slotTime) : null;
+  // Bug #033. Null renders nothing at all — no line, no empty space.
+  const waitMode = asLiftWaitMode(slot.liftWaitMode);
 
   if (claimed) {
     return (
@@ -139,6 +149,7 @@ export default function InviteClaim() {
             <strong>{page.recipientName}</strong> with a{" "}
             <strong>{slotLabel}</strong> on <strong>{formattedDate}</strong>
             {formattedTime ? ` at ${formattedTime}` : ""}.
+            {waitMode ? ` ${LIFT_WAIT_MODE_HELPER_LINES[waitMode]}` : ""}
           </p>
           <p className="text-muted-foreground text-sm leading-relaxed">
             The family will be so grateful for your support.
@@ -229,8 +240,14 @@ export default function InviteClaim() {
               <p className="text-sm text-muted-foreground flex items-center gap-1.5">
                 <Clock className="w-3.5 h-3.5" />
                 {formattedDate}
-                {formattedTime && ` • ${formattedTime}`}
+                {formattedTime ? ` • ${formattedTime}` : ` • ${TIME_TBC}`}
               </p>
+              {waitMode && (
+                <p className="text-sm text-muted-foreground flex items-center gap-1.5">
+                  <CarFront className="w-3.5 h-3.5" />
+                  {LIFT_WAIT_MODE_TILE_LINES[waitMode]}
+                </p>
+              )}
             </div>
           </div>
 

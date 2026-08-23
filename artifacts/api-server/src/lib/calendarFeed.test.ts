@@ -17,10 +17,18 @@ const base: CalendarClaimData = {
   customLabel: null,
   slotDate: "2026-08-15",
   slotTime: "15:00",
+  liftWaitMode: null,
   recipientFirstName: "Sarah",
   location: "12 Example St, Sydney",
   claimed: true,
 };
+
+/**
+ * ICS folds any line past ~75 octets onto a continuation line (CRLF + a single
+ * leading space), so a long DESCRIPTION never appears contiguously in the raw
+ * output. Unfold before matching on content.
+ */
+const unfold = (ics: string) => ics.split("\r\n ").join("");
 
 describe("buildClaimIcs", () => {
   it("renders a claimed, timed task as a CONFIRMED appointment", () => {
@@ -60,6 +68,58 @@ describe("buildClaimIcs", () => {
     const ics = buildClaimIcs({ ...base, slotTime: null });
     expect(ics).toContain("DTSTART;VALUE=DATE:20260815");
     expect(ics).not.toContain("DTSTART:20260815T");
+  });
+
+  // ── Bug #033 — the wait-or-not answer changes the DIARY ENTRY, not just
+  // the words. A helper who blocks out an hour for something that takes half a
+  // day cancels, so the duration is the part that actually had to change.
+
+  it("blocks out half a day for a lift where the helper waits", () => {
+    const ics = buildClaimIcs({ ...base, slotType: "errand", liftWaitMode: "wait" });
+    expect(ics).toContain("DTSTART:20260815T150000");
+    // 15:00 + 240 minutes = 19:00, NOT the one-hour default.
+    expect(ics).toContain("DTEND:20260815T190000");
+  });
+
+  it("blocks out an hour for a drop-off, and says so in the title", () => {
+    const ics = buildClaimIcs({ ...base, slotType: "errand", liftWaitMode: "drop_off" });
+    // 15:00 + 60 minutes = 16:00.
+    //
+    // NOTE: 60 is also the unanswered default, so this DTEND alone does NOT
+    // prove the duration came from the lift mapping — the title and
+    // description below are what distinguish an answered drop-off from an
+    // unanswered task. The two coincide by intention, not by accident: if the
+    // default ever moves, decide deliberately whether drop_off follows it.
+    expect(ics).toContain("DTEND:20260815T160000");
+    expect(ics).toMatch(/SUMMARY:.*drop off only/i);
+    expect(unfold(ics)).toMatch(/DESCRIPTION:.*not needed for the trip home/i);
+  });
+
+  it("still separates a waiting lift from a drop-off by duration alone", () => {
+    // The one comparison that cannot be satisfied by wording: whatever the
+    // labels are reworded to, these two must reserve different amounts of the
+    // helper's day. This is bug #033 in a single assertion.
+    const end = (mode: "wait" | "drop_off") =>
+      buildClaimIcs({ ...base, slotType: "errand", liftWaitMode: mode }).match(
+        /DTEND:(\d+T\d+)/,
+      )?.[1];
+    expect(end("wait")).not.toBe(end("drop_off"));
+  });
+
+  it("gives a waiting lift a description a helper can act on", () => {
+    const ics = buildClaimIcs({ ...base, slotType: "errand", liftWaitMode: "wait" });
+    expect(unfold(ics)).toMatch(/DESCRIPTION:.*allow for the whole appointment/i);
+  });
+
+  // The guarantee that keeps every non-lift task untouched. If this fails,
+  // a dated "pick up a prescription" errand has started carrying a
+  // wait-or-not answer nobody gave.
+  it("is unchanged for an unanswered task: one-hour default, no title suffix, no description", () => {
+    const ics = buildClaimIcs(base);
+    // 15:00 + the untouched 60-minute default = 16:00.
+    expect(ics).toContain("DTEND:20260815T160000");
+    expect(ics).toContain("SUMMARY:Helping Sarah: a meal");
+    expect(unfold(ics)).not.toContain("DESCRIPTION:");
   });
 
   it("returns an empty calendar (no event) for an undated offer", () => {
