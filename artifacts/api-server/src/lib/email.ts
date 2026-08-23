@@ -257,7 +257,9 @@ interface MagicLinkParams {
 export function buildMagicLinkEmail(magicLink: string): RenderedEmail {
   const html = `<!DOCTYPE html>
 <html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  ${msoButtonStyle()}
+  </head>
 <body style="margin:0;padding:0;background-color:#FAF7F2;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#FAF7F2;">
     <tr><td align="center" style="padding:40px 16px;">
@@ -360,7 +362,9 @@ export async function sendPilotApplicationNotification(params: PilotApplicationP
 
   const html = `<!DOCTYPE html>
 <html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  ${msoButtonStyle()}
+  </head>
 <body style="margin:0;padding:0;background-color:#FAF7F2;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#FAF7F2;">
     <tr><td align="center" style="padding:40px 16px;">
@@ -822,7 +826,9 @@ function renderGiftLayout(params: {
 }): string {
   return `<!DOCTYPE html>
 <html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  ${msoButtonStyle()}
+  </head>
 <body style="margin:0;padding:0;background-color:#FAF7F2;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
   <div style="display:none;font-size:1px;color:#FAF7F2;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">${escapeHtml(params.preheader)}</div>
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#FAF7F2;">
@@ -854,25 +860,71 @@ ${params.contentHtml}
  * label a dark purple) can't win. font-family is pinned to the layout's stack
  * so the label never falls back to a serif.
  */
+/**
+ * Every button variant, in ONE place. Both the inline styles and the Outlook
+ * <style> block below are generated from this, so a new variant cannot be added
+ * that forces its colours in one and forgets in the other — which is exactly
+ * how the quiet variant came to render purple in Outlook classic.
+ */
+const BUTTON_VARIANTS = {
+  primary: { bg: "#2D6A4F", fg: "#ffffff", border: "" },
+  quiet: { bg: "#ffffff", fg: "#2D6A4F", border: "border:1px solid #2D6A4F;" },
+} as const;
+
+type ButtonVariant = keyof typeof BUTTON_VARIANTS;
+
+/**
+ * The Outlook-only rule that inline styles physically cannot express.
+ *
+ * Word applies its own Hyperlink / FollowedHyperlink character style to an
+ * anchor's text. Inline `color` on the <a> and an inner <span> beats the
+ * unvisited case — which is why the primary button has looked right — but there
+ * is no inline syntax for :visited, so the moment a reader has followed that
+ * URL once, Word repaints the label its followed-link purple. It is per-URL,
+ * not per-variant: the primary is exposed to precisely the same thing and has
+ * only been lucky.
+ *
+ * Emitted inside an MSO conditional so no other client sees it, and scoped to
+ * the button classes so ordinary body links keep their own colours.
+ */
+function msoButtonStyle(): string {
+  const rules = (Object.keys(BUTTON_VARIANTS) as ButtonVariant[])
+    .map((name) => {
+      const { fg } = BUTTON_VARIANTS[name];
+      const sel = `.al-btn--${name}`;
+      return `      a${sel}, a${sel}:link, a${sel}:visited, a${sel}:hover, a${sel}:active, ${sel} span { color: ${fg} !important; text-decoration: none !important; }`;
+    })
+    .join(String.fromCharCode(10));
+  return `<!--[if mso]>
+  <style type="text/css">
+${rules}
+  </style>
+  <![endif]-->`;
+}
+
+/**
+ * The call-to-action button shared by every recipient-facing email.
+ *
+ * Bulletproof, table-based, all-inline: padding sits on the <td> because Word
+ * ignores it on an inline <a>, the gap beneath is a spacer row because Word
+ * ignores margin on a table, and colours are forced on BOTH the <a> and an
+ * inner <span>. The :visited case is handled by msoButtonStyle() in the head —
+ * see the note there for why it cannot live here.
+ */
 function renderButton(
   url: string,
   label: string,
-  variant: "primary" | "quiet" = "primary",
+  variant: ButtonVariant = "primary",
 ): string {
   const font =
     "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
-  // "quiet" is the outlined secondary: same shape and same green, but the fill
-  // is dropped so it reads as available rather than as the thing to do. Used
-  // where the email's whole point is that nothing is required of the reader.
-  const quiet = variant === "quiet";
-  const bg = quiet ? "#ffffff" : "#2D6A4F";
-  const fg = quiet ? "#2D6A4F" : "#ffffff";
-  const border = quiet ? "border:1px solid #2D6A4F;" : "";
+  const { bg, fg, border } = BUTTON_VARIANTS[variant];
+  const cls = `al-btn al-btn--${variant}`;
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">
             <tr><td align="center" style="padding:0;">
               <table role="presentation" align="center" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;margin:0 auto;">
                 <tr><td align="center" bgcolor="${bg}" style="border-radius:8px;background-color:${bg};${border}padding:14px 30px;">
-                  <a href="${escapeHtml(url)}" style="display:block;color:${fg};font-family:${font};font-size:16px;font-weight:600;line-height:20px;mso-line-height-rule:exactly;text-decoration:none;"><span style="color:${fg};text-decoration:none;">${escapeHtml(label)}</span></a>
+                  <a class="${cls}" href="${escapeHtml(url)}" style="display:block;color:${fg};font-family:${font};font-size:16px;font-weight:600;line-height:20px;mso-line-height-rule:exactly;text-decoration:none;"><span style="color:${fg};text-decoration:none;">${escapeHtml(label)}</span></a>
                 </td></tr>
               </table>
             </td></tr>
