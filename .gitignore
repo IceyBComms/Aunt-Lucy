@@ -61,6 +61,15 @@ Thumbs.db
 # folder) so they can never be committed or served as part of the source.
 /artifacts/rally/*.html
 !/artifacts/rally/index.html
+# ...with one deliberate exception: the preview harnesses. Each is an entry
+# point that stubs the API to render one real page in isolation, and its .tsx
+# half is committed source — committing only that half would leave the next
+# session a harness it cannot run. Verified rather than assumed: vite declares
+# no `rollupOptions.input`, so index.html is the only entry it traverses. A
+# production build run with both harness pages present emitted index.html and
+# nothing else, and no harness string appears anywhere in the bundle. An
+# unreferenced module is never reached, so this cannot ship to users.
+!/artifacts/rally/preview*.html
 
 # Claude Code: launch.json defines how to start the dev server and is shared
 # project config, so it is committed. settings.local.json is per-machine (a
@@ -72,6 +81,9 @@ Thumbs.db
 # (components/PostmarkMark.tsx and public/favicon.svg), so keeping the bundle
 # out avoids permanently bloating git history.
 /attached_assets/Aunt Lucy Brand Assets.html
+
+# build/ holds project docs (BUGS_AND_FIXES.md, AUDIT_FINDINGS.md).
+# It is NOT build output. Do not add it to this file.
 
 # ── Scratch at the repo root ────────────────────────────────────────────────
 # Rehearsal artefacts land here: rendered preview pages (multi-MB, every image
@@ -92,12 +104,6 @@ Thumbs.db
 !/*.config.js
 !/*.config.mjs
 
-# Preview harnesses: throwaway entry points that stub the API to render one
-# real page in isolation. They import from src, so they have to live in src to
-# resolve the @/ alias — but they are rehearsal scaffolding, never shipped.
-# (The matching /artifacts/rally/*.html entry points are already covered above
-# by the existing rally HTML rule.)
-preview*.tsx
 
 # Dated read-only reconciliation reports. Each one states in its own header
 # that it is uncommitted and must stay that way; they are point-in-time audits,
