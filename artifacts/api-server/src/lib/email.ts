@@ -85,7 +85,7 @@ export interface ClaimEmailParams {
   calendarUrl?: string | null;
 }
 
-function buildHtml(params: ClaimEmailParams): string {
+export function buildHtml(params: ClaimEmailParams): string {
   const {
     helperFirstName,
     recipientName,
@@ -113,7 +113,7 @@ function buildHtml(params: ClaimEmailParams): string {
   // calendarUrl only then). SUGGESTED COPY — Kate to bless final wording.
   const calendarBlock = calendarUrl
     ? `<p style="margin:0 0 8px;color:#333;font-size:16px;line-height:1.6;">
-            📅 <a href="${escapeHtml(calendarUrl)}" style="color:#7C9A72;font-weight:600;">Add this to your calendar</a> so it's there when you need it — it'll update if the time changes.
+            📅 <a href="${escapeHtml(calendarUrl)}" style="color:#2D6A4F;font-weight:600;">Add this to your calendar</a> so it's there when you need it — it'll update if the time changes.
           </p>`
     : "";
 
@@ -121,73 +121,73 @@ function buildHtml(params: ClaimEmailParams): string {
   // link is present.
   const releaseBlock = releaseUrl
     ? `<p style="margin:0 0 8px;color:#333;font-size:16px;line-height:1.6;">
-            Can't make it after all? No worries at all — <a href="${escapeHtml(releaseUrl)}" style="color:#7C9A72;font-weight:600;">release this slot</a> and someone else can pick it up.
+            Can't make it after all? No worries at all — <a href="${escapeHtml(releaseUrl)}" style="color:#2D6A4F;font-weight:600;">release this slot</a> and someone else can pick it up.
           </p>`
     : "";
 
   // Meal detail (bug #006). Rendered only when present, so non-meal slots and
   // meals with nothing to add both stay clean.
   const headcountBlock = headcount
-    ? `<tr><td style="padding:8px 0;color:#5a5a5a;font-size:14px;"><strong>Feeding:</strong> ${escapeHtml(String(headcount))} ${headcount === 1 ? "person" : "people"}</td></tr>`
+    ? `<tr><td style="padding:4px 0;color:#5a5a5a;font-size:14px;line-height:18px;mso-line-height-rule:exactly;"><strong>Feeding:</strong> ${escapeHtml(String(headcount))} ${headcount === 1 ? "person" : "people"}</td></tr>`
     : "";
 
   const dietaryBlock = dietaryNotes
-    ? `<tr><td style="padding:8px 0;color:#5a5a5a;font-size:14px;"><strong>Dietary needs:</strong> ${escapeHtml(dietaryNotes)}</td></tr>`
+    ? `<tr><td style="padding:4px 0;color:#5a5a5a;font-size:14px;line-height:18px;mso-line-height-rule:exactly;"><strong>Dietary needs:</strong> ${escapeHtml(dietaryNotes)}</td></tr>`
     : "";
 
   const notesBlock = notes
-    ? `<tr><td style="padding:8px 0;color:#5a5a5a;font-size:14px;"><strong>Notes:</strong> ${escapeHtml(notes)}</td></tr>`
+    ? `<tr><td style="padding:4px 0;color:#5a5a5a;font-size:14px;line-height:18px;mso-line-height-rule:exactly;"><strong>Notes:</strong> ${escapeHtml(notes)}</td></tr>`
     : "";
 
   const locationBlock = location
-    ? `<tr><td style="padding:8px 0;color:#5a5a5a;font-size:14px;"><strong>Location:</strong> ${escapeHtml(location)}</td></tr>`
+    ? `<tr><td style="padding:4px 0;color:#5a5a5a;font-size:14px;line-height:18px;mso-line-height-rule:exactly;"><strong>Location:</strong> ${escapeHtml(location)}</td></tr>`
     : "";
 
-  return `<!DOCTYPE html>
-<html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background-color:#FAF9F6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#FAF9F6;">
-    <tr><td align="center" style="padding:40px 16px;">
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
-        <tr><td style="background-color:#7C9A72;padding:28px 32px;">
-          <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:600;">Aunt Lucy</h1>
-        </td></tr>
-        <tr><td style="padding:32px;">
-          <p style="margin:0 0 20px;color:#333;font-size:16px;line-height:1.6;">
+  // Re-homed onto the shared chrome (#043). This email used to carry its own
+  // full document — a green #7C9A72 band with the words "Aunt Lucy" set as an
+  // <h1>, a #FAF9F6 page, no preheader — because it predates renderGiftLayout.
+  // It is the one email every helper is guaranteed to receive and it was the
+  // only one that didn't look like the others. The body below is unchanged;
+  // only the chrome around it is now the approved one.
+  //
+  // The preheader is deliberately empty: every other email's was written for it,
+  // and inventing words here would be a copy change. Empty means the inbox
+  // preview falls through to "Hi <name>, Thank you so much for stepping up…",
+  // which is exactly what it does today.
+  return renderGiftLayout({
+    preheader: "",
+    contentHtml: `          <p style="margin:0 0 20px;color:#333;font-size:16px;line-height:1.6;">
             Hi ${escapeHtml(helperFirstName)},
           </p>
           <p style="margin:0 0 20px;color:#333;font-size:16px;line-height:1.6;">
             Thank you so much for stepping up to help <strong>${escapeHtml(recipientName)}</strong>. It really does make a difference. Here's a summary of what you've signed up for:
           </p>
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#F3F6F2;border-radius:8px;padding:20px;margin:0 0 24px;">
-            <tr><td style="padding:8px 0;color:#5a5a5a;font-size:14px;"><strong>What:</strong> ${escapeHtml(typeLabel)}</td></tr>
-            <tr><td style="padding:8px 0;color:#5a5a5a;font-size:14px;"><strong>When:</strong> ${escapeHtml(dateTimeLine)}</td></tr>
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">
+            <tr><td bgcolor="#F3F6F2" style="background-color:#F3F6F2;border-radius:8px;padding:20px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">
+            <tr><td style="padding:4px 0;color:#5a5a5a;font-size:14px;line-height:18px;mso-line-height-rule:exactly;"><strong>What:</strong> ${escapeHtml(typeLabel)}</td></tr>
+            <tr><td style="padding:4px 0;color:#5a5a5a;font-size:14px;line-height:18px;mso-line-height-rule:exactly;"><strong>When:</strong> ${escapeHtml(dateTimeLine)}</td></tr>
             ${headcountBlock}
             ${dietaryBlock}
             ${locationBlock}
             ${notesBlock}
+          </table>
+            </td></tr>
+            <tr><td height="24" style="height:24px;line-height:24px;font-size:0;">&nbsp;</td></tr>
           </table>
           <p style="margin:0 0 8px;color:#333;font-size:16px;line-height:1.6;">
             If anything changes, just let the person looking after the page know.
           </p>
           ${calendarBlock}
           ${releaseBlock}
-          <p style="margin:24px 0 0;color:#7C9A72;font-size:15px;line-height:1.6;">
+          <p style="margin:24px 0 0;color:#2D6A4F;font-size:15px;line-height:1.6;">
             Warmly,<br>The Aunt Lucy Team
-          </p>
-        </td></tr>
-        <tr><td style="padding:20px 32px;background-color:#F3F6F2;text-align:center;">
-          <p style="margin:0;color:#999;font-size:12px;">You received this email because you signed up to help via Aunt Lucy.</p>
-        </td></tr>
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>`;
+          </p>`,
+    footerHtml: "You received this email because you signed up to help via Aunt Lucy.",
+  });
 }
 
-function buildPlainText(params: ClaimEmailParams): string {
+export function buildPlainText(params: ClaimEmailParams): string {
   const {
     helperFirstName,
     recipientName,
@@ -247,20 +247,13 @@ interface MagicLinkParams {
   magicLink: string;
 }
 
-export async function sendMagicLink({ to, magicLink }: MagicLinkParams): Promise<void> {
-  // Local development: print the magic link to the terminal instead of emailing it.
-  if (isPlaceholderResendKey) {
-    console.log(
-      `\n🔗 Magic link for ${to} (local dev — email sending disabled):\n   ${magicLink}\n`,
-    );
-    return;
-  }
-
-  if (!resend) {
-    logger.warn("RESEND_API_KEY not set — skipping magic link email");
-    return;
-  }
-
+/**
+ * The sign-in email. Extracted from sendMagicLink unchanged, so the exact bytes
+ * that would be sent can be rendered and held next to the rest of the family.
+ * It was the only branded email with no builder, which is precisely why its
+ * header sat on the stretched-lockup bug (#044) without anyone seeing it.
+ */
+export function buildMagicLinkEmail(magicLink: string): RenderedEmail {
   const html = `<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
@@ -269,7 +262,7 @@ export async function sendMagicLink({ to, magicLink }: MagicLinkParams): Promise
     <tr><td align="center" style="padding:40px 16px;">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
         <tr><td bgcolor="#E76F51" style="background-color:#E76F51;padding:26px 32px;">
-          <img src="https://auntlucy.com.au/brand/png/aunt-lucy-lockup-horizontal-reversed-1600.png" alt="Aunt Lucy" width="280" height="69" style="display:block;width:280px;height:69px;max-width:100%;border:0;outline:none;text-decoration:none;color:#ffffff;font-size:22px;font-weight:600;" />
+          <img src="https://auntlucy.com.au/brand/png/aunt-lucy-lockup-horizontal-reversed-1600.png" alt="Aunt Lucy" width="280" height="69" style="display:block;width:280px;height:auto;max-width:100%;border:0;outline:none;text-decoration:none;color:#ffffff;font-size:22px;font-weight:600;" />
         </td></tr>
         <tr><td style="padding:32px;">
           <p style="margin:0 0 20px;color:#333;font-size:16px;line-height:1.6;">Hi there,</p>
@@ -299,14 +292,28 @@ export async function sendMagicLink({ to, magicLink }: MagicLinkParams): Promise
 
   const text = `Hi there,\n\nHere's your Aunt Lucy sign-in link:\n${magicLink}\n\nIt's valid for one hour. If you didn't request this, you can safely ignore this email.\n\nWarmly,\nThe Aunt Lucy Team`;
 
+  return { subject: "Your Aunt Lucy sign-in link", html, text };
+}
+
+export async function sendMagicLink({ to, magicLink }: MagicLinkParams): Promise<void> {
+  // Local development: print the magic link to the terminal instead of emailing it.
+  if (isPlaceholderResendKey) {
+    console.log(
+      `\n🔗 Magic link for ${to} (local dev — email sending disabled):\n   ${magicLink}\n`,
+    );
+    return;
+  }
+
+  if (!resend) {
+    logger.warn("RESEND_API_KEY not set — skipping magic link email");
+    return;
+  }
+
   const { error } = await resend.emails.send({
     from: FROM_ADDRESS,
     to,
-    subject: "Your Aunt Lucy sign-in link",
-    html,
-    text,
+    ...buildMagicLinkEmail(magicLink),
   });
-
   if (error) {
     logger.error({ error }, "Failed to send magic link email");
     throw new Error(`Resend error: ${error.message}`);
@@ -366,7 +373,9 @@ export async function sendPilotApplicationNotification(params: PilotApplicationP
           <p style="margin:0 0 20px;color:#333;font-size:16px;line-height:1.6;">
             A new organisation has applied to join the pilot:
           </p>
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#F3F6F2;border-radius:8px;padding:20px;margin:0 0 24px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">
+            <tr><td bgcolor="#F3F6F2" style="background-color:#F3F6F2;border-radius:8px;padding:20px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">
             <tr><td style="padding:6px 0;color:#5a5a5a;font-size:14px;"><strong>Name:</strong> ${escapeHtml(params.fullName)}</td></tr>
             <tr><td style="padding:6px 0;color:#5a5a5a;font-size:14px;"><strong>Role:</strong> ${escapeHtml(params.role)}</td></tr>
             <tr><td style="padding:6px 0;color:#5a5a5a;font-size:14px;"><strong>Email:</strong> <a href="mailto:${escapeHtml(params.email)}" style="color:#2D6A4F;">${escapeHtml(params.email)}</a></td></tr>
@@ -374,6 +383,9 @@ export async function sendPilotApplicationNotification(params: PilotApplicationP
             <tr><td style="padding:12px 0 6px;color:#5a5a5a;font-size:14px;border-top:1px solid #e0e0e0;margin-top:8px;"><strong>Organisation:</strong> ${escapeHtml(params.orgName)}</td></tr>
             <tr><td style="padding:6px 0;color:#5a5a5a;font-size:14px;"><strong>Type:</strong> ${escapeHtml(orgLabel)}</td></tr>
             ${hearRow}
+          </table>
+            </td></tr>
+            <tr><td height="24" style="height:24px;line-height:24px;font-size:0;">&nbsp;</td></tr>
           </table>
           <p style="margin:0 0 8px;color:#333;font-size:15px;font-weight:600;">How they plan to use Aunt Lucy:</p>
           <p style="margin:0 0 24px;color:#555;font-size:14px;line-height:1.7;background:#F3F6F2;border-radius:8px;padding:16px;">${escapeHtml(params.usageDescription)}</p>
@@ -604,24 +616,50 @@ export function renderHelperInviteEmailHtml(
     ? `<p style="margin:0 0 20px;color:#333;font-size:16px;line-height:1.6;font-style:italic;">${escapeHtml(params.openingLine.trim())}</p>`
     : "";
 
-  // The body text minus the CTA line and the unsubscribe line, which become a
-  // button and a footer link respectively. Everything else is shown verbatim.
+  // The body is rendered verbatim, paragraph for paragraph, with two
+  // substitutions made IN PLACE: the CTA line becomes the button, and the
+  // unsubscribe line moves to the footer. In place is the point — the approved
+  // copy puts the call to action above the sign-off and the plain-text part
+  // already reads that way, but appending the button after the last paragraph
+  // pushed it below "With love, Aunt Lucy x", so the two halves of the same
+  // email disagreed about the order.
   const ctaLabel = params.ctaLabel ?? "See how you can help";
-  const paragraphs = params.text
-    .split("\n\n")
-    .filter(
-      (p) =>
-        !p.startsWith(`${ctaLabel} →`) &&
-        !p.startsWith("Don't want to receive these emails?"),
-    )
-    .map(
-      (p) =>
-        `<p style="margin:0 0 20px;color:#333;font-size:16px;line-height:1.6;">${escapeHtml(p).replace(/\n/g, "<br>")}</p>`,
+  const ctaPrefix = `${ctaLabel} →`;
+
+  // Refuse to render a body whose CTA line we cannot account for (#046).
+  //
+  // The failure this catches is silent and ugly: a body carrying "Have a look →"
+  // rendered with the default label leaves that line in the text as a bare,
+  // unclickable URL AND adds a button reading different words. The helper sees
+  // two calls to action, one of them dead. The same happens if a copy edit moves
+  // the CTA onto the previous paragraph, or leaves a space in front of it.
+  //
+  // This THROWS rather than quietly carrying on, because there is no safe
+  // recovery: every fallback still puts a malformed email in someone's inbox,
+  // and an email cannot be recalled. sendHelperInviteEmail catches it and fails
+  // that one invite — see the note there for why the throw must not escape.
+  const paragraphList = params.text.split("\n\n");
+  const strayCta = paragraphList.find(
+    (p) => !p.startsWith(ctaPrefix) && /\S+ → \S*:\/\//.test(p),
+  );
+  if (strayCta) {
+    throw new Error(
+      `Helper invite body carries a CTA line that does not match ctaLabel ` +
+        `${JSON.stringify(ctaLabel)}; refusing to render two calls to action. ` +
+        `Offending paragraph: ${JSON.stringify(strayCta.slice(0, 120))}`,
+    );
+  }
+
+  const paragraphs = paragraphList
+    .filter((p) => !p.startsWith("Don't want to receive these emails?"))
+    .map((p) =>
+      p.startsWith(ctaPrefix)
+        ? renderButton(params.link, ctaLabel)
+        : `<p style="margin:0 0 20px;color:#333;font-size:16px;line-height:1.6;">${escapeHtml(p).replace(/\n/g, "<br>")}</p>`,
     )
     .join("\n");
 
-  const contentHtml = `${openerHtml}${paragraphs}
-          ${renderButton(params.link, ctaLabel)}`;
+  const contentHtml = `${openerHtml}${paragraphs}`;
 
   return renderGiftLayout({
     preheader: "A gentle, no-pressure way to lend a hand.",
@@ -633,6 +671,28 @@ export function renderHelperInviteEmailHtml(
 export async function sendHelperInviteEmail(
   params: HelperInviteEmailParams,
 ): Promise<boolean> {
+  // Render BEFORE anything else, and let a malformed body fail this invite
+  // alone (#046). renderHelperInviteEmailHtml throws rather than emit two calls
+  // to action; if that throw escaped, it would abort the whole loop in
+  // routes/internal.ts dispatch-invites — and because that loop claims its
+  // batch by flipping queued → sent up front, every invite queued behind this
+  // one would sit marked "sent" having never been sent, with nothing to retry
+  // from. Caught here it returns false, which the dispatcher already handles by
+  // stamping the row failed/failedAt: loud, visible, and retryable, with the
+  // rest of the batch untouched.
+  //
+  // Rendering first also means the local-dev path below can't skip the check.
+  let html: string;
+  try {
+    html = renderHelperInviteEmailHtml(params);
+  } catch (err) {
+    logger.error(
+      { err, to: params.to, ctaLabel: params.ctaLabel ?? null },
+      "Refusing to send a malformed helper invite",
+    );
+    return false;
+  }
+
   if (isPlaceholderResendKey) {
     console.log(
       `\n📧 Helper invite email for ${params.to} (local dev — sending disabled):\n${params.text}\n`,
@@ -648,7 +708,7 @@ export async function sendHelperInviteEmail(
     from: FROM_ADDRESS,
     to: params.to,
     subject: params.subject,
-    html: renderHelperInviteEmailHtml(params),
+    html,
     text: params.text,
   });
 
@@ -856,7 +916,7 @@ function renderGiftLayout(params: {
     <tr><td align="center" style="padding:40px 16px;">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
         <tr><td bgcolor="#E76F51" style="background-color:#E76F51;padding:26px 32px;">
-          <img src="https://auntlucy.com.au/brand/png/aunt-lucy-lockup-horizontal-reversed-1600.png" alt="Aunt Lucy" width="280" height="69" style="display:block;width:280px;height:69px;max-width:100%;border:0;outline:none;text-decoration:none;color:#ffffff;font-size:22px;font-weight:600;" />
+          <img src="https://auntlucy.com.au/brand/png/aunt-lucy-lockup-horizontal-reversed-1600.png" alt="Aunt Lucy" width="280" height="69" style="display:block;width:280px;height:auto;max-width:100%;border:0;outline:none;text-decoration:none;color:#ffffff;font-size:22px;font-weight:600;" />
         </td></tr>
         <tr><td style="padding:32px;">
 ${params.contentHtml}
@@ -883,10 +943,15 @@ ${params.contentHtml}
 function renderButton(url: string, label: string): string {
   const font =
     "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
-  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 auto 24px;">
-            <tr><td align="center" bgcolor="#2D6A4F" style="border-radius:8px;background-color:#2D6A4F;">
-              <a href="${escapeHtml(url)}" style="display:inline-block;padding:14px 30px;color:#ffffff;font-family:${font};font-size:16px;font-weight:600;line-height:1.2;text-decoration:none;border-radius:8px;"><span style="color:#ffffff;text-decoration:none;">${escapeHtml(label)}</span></a>
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">
+            <tr><td align="center" style="padding:0;">
+              <table role="presentation" align="center" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;margin:0 auto;">
+                <tr><td align="center" bgcolor="#2D6A4F" style="border-radius:8px;background-color:#2D6A4F;padding:14px 30px;">
+                  <a href="${escapeHtml(url)}" style="display:block;color:#ffffff;font-family:${font};font-size:16px;font-weight:600;line-height:20px;mso-line-height-rule:exactly;text-decoration:none;"><span style="color:#ffffff;text-decoration:none;">${escapeHtml(label)}</span></a>
+                </td></tr>
+              </table>
             </td></tr>
+            <tr><td height="24" style="height:24px;line-height:24px;font-size:0;">&nbsp;</td></tr>
           </table>`;
 }
 
@@ -1191,10 +1256,10 @@ export function buildGiftDeliveryEmail(params: GiftDeliveryParams): RenderedEmai
           <p style="margin:0 0 24px;color:#333;font-size:16px;line-height:1.6;">
             Take a look whenever you're ready. When you are, Aunt Lucy will walk you through it — the only thing she'll need from you is who your people are.
           </p>
-          ${renderButton(params.giftLink, "Take a look")}
           <p style="margin:0 0 24px;color:#333;font-size:16px;line-height:1.6;">
             No rush. It'll be here when you need it.
           </p>
+          ${renderButton(params.giftLink, "Take a look")}
           <p style="margin:0;color:#2D6A4F;font-size:15px;line-height:1.6;">
             — Aunt Lucy
           </p>`;
@@ -1476,7 +1541,16 @@ export function buildItem17Email(params: Item17EmailParams): RenderedEmail {
         html = html
           .split(escLink)
           .join(
-            `<a href="${escLink}" style="color:#2D6A4F;font-weight:600;word-break:break-all;">${escLink}</a>`,
+            // Interim treatment only (#045). These two bodies embed their URL
+            // mid-sentence, so lifting it into a button would leave a dangling
+            // "If it doesn't:" behind — that needs new copy, written
+            // deliberately, and copy is not a layout pass's to write. Until
+            // then the link at least reads as a link: underlined, and with the
+            // colour forced on an inner span the same way renderButton does it,
+            // because Outlook web recolours bare anchors to its own purple.
+            // overflow-wrap sits alongside word-break for clients that ignore
+            // the older property.
+            `<a href="${escLink}" style="color:#2D6A4F;font-weight:600;text-decoration:underline;word-break:break-all;overflow-wrap:anywhere;"><span style="color:#2D6A4F;">${escLink}</span></a>`,
           );
       }
       return `          <p style="margin:0 0 16px;color:#333;font-size:16px;line-height:1.6;">${html}</p>`;
