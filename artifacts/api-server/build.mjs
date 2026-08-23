@@ -4,11 +4,40 @@ import { fileURLToPath } from "node:url";
 import { build as esbuild } from "esbuild";
 import esbuildPluginPino from "esbuild-plugin-pino";
 import { rm } from "node:fs/promises";
+import { execSync } from "node:child_process";
 
 // Plugins (e.g. 'esbuild-plugin-pino') may use `require` to resolve dependencies
 globalThis.require = createRequire(import.meta.url);
 
 const artifactDir = path.dirname(fileURLToPath(import.meta.url));
+
+/**
+ * The commit this bundle was built from, baked in at build time so /api/healthz
+ * can report what is ACTUALLY running. Deployment dashboards report what was
+ * asked for; this reports what answered the request.
+ *
+ * Three chances, most trustworthy first: the platform's own build-env var
+ * (Railway injects RAILWAY_GIT_COMMIT_SHA), then the checkout itself, then
+ * nothing. It returns "" rather than "unknown" when it fails — the route turns
+ * that into an explicit null, because a placeholder that looks like an answer is
+ * worse than an obvious absence.
+ */
+function buildCommit() {
+  const fromEnv =
+    process.env.RAILWAY_GIT_COMMIT_SHA ||
+    process.env.VERCEL_GIT_COMMIT_SHA ||
+    process.env.SOURCE_VERSION ||
+    process.env.GIT_COMMIT;
+  if (fromEnv) return fromEnv.trim();
+  try {
+    return execSync("git rev-parse HEAD", { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+  } catch {
+    return "";
+  }
+}
+
+const BUILD_COMMIT = buildCommit();
+console.log(`[build] commit stamp: ${BUILD_COMMIT || "(none — /api/healthz will report null)"}`);
 
 async function buildAll() {
   const distDir = path.resolve(artifactDir, "dist");
@@ -101,6 +130,7 @@ async function buildAll() {
       "puppeteer-core",
       "electron",
     ],
+    define: { __BUILD_COMMIT__: JSON.stringify(BUILD_COMMIT) },
     sourcemap: "linked",
     plugins: [
       // pino relies on workers to handle logging, instead of externalizing it we use a plugin to handle it
