@@ -1271,9 +1271,9 @@ export function buildGiftDeliveryEmail(params: GiftDeliveryParams): RenderedEmai
     ``,
     `Take a look whenever you're ready. When you are, Aunt Lucy will walk you through it — the only thing she'll need from you is who your people are.`,
     ``,
-    params.giftLink,
-    ``,
     `No rush. It'll be here when you need it.`,
+    ``,
+    params.giftLink,
     ``,
     `— Aunt Lucy`,
   ].join("\n");
