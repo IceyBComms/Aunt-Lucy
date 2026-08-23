@@ -754,7 +754,8 @@ export function GiftActivation({ token }: { token: string }) {
           <label className="text-[0.9rem] text-[#52493f]">
             The note for trusted people
             <span className="ml-1.5 text-[0.8rem] text-[#8b7e74]">
-              — for anyone you'd trust with pickups or minding the kids
+              — for the few people you'd trust with more — a house key, a
+              pickup, the kids
             </span>
             <input
               value={trustedLine}
