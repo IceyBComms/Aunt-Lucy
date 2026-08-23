@@ -5,10 +5,14 @@ hand-applied SQL, never `drizzle-kit push` (the enum-rename ambiguity that bit
 0001 applies to any migration that creates a type). **Purely additive** — one
 enum, one NULLABLE column, no default, no backfill, no drop.
 
-**Status: NOT YET APPLIED.** ⚠️ **This PR must not be merged until Kate has
-applied this migration to production and said so.** See "Order of operations" —
-unlike 0009, the sequencing here is deliberate and it is the whole reason this
-runbook is written before the code.
+**Status: APPLIED to production 2026-08-23** (Kate, via the Neon SQL editor — no
+connection string ever handed to Claude Code, matching house discipline). Kept as
+the record of what ran and how to re-run it against any fresh copy.
+
+The migration went in **before** the code, which was the whole point of writing
+this runbook first — see "Order of operations". Steps 1–4 are done; step 6
+(proving it against the running system, not a dashboard) is still outstanding and
+happens after the merge deploys.
 
 ## Why this needed its own runbook
 
