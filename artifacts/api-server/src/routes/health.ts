@@ -20,6 +20,18 @@ const BUILD_COMMIT: string | null =
   (process.env.RAILWAY_GIT_COMMIT_SHA?.trim() || null);
 
 router.get("/healthz", (_req, res) => {
+  /**
+   * The whole point of this endpoint is to prove what is running *right now*.
+   * Without this, the CDN in front of us returns `public, max-age=0,
+   * must-revalidate` and is free to serve an edge-cached copy — a plain curl
+   * would happily report a commit that is no longer deployed. `no-store` means
+   * the answer can only ever come from this process.
+   */
+  res.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+  res.set("CDN-Cache-Control", "no-store");
+  res.set("Vercel-CDN-Cache-Control", "no-store");
+  res.set("Pragma", "no-cache");
+  res.set("Expires", "0");
   const data = HealthCheckResponse.parse({ status: "ok", commit: BUILD_COMMIT });
   res.json(data);
 });
