@@ -320,7 +320,18 @@ export function GiftActivation({ token }: { token: string }) {
           without ever saying what Aunt Lucy is. Deliberately plain prose in the
           page's own type: the moment it looks like an ad, the page stops feeling
           like hers. The one link opens in a new tab — she is mid-decision here,
-          and navigating her away is a leak, not a visit. */}
+          and navigating her away is a leak, not a visit.
+
+          "whoever you'd want at the door" is load-bearing, not decoration. On a
+          team card this paragraph is read seconds after a wall of colleague
+          notes, where a bare "your people" can quietly absorb the colleagues who
+          just signed — she concludes it is handled and invites nobody (#061).
+          Deliberately NOT a list like "friends, family, neighbours": that would
+          exclude colleagues, and colleagues MAY become helpers if she chooses
+          them — the card must simply never imply they already volunteered. This
+          phrasing includes everyone and leaves the choosing to her, which is the
+          whole point. It also has to read true on every path, including a gift
+          from a single friend, so it cannot mention a team at all. */}
       <div className="mx-auto mb-[2.2rem] flex max-w-[34ch] flex-col gap-[0.85rem] text-[1rem] leading-relaxed text-[#52493f]">
         <p>
           When something big happens, everyone says, "Let me know what I can
@@ -340,8 +351,9 @@ export function GiftActivation({ token }: { token: string }) {
           </a>{" "}
           is the page that sorts it out for you. You approve a short list of
           things that would genuinely help — a meal, a lift, the school run —
-          then share one link, and your people pick what suits them. No one has
-          to ask, and you never have to organise a thing.
+          then share one link with whoever you'd want at the door, and they pick
+          what suits them. No one has to ask, and you never have to organise a
+          thing.
         </p>
       </div>
 
