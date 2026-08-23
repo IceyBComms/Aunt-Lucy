@@ -854,14 +854,25 @@ ${params.contentHtml}
  * label a dark purple) can't win. font-family is pinned to the layout's stack
  * so the label never falls back to a serif.
  */
-function renderButton(url: string, label: string): string {
+function renderButton(
+  url: string,
+  label: string,
+  variant: "primary" | "quiet" = "primary",
+): string {
   const font =
     "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
+  // "quiet" is the outlined secondary: same shape and same green, but the fill
+  // is dropped so it reads as available rather than as the thing to do. Used
+  // where the email's whole point is that nothing is required of the reader.
+  const quiet = variant === "quiet";
+  const bg = quiet ? "#ffffff" : "#2D6A4F";
+  const fg = quiet ? "#2D6A4F" : "#ffffff";
+  const border = quiet ? "border:1px solid #2D6A4F;" : "";
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">
             <tr><td align="center" style="padding:0;">
               <table role="presentation" align="center" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;margin:0 auto;">
-                <tr><td align="center" bgcolor="#2D6A4F" style="border-radius:8px;background-color:#2D6A4F;padding:14px 30px;">
-                  <a href="${escapeHtml(url)}" style="display:block;color:#ffffff;font-family:${font};font-size:16px;font-weight:600;line-height:20px;mso-line-height-rule:exactly;text-decoration:none;"><span style="color:#ffffff;text-decoration:none;">${escapeHtml(label)}</span></a>
+                <tr><td align="center" bgcolor="${bg}" style="border-radius:8px;background-color:${bg};${border}padding:14px 30px;">
+                  <a href="${escapeHtml(url)}" style="display:block;color:${fg};font-family:${font};font-size:16px;font-weight:600;line-height:20px;mso-line-height-rule:exactly;text-decoration:none;"><span style="color:${fg};text-decoration:none;">${escapeHtml(label)}</span></a>
                 </td></tr>
               </table>
             </td></tr>
@@ -1452,44 +1463,60 @@ export interface Item17EmailParams {
    * grow a primary button just because its sibling needed one.
    */
   ctaLabel?: string | null;
+  /** Primary (filled green) or quiet (outlined). Only read when ctaLabel is set. */
+  ctaVariant?: "primary" | "quiet";
 }
 
 export function buildItem17Email(params: Item17EmailParams): RenderedEmail {
   const escLink = params.link ? escapeHtml(params.link) : null;
+  const link = params.link?.trim() || null;
+
+  // With a ctaLabel the link is PROMOTED to a button and the URL itself is
+  // removed from the body, wherever it sat — on its own line (the access grant)
+  // or mid-sentence (task changed). The paragraph is split around it, so the
+  // words either side keep their order and none of them change. Only the first
+  // occurrence is promoted; a second would be a second button.
+  //
+  // Nothing here touches params.body, which is also the SMS text and the
+  // plain-text part. Those keep the URL, which is what they need.
+  let promoted = false;
+
+  const para = (t: string) =>
+    t
+      ? `          <p style="margin:0 0 16px;color:#333;font-size:16px;line-height:1.6;">${escapeHtml(t).replace(/\n/g, "<br>")}</p>`
+      : "";
+
   const paragraphs = params.body
     .split("\n\n")
     .map((seg) => {
-      // A paragraph that is ONLY the link is the fallback URL. With a ctaLabel
-      // the branded button goes ABOVE it and the URL stays underneath, because
-      // people forward, bookmark and screenshot a link in a way they cannot do
-      // with a button. Without a ctaLabel nothing changes at all.
-      const isBareLink = !!params.link && seg.trim() === params.link.trim();
-      const buttonHtml =
-        isBareLink && params.ctaLabel && params.link
-          ? renderButton(params.link, params.ctaLabel)
-          : "";
+      if (link && params.ctaLabel && !promoted && seg.includes(link)) {
+        promoted = true;
+        const at = seg.indexOf(link);
+        return [
+          para(seg.slice(0, at).trim()),
+          renderButton(link, params.ctaLabel, params.ctaVariant ?? "primary"),
+          para(seg.slice(at + link.length).trim()),
+        ]
+          .filter(Boolean)
+          .join("\n");
+      }
 
       let html = escapeHtml(seg).replace(/\n/g, "<br>");
       if (escLink) {
         html = html
           .split(escLink)
           .join(
-            // Interim treatment only (#045). These two bodies embed their URL
-            // mid-sentence, so lifting it into a button would leave a dangling
-            // "If it doesn't:" behind — that needs new copy, written
-            // deliberately, and copy is not a layout pass's to write. Until
-            // then the link at least reads as a link: underlined, and with the
-            // colour forced on an inner span the same way renderButton does it,
-            // because Outlook web recolours bare anchors to its own purple.
-            // overflow-wrap sits alongside word-break for clients that ignore
-            // the older property.
+            // No button on this email: the URL at least reads as a link —
+            // underlined, with the colour forced on an inner span the same way
+            // renderButton does it, because Outlook web recolours bare anchors
+            // to its own purple. overflow-wrap sits alongside word-break for
+            // clients that ignore the older property.
             `<a href="${escLink}" style="color:#2D6A4F;font-weight:600;text-decoration:underline;word-break:break-all;overflow-wrap:anywhere;"><span style="color:#2D6A4F;">${escLink}</span></a>`,
           );
       }
-      return `${buttonHtml}          <p style="margin:0 0 16px;color:#333;font-size:16px;line-height:1.6;">${html}</p>`;
+      return `          <p style="margin:0 0 16px;color:#333;font-size:16px;line-height:1.6;">${html}</p>`;
     })
     .join("\n");
-
   return {
     subject: params.subject,
     html: renderGiftLayout({
