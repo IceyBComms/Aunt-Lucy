@@ -233,7 +233,19 @@ export async function sendManagementAccessLink(opts: {
             ? `${granterFirst} set this up for you`
             : `Your Aunt Lucy page`
           : `You've been added to help run ${recipientFirst}'s page`;
-      return await sendItem17Email({ to: opts.contact, subject, body, link: opts.link });
+      // The manager email gets the green primary button (#045): being handed the
+      // running of someone's page IS an action, and this is the one email in the
+      // pair whose copy was approved for it. The recipient-role variant is a
+      // different, unapproved body and deliberately keeps the plain link.
+      const ctaLabel =
+        opts.role === "manager" ? `Open ${recipientFirst}'s page` : null;
+      return await sendItem17Email({
+        to: opts.contact,
+        subject,
+        body,
+        link: opts.link,
+        ctaLabel,
+      });
     }
     return await sendSms({ to: opts.contact, body, label: `accessGrant:${opts.role}` });
   } catch (err) {

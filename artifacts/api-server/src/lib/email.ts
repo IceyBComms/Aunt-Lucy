@@ -1,5 +1,6 @@
 import { Resend } from "resend";
 import { logger } from "./logger";
+import { getAppBaseUrl } from "./appUrl";
 import { formatMoney, gstRateLabel, type GstBreakdown } from "./gst";
 import type { FounderStats } from "./founderStats";
 
@@ -256,7 +257,9 @@ interface MagicLinkParams {
 export function buildMagicLinkEmail(magicLink: string): RenderedEmail {
   const html = `<!DOCTYPE html>
 <html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  ${msoButtonStyle()}
+  </head>
 <body style="margin:0;padding:0;background-color:#FAF7F2;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#FAF7F2;">
     <tr><td align="center" style="padding:40px 16px;">
@@ -269,11 +272,7 @@ export function buildMagicLinkEmail(magicLink: string): RenderedEmail {
           <p style="margin:0 0 24px;color:#333;font-size:16px;line-height:1.6;">
             Here's your sign-in link. Click the button below to access your Aunt Lucy account — it's valid for one hour.
           </p>
-          <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 24px;">
-            <tr><td style="border-radius:8px;background-color:#E76F51;">
-              <a href="${magicLink}" style="display:inline-block;padding:14px 28px;color:#ffffff;font-size:16px;font-weight:600;text-decoration:none;border-radius:8px;">Sign in to Aunt Lucy</a>
-            </td></tr>
-          </table>
+          ${renderButton(magicLink, "Sign in to Aunt Lucy")}
           <p style="margin:0 0 8px;color:#888;font-size:13px;line-height:1.6;">
             If you didn't request this, you can safely ignore this email.
           </p>
@@ -282,7 +281,9 @@ export function buildMagicLinkEmail(magicLink: string): RenderedEmail {
           </p>
         </td></tr>
         <tr><td style="padding:20px 32px;background-color:#FAF7F2;text-align:center;">
-          <p style="margin:0;color:#999;font-size:12px;">Can't click the button? Copy this link: ${magicLink}</p>
+          <p style="margin:0;color:#999;font-size:12px;">Can't click the button? Copy this link:</p>
+          <p style="margin:6px 0 0;color:#999;font-size:12px;line-height:1.5;word-break:break-all;overflow-wrap:anywhere;">${escapeHtml(magicLink)}</p>
+          ${homepageFooterLine()}
         </td></tr>
       </table>
     </td></tr>
@@ -361,7 +362,9 @@ export async function sendPilotApplicationNotification(params: PilotApplicationP
 
   const html = `<!DOCTYPE html>
 <html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  ${msoButtonStyle()}
+  </head>
 <body style="margin:0;padding:0;background-color:#FAF7F2;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#FAF7F2;">
     <tr><td align="center" style="padding:40px 16px;">
@@ -797,6 +800,21 @@ function formatAuDate(date: Date): string {
 }
 
 /**
+ * The one-line "what is this?" footer line every email carries (#051).
+ *
+ * Someone forwarded an invite, or helping for the first time, has nowhere to go
+ * to find out what Aunt Lucy is — the emails all assumed the reader already
+ * knew. This is the route to the homepage and nothing more: no button, no
+ * pitch, no "buy one". The homepage does the selling. Only the words "Aunt
+ * Lucy" link; the line sits in the same grey as the rest of the footer so it
+ * reads as a footnote, not an ask.
+ */
+function homepageFooterLine(): string {
+  const home = escapeHtml(getAppBaseUrl());
+  return `<p style="margin:12px 0 0;color:#999;font-size:12px;line-height:1.6;">New to <a href="${home}" style="color:#999;text-decoration:underline;">Aunt Lucy</a>? It's a simple way for friends and family to organise practical help — meals, lifts, the school run — without the person in the thick of it having to ask.</p>`;
+}
+
+/**
  * The shared chrome for the fulfilment emails: preheader, branded header, white
  * card, footer. `contentHtml` is the body of the card and is assumed to be
  * already escaped by the caller.
@@ -808,7 +826,9 @@ function renderGiftLayout(params: {
 }): string {
   return `<!DOCTYPE html>
 <html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  ${msoButtonStyle()}
+  </head>
 <body style="margin:0;padding:0;background-color:#FAF7F2;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
   <div style="display:none;font-size:1px;color:#FAF7F2;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">${escapeHtml(params.preheader)}</div>
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#FAF7F2;">
@@ -822,6 +842,7 @@ ${params.contentHtml}
         </td></tr>
         <tr><td style="padding:20px 32px;background-color:#FAF7F2;text-align:center;">
           <p style="margin:0;color:#999;font-size:12px;">${params.footerHtml ?? "auntlucy.com.au"}</p>
+          ${homepageFooterLine()}
         </td></tr>
       </table>
     </td></tr>
@@ -839,14 +860,71 @@ ${params.contentHtml}
  * label a dark purple) can't win. font-family is pinned to the layout's stack
  * so the label never falls back to a serif.
  */
-function renderButton(url: string, label: string): string {
+/**
+ * Every button variant, in ONE place. Both the inline styles and the Outlook
+ * <style> block below are generated from this, so a new variant cannot be added
+ * that forces its colours in one and forgets in the other — which is exactly
+ * how the quiet variant came to render purple in Outlook classic.
+ */
+const BUTTON_VARIANTS = {
+  primary: { bg: "#2D6A4F", fg: "#ffffff", border: "" },
+  quiet: { bg: "#ffffff", fg: "#2D6A4F", border: "border:1px solid #2D6A4F;" },
+} as const;
+
+type ButtonVariant = keyof typeof BUTTON_VARIANTS;
+
+/**
+ * The Outlook-only rule that inline styles physically cannot express.
+ *
+ * Word applies its own Hyperlink / FollowedHyperlink character style to an
+ * anchor's text. Inline `color` on the <a> and an inner <span> beats the
+ * unvisited case — which is why the primary button has looked right — but there
+ * is no inline syntax for :visited, so the moment a reader has followed that
+ * URL once, Word repaints the label its followed-link purple. It is per-URL,
+ * not per-variant: the primary is exposed to precisely the same thing and has
+ * only been lucky.
+ *
+ * Emitted inside an MSO conditional so no other client sees it, and scoped to
+ * the button classes so ordinary body links keep their own colours.
+ */
+function msoButtonStyle(): string {
+  const rules = (Object.keys(BUTTON_VARIANTS) as ButtonVariant[])
+    .map((name) => {
+      const { fg } = BUTTON_VARIANTS[name];
+      const sel = `.al-btn--${name}`;
+      return `      a${sel}, a${sel}:link, a${sel}:visited, a${sel}:hover, a${sel}:active, ${sel} span { color: ${fg} !important; text-decoration: none !important; }`;
+    })
+    .join(String.fromCharCode(10));
+  return `<!--[if mso]>
+  <style type="text/css">
+${rules}
+  </style>
+  <![endif]-->`;
+}
+
+/**
+ * The call-to-action button shared by every recipient-facing email.
+ *
+ * Bulletproof, table-based, all-inline: padding sits on the <td> because Word
+ * ignores it on an inline <a>, the gap beneath is a spacer row because Word
+ * ignores margin on a table, and colours are forced on BOTH the <a> and an
+ * inner <span>. The :visited case is handled by msoButtonStyle() in the head —
+ * see the note there for why it cannot live here.
+ */
+function renderButton(
+  url: string,
+  label: string,
+  variant: ButtonVariant = "primary",
+): string {
   const font =
     "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
+  const { bg, fg, border } = BUTTON_VARIANTS[variant];
+  const cls = `al-btn al-btn--${variant}`;
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">
             <tr><td align="center" style="padding:0;">
               <table role="presentation" align="center" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;margin:0 auto;">
-                <tr><td align="center" bgcolor="#2D6A4F" style="border-radius:8px;background-color:#2D6A4F;padding:14px 30px;">
-                  <a href="${escapeHtml(url)}" style="display:block;color:#ffffff;font-family:${font};font-size:16px;font-weight:600;line-height:20px;mso-line-height-rule:exactly;text-decoration:none;"><span style="color:#ffffff;text-decoration:none;">${escapeHtml(label)}</span></a>
+                <tr><td align="center" bgcolor="${bg}" style="border-radius:8px;background-color:${bg};${border}padding:14px 30px;">
+                  <a class="${cls}" href="${escapeHtml(url)}" style="display:block;color:${fg};font-family:${font};font-size:16px;font-weight:600;line-height:20px;mso-line-height-rule:exactly;text-decoration:none;"><span style="color:${fg};text-decoration:none;">${escapeHtml(label)}</span></a>
                 </td></tr>
               </table>
             </td></tr>
@@ -1153,7 +1231,7 @@ export function buildGiftDeliveryEmail(params: GiftDeliveryParams): RenderedEmai
             ${bodyParagraphHtml}
           </p>
           <p style="margin:0 0 24px;color:#333;font-size:16px;line-height:1.6;">
-            Take a look whenever you're ready. When you are, Aunt Lucy will walk you through it — the only thing she'll need from you is who your people are.
+            Take a look whenever you're ready. When you are, Aunt Lucy will walk you through it — you just confirm what would actually help, and who your people are.
           </p>
           <p style="margin:0 0 24px;color:#333;font-size:16px;line-height:1.6;">
             No rush. It'll be here when you need it.
@@ -1168,7 +1246,7 @@ export function buildGiftDeliveryEmail(params: GiftDeliveryParams): RenderedEmai
     ``,
     bodyParagraphText,
     ``,
-    `Take a look whenever you're ready. When you are, Aunt Lucy will walk you through it — the only thing she'll need from you is who your people are.`,
+    `Take a look whenever you're ready. When you are, Aunt Lucy will walk you through it — you just confirm what would actually help, and who your people are.`,
     ``,
     `No rush. It'll be here when you need it.`,
     ``,
@@ -1428,34 +1506,69 @@ export interface Item17EmailParams {
   /** A URL that appears inside `body`, turned into an anchor for the email. */
   link?: string | null;
   preheader?: string;
+  /**
+   * When set, the paragraph that is nothing but `link` gets the branded green
+   * button ABOVE it, with the URL left underneath as the fallback (#045).
+   *
+   * Opt-in on purpose. This builder is shared with the task-changed email,
+   * whose whole point is that nothing is required of the helper — it must not
+   * grow a primary button just because its sibling needed one.
+   */
+  ctaLabel?: string | null;
+  /** Primary (filled green) or quiet (outlined). Only read when ctaLabel is set. */
+  ctaVariant?: "primary" | "quiet";
 }
 
 export function buildItem17Email(params: Item17EmailParams): RenderedEmail {
   const escLink = params.link ? escapeHtml(params.link) : null;
+  const link = params.link?.trim() || null;
+
+  // With a ctaLabel the link is PROMOTED to a button and the URL itself is
+  // removed from the body, wherever it sat — on its own line (the access grant)
+  // or mid-sentence (task changed). The paragraph is split around it, so the
+  // words either side keep their order and none of them change. Only the first
+  // occurrence is promoted; a second would be a second button.
+  //
+  // Nothing here touches params.body, which is also the SMS text and the
+  // plain-text part. Those keep the URL, which is what they need.
+  let promoted = false;
+
+  const para = (t: string) =>
+    t
+      ? `          <p style="margin:0 0 16px;color:#333;font-size:16px;line-height:1.6;">${escapeHtml(t).replace(/\n/g, "<br>")}</p>`
+      : "";
+
   const paragraphs = params.body
     .split("\n\n")
     .map((seg) => {
+      if (link && params.ctaLabel && !promoted && seg.includes(link)) {
+        promoted = true;
+        const at = seg.indexOf(link);
+        return [
+          para(seg.slice(0, at).trim()),
+          renderButton(link, params.ctaLabel, params.ctaVariant ?? "primary"),
+          para(seg.slice(at + link.length).trim()),
+        ]
+          .filter(Boolean)
+          .join("\n");
+      }
+
       let html = escapeHtml(seg).replace(/\n/g, "<br>");
       if (escLink) {
         html = html
           .split(escLink)
           .join(
-            // Interim treatment only (#045). These two bodies embed their URL
-            // mid-sentence, so lifting it into a button would leave a dangling
-            // "If it doesn't:" behind — that needs new copy, written
-            // deliberately, and copy is not a layout pass's to write. Until
-            // then the link at least reads as a link: underlined, and with the
-            // colour forced on an inner span the same way renderButton does it,
-            // because Outlook web recolours bare anchors to its own purple.
-            // overflow-wrap sits alongside word-break for clients that ignore
-            // the older property.
+            // No button on this email: the URL at least reads as a link —
+            // underlined, with the colour forced on an inner span the same way
+            // renderButton does it, because Outlook web recolours bare anchors
+            // to its own purple. overflow-wrap sits alongside word-break for
+            // clients that ignore the older property.
             `<a href="${escLink}" style="color:#2D6A4F;font-weight:600;text-decoration:underline;word-break:break-all;overflow-wrap:anywhere;"><span style="color:#2D6A4F;">${escLink}</span></a>`,
           );
       }
       return `          <p style="margin:0 0 16px;color:#333;font-size:16px;line-height:1.6;">${html}</p>`;
     })
     .join("\n");
-
   return {
     subject: params.subject,
     html: renderGiftLayout({

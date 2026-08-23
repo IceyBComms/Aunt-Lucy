@@ -194,6 +194,14 @@ export async function notifyHelperOfTaskEvent(opts: {
   emailSubject: string;
   /** A URL embedded in the body (the release link, or the page link). */
   link?: string | null;
+  /**
+   * Promote that URL to a button in the EMAIL only (#045). Opt-in per call
+   * site: the task-CHANGED email carries one, the task-CANCELLED emails do
+   * not — nothing is being asked of a helper whose task has gone away.
+   * Ignored on the SMS path, which sends `body` verbatim either way.
+   */
+  ctaLabel?: string | null;
+  ctaVariant?: "primary" | "quiet";
 }): Promise<void> {
   const contact = opts.helperContact?.trim();
   if (!contact) return;
@@ -209,6 +217,8 @@ export async function notifyHelperOfTaskEvent(opts: {
       subject: opts.emailSubject,
       body: opts.body,
       link: opts.link ?? null,
+      ctaLabel: opts.ctaLabel ?? null,
+      ctaVariant: opts.ctaVariant,
     });
   } else {
     await sendSms({ to: contact, body: opts.body, label: "helperTaskEvent" });

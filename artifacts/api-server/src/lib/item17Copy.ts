@@ -121,10 +121,19 @@ export function helperTaskChanged(params: {
   newDetail: string;
   releaseLink: string;
 }): string {
+  // Three blocks: statement, reassurance, link. The link is LAST and alone on
+  // its paragraph, which is what lets the email promote it to a button with
+  // nothing stranded after it. The previous shape put the link mid-sentence, so
+  // promoting it left "— one tap, no drama." orphaned below the button.
   return (
     `Hi ${params.helperFirstName}, small change on ${params.recipientFirstName}'s page: ` +
-    `${params.task} is now ${params.newDetail}. If that still works, no need to do a thing. ` +
-    `If it doesn't: ${params.releaseLink} — one tap, no drama.`
+    `${params.task} is now ${params.newDetail}.
+
+` +
+    `If that still works, there's nothing you need to do. If it doesn't, one tap sorts it — no drama.
+
+` +
+    `${params.releaseLink}`
   );
 }
 
