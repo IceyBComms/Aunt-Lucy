@@ -247,20 +247,13 @@ interface MagicLinkParams {
   magicLink: string;
 }
 
-export async function sendMagicLink({ to, magicLink }: MagicLinkParams): Promise<void> {
-  // Local development: print the magic link to the terminal instead of emailing it.
-  if (isPlaceholderResendKey) {
-    console.log(
-      `\n🔗 Magic link for ${to} (local dev — email sending disabled):\n   ${magicLink}\n`,
-    );
-    return;
-  }
-
-  if (!resend) {
-    logger.warn("RESEND_API_KEY not set — skipping magic link email");
-    return;
-  }
-
+/**
+ * The sign-in email. Extracted from sendMagicLink unchanged, so the exact bytes
+ * that would be sent can be rendered and held next to the rest of the family.
+ * It was the only branded email with no builder, which is precisely why its
+ * header sat on the stretched-lockup bug (#044) without anyone seeing it.
+ */
+export function buildMagicLinkEmail(magicLink: string): RenderedEmail {
   const html = `<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
@@ -299,14 +292,28 @@ export async function sendMagicLink({ to, magicLink }: MagicLinkParams): Promise
 
   const text = `Hi there,\n\nHere's your Aunt Lucy sign-in link:\n${magicLink}\n\nIt's valid for one hour. If you didn't request this, you can safely ignore this email.\n\nWarmly,\nThe Aunt Lucy Team`;
 
+  return { subject: "Your Aunt Lucy sign-in link", html, text };
+}
+
+export async function sendMagicLink({ to, magicLink }: MagicLinkParams): Promise<void> {
+  // Local development: print the magic link to the terminal instead of emailing it.
+  if (isPlaceholderResendKey) {
+    console.log(
+      `\n🔗 Magic link for ${to} (local dev — email sending disabled):\n   ${magicLink}\n`,
+    );
+    return;
+  }
+
+  if (!resend) {
+    logger.warn("RESEND_API_KEY not set — skipping magic link email");
+    return;
+  }
+
   const { error } = await resend.emails.send({
     from: FROM_ADDRESS,
     to,
-    subject: "Your Aunt Lucy sign-in link",
-    html,
-    text,
+    ...buildMagicLinkEmail(magicLink),
   });
-
   if (error) {
     logger.error({ error }, "Failed to send magic link email");
     throw new Error(`Resend error: ${error.message}`);
