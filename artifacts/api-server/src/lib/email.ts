@@ -262,7 +262,7 @@ export function buildMagicLinkEmail(magicLink: string): RenderedEmail {
     <tr><td align="center" style="padding:40px 16px;">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
         <tr><td bgcolor="#E76F51" style="background-color:#E76F51;padding:26px 32px;">
-          <img src="https://auntlucy.com.au/brand/png/aunt-lucy-lockup-horizontal-reversed-1600.png" alt="Aunt Lucy" width="280" height="69" style="display:block;width:280px;height:69px;max-width:100%;border:0;outline:none;text-decoration:none;color:#ffffff;font-size:22px;font-weight:600;" />
+          <img src="https://auntlucy.com.au/brand/png/aunt-lucy-lockup-horizontal-reversed-1600.png" alt="Aunt Lucy" width="280" height="69" style="display:block;width:280px;height:auto;max-width:100%;border:0;outline:none;text-decoration:none;color:#ffffff;font-size:22px;font-weight:600;" />
         </td></tr>
         <tr><td style="padding:32px;">
           <p style="margin:0 0 20px;color:#333;font-size:16px;line-height:1.6;">Hi there,</p>
