@@ -38,6 +38,8 @@ import { Route, Router, Switch } from "wouter";
 import BuyDetails from "@/pages/BuyDetails";
 
 const TIER_ID = new URLSearchParams(location.search).get("tier") ?? "workplace_individual";
+// Read BEFORE the replaceState below, which clears location.search.
+const PRESELECT = new URLSearchParams(location.search).get("occasion");
 
 const TIERS = [
   { id: "consumer_personal", label: "Gift Aunt Lucy", blurb: "For someone you love.", amountCents: 5900, gifts: 1, sellable: true },
@@ -57,6 +59,54 @@ window.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
 }) as typeof window.fetch;
 
 window.history.replaceState(null, "", `/buy/${TIER_ID}`);
+
+/**
+ * ?occasion=surgery — pre-select one of the occasion pills after mount, so a
+ * screenshot of a CHOSEN occasion is reproducible from a URL alone.
+ *
+ * It finds the real pill by its label and dispatches a real click, rather than
+ * seeding React state or faking the pressed styling. That matters: bug #062's
+ * whole finding was that nothing must LOOK chosen until it IS chosen, and a
+ * harness that painted the selected state itself could not tell you whether
+ * the product still does. Anything this shows is the product's own doing.
+ */
+const PILL_LABELS: Record<string, string> = {
+  new_baby: "New baby",
+  illness_recovery: "Illness or recovery",
+  surgery: "Surgery or a procedure",
+  bereavement: "Loss",
+  ongoing_support: "Ongoing support",
+  other: "Something else",
+};
+if (PRESELECT) {
+  const label = PILL_LABELS[PRESELECT];
+  if (!label) throw new Error("preview060: unknown occasion " + PRESELECT);
+  // POLL, and poll with a timer rather than rAF. Two separate traps here, both
+  // already paid for elsewhere in this repo:
+  //   • rAF is throttled to a standstill in a BACKGROUND tab, which is exactly
+  //     where a headless screenshot run lives (the /terms#refund deep-link
+  //     trap). A timer still fires there.
+  //   • A single setTimeout(…, 0) loses the race: createRoot().render() only
+  //     SCHEDULES the first render in React 18, so at 0ms the pills do not
+  //     exist yet and a one-shot attempt silently finds nothing.
+  // Polling removes the guess. It gives up loudly rather than leaving a
+  // screenshot that quietly shows no occasion chosen and looks like a bug.
+  const deadline = Date.now() + 5000;
+  const tick = () => {
+    const pill = Array.from(
+      document.querySelectorAll<HTMLButtonElement>("[aria-pressed]"),
+    ).find((b) => b.textContent?.includes(label));
+    if (pill) {
+      pill.click();
+      return;
+    }
+    if (Date.now() > deadline) {
+      throw new Error("preview060: no pill for " + label + " after 5s");
+    }
+    setTimeout(tick, 50);
+  };
+  setTimeout(tick, 50);
+}
 
 const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 createRoot(document.getElementById("root")!).render(

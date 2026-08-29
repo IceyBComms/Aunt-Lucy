@@ -40,7 +40,7 @@ const TOKEN = "previewtoken";
 
 // ?occasion=bereavement etc. — lets one harness prove what every occasion renders.
 const OCCASION = new URLSearchParams(location.search).get("occasion") ?? "new_baby";
-const KNOWN = ["new_baby", "illness_recovery", "bereavement", "ongoing_support", "other"];
+const KNOWN = ["new_baby", "illness_recovery", "surgery", "bereavement", "ongoing_support", "other"];
 if (!KNOWN.includes(OCCASION)) {
   throw new Error("preview035: no sample data for occasion " + OCCASION);
 }
@@ -50,6 +50,7 @@ if (!KNOWN.includes(OCCASION)) {
 const SITUATION: Record<string, string> = {
   new_baby: "welcoming a new baby into the family",
   illness_recovery: "not been well lately",
+  surgery: "got a medical procedure coming up",
   bereavement: "recently lost someone dear to {obj}",
   ongoing_support: "carrying a lot at the moment",
   other: "got a lot on right now",
@@ -57,6 +58,7 @@ const SITUATION: Record<string, string> = {
 const TRUSTED: Record<string, string> = {
   new_baby: "getting ready for the new baby",
   illness_recovery: "getting some extra support with their health at the moment",
+  surgery: "getting a bit of help around a procedure and the weeks after",
   bereavement: "going through a difficult time after a recent loss",
   ongoing_support: "could use a little extra support right now",
   other: "got a lot on right now",
@@ -80,6 +82,12 @@ const SUGGESTIONS: Record<string, any[]> = {
     { key: "ir_dog", slotType: "dog_walking", label: "Walk the dog", dated: false, trustedHelpersOnly: false },
     { key: "ir_script", slotType: "errand", label: "Pick up a prescription", dated: false, trustedHelpersOnly: false },
     { key: "ir_visit", slotType: "visit", label: "A short visit", dated: false, trustedHelpersOnly: false },
+  ],
+  surgery: [
+    { key: "sg_meal", slotType: "meal", label: "A meal, left at the door", dated: false, trustedHelpersOnly: false },
+    { key: "sg_lift", slotType: "errand", label: "A lift to an appointment", dated: true, trustedHelpersOnly: false },
+    { key: "sg_shop", slotType: "shopping", label: "A hand with the groceries", dated: false, trustedHelpersOnly: false },
+    { key: "sg_visit", slotType: "visit", label: "A short visit, once I'm up to it", dated: false, trustedHelpersOnly: false },
   ],
   bereavement: [
     { key: "bv_meal", slotType: "meal", label: "A meal, left at the door", dated: false, trustedHelpersOnly: false },
@@ -121,6 +129,8 @@ const LETTERS: Record<string, string | null> = {
     "Zara, we wanted to send you off with something more useful than flowers.\n\nThe next few months are going to be wonderful and completely relentless, often in the same hour. This is a little bit of help, already sorted, for whenever you want it.\n\nWith love from all of us.",
   illness_recovery:
     "Zara, we're all thinking of you.\n\nDon't give work a second thought, it will keep. This is a bit of practical help, already organised, for whenever you want to use it.\n\nFrom all of us.",
+  surgery:
+    "Zara, good luck with it all next week.\n\nWe've sorted a bit of practical help for when you're home, so you don't have to think about the shopping or the lifts. It's there if you want it.\n\nFrom all of us.",
   bereavement:
     "Zara, we are so sorry.\n\nThere's nothing we can say that helps, so we've done the only useful thing we could think of instead. Use it, or don't, it's here either way.\n\nWith love from all of us.",
   ongoing_support:
@@ -138,6 +148,11 @@ const NOTES: Record<string, { signerName: string; message: string }[]> = {
     { signerName: "Priya", message: "Rest properly. I'm on standby for lifts to appointments, any day." },
     { signerName: "Tom", message: "Put me down for a lasagne. It is the only thing I can cook but I cook it well." },
     { signerName: "The Finance team", message: "Take the time you need. Nothing here is on fire." },
+  ],
+  surgery: [
+    { signerName: "Priya", message: "Good luck next week. I'm around all of the following one for lifts." },
+    { signerName: "Tom", message: "Put me down for a lasagne. It is the only thing I can cook but I cook it well." },
+    { signerName: "The Finance team", message: "Good luck with it all. Work's here when you're ready, not before." },
   ],
   bereavement: [
     { signerName: "Priya", message: "I'm so sorry. I'll be around, and I won't expect anything back." },

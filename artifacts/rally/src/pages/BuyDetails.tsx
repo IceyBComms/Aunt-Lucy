@@ -21,6 +21,11 @@ import { formatPrice } from "@/lib/money";
 const OCCASIONS: { value: GiftOccasion; emoji: string; label: string }[] = [
   { value: "new_baby", emoji: "🍼", label: "New baby" },
   { value: "illness_recovery", emoji: "🏥", label: "Illness or recovery" },
+  // Bug #058. ⚠️ EMOJI AWAITING KATE'S PICK — the approved copy fixes the label
+  // ("Surgery or a procedure") but not the glyph. 🩹 is the proposal: 🏥 is
+  // already taken by illness, and a bandage reads recovery rather than
+  // sickness, which is the whole distinction this occasion exists to draw.
+  { value: "surgery", emoji: "🩹", label: "Surgery or a procedure" },
   { value: "bereavement", emoji: "💙", label: "Loss" },
   { value: "ongoing_support", emoji: "🤍", label: "Ongoing support" },
   { value: "other", emoji: "", label: "Something else" },
@@ -52,6 +57,11 @@ const NOTE_PLACEHOLDERS: Record<"workplace" | "consumer", Record<GiftOccasion, s
     new_baby: "e.g. From all of us at Brightpath — enjoy every minute.",
     illness_recovery:
       "e.g. From all of us at Brightpath — look after yourself. Work's covered, don't give it a thought.",
+    // Bug #058. Care, not help: "Work's here when you're ready, not before"
+    // reassures her about her JOB and quietly gives her permission to stay
+    // away, without any colleague appearing to volunteer for a meal (#061).
+    surgery:
+      "e.g. From all of us at Brightpath — good luck with it all. Work's here when you're ready, not before.",
     bereavement:
       "e.g. From all of us at Brightpath — we're so sorry. Take whatever time you need.",
     ongoing_support:
@@ -61,6 +71,10 @@ const NOTE_PLACEHOLDERS: Record<"workplace" | "consumer", Record<GiftOccasion, s
   consumer: {
     new_baby: "e.g. Can't wait to meet them. Let me take the first dinner.",
     illness_recovery: "e.g. Thinking of you. Let us take a few things off your plate.",
+    // Bug #058. Models claiming ONE thing, the job "let me take the first
+    // dinner" does on the baby set — and it names a task that now exists on
+    // the surgery page, so the example and the page agree.
+    surgery: "e.g. Thinking of you. Put me down for a lift — I'm around all week.",
     bereavement: "e.g. I'm so sorry. I'm here, and so is everyone else.",
     ongoing_support:
       "e.g. Thinking of you — here for the long haul, not just this week.",

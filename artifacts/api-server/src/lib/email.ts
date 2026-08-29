@@ -4,6 +4,7 @@ import { LIFT_WAIT_MODE_HELPER_LINES, type LiftWaitMode } from "./liftWaitMode";
 import { getAppBaseUrl } from "./appUrl";
 import { formatMoney, gstRateLabel, type GstBreakdown } from "./gst";
 import type { FounderStats } from "./founderStats";
+import { asOccasion, type Occasion } from "./occasion";
 
 // A RESEND_API_KEY containing "placeholder" means local development: don't send
 // real email. Magic links are logged to the console instead (see sendMagicLink).
@@ -1200,32 +1201,64 @@ export interface GiftDeliveryParams {
 
 /**
  * The gift-delivery body paragraph, chosen by occasion. Verbatim, Kate-approved
- * copy (Bug #010). A single combined paragraph — the occasion sets the opening
- * clause and names the giver as the actor ("«Name» has set up a page so the
- * people who love you can…"), so "they/them" never stands in for the giver.
- * The fallback MUST be the default for any unmapped, unknown or null occasion —
- * a gift for illness must never open with new-baby words. `surgery` shares the
- * illness/recovery paragraph so a future enum value is covered without a code
- * change. `giverName` is interpolated as-is: pass an HTML-escaped name for the
- * HTML body, the raw name for the plain-text body.
+ * copy (Bug #010, and Bug #058 for surgery). A single combined paragraph — the
+ * occasion sets the opening clause and names the giver as the actor ("«Name»
+ * has set up a page so the people who love you can…"), so "they/them" never
+ * stands in for the giver. `giverName` is interpolated as-is: pass an
+ * HTML-escaped name for the HTML body, the raw name for the plain-text body.
+ *
+ * ⚠️ EXHAUSTIVE OVER Occasion, DELIBERATELY (Bug #059 class). This used to be a
+ * switch on a bare `string` with a `default:` catching everything unlisted,
+ * which meant it was the ONE occasion-aware site in the product the compiler
+ * could never help with — a new occasion would silently take the neutral
+ * paragraph and nobody would be told. The parameter stays `string` because
+ * callers hand over a raw DB value, but it is narrowed through asOccasion()
+ * immediately and every branch below is named. Add a seventh occasion and the
+ * `never` assignment at the bottom fails the build.
+ *
+ * Null, undefined and any unrecognised value still take the neutral paragraph.
+ * That part is not a fallback of convenience — it is the Bug #010 rule that
+ * new-baby copy must never be the default.
  */
 function giftDeliveryParagraph(
   occasion: string | null | undefined,
   giverName: string,
 ): string {
-  switch (occasion) {
+  const neutral = `Life's thrown a lot at you lately. ${giverName} has set up a page so the people who love you can help carry some of it — meals, the school run, a friendly face — without you having to ask or organise a thing.`;
+
+  const known: Occasion | null = asOccasion(occasion);
+  if (known === null) return neutral;
+
+  switch (known) {
     case "new_baby":
       // Sent pre-activation, so baby_stage isn't known here — this line must read
       // true whether the baby has arrived yet or not (baby showers are gifted
       // ahead of the birth). SUGGESTED COPY — Kate to bless final wording.
       return `A new little person is part of your world now. ${giverName} has set up a page so the people who love you can make the busy weeks a little easier — meals, the school run, a friendly face — without you having to ask or organise a thing.`;
     case "illness_recovery":
-    case "surgery":
       return `While you focus on getting better, ${giverName} has set up a page so the people who love you can take care of the rest — meals, the school run, a friendly face — without you having to ask or organise a thing.`;
+    case "surgery":
+      // Bug #058. Split off from illness_recovery, which it used to share by a
+      // pre-wired fall-through. It is not a milder illness paragraph: illness
+      // is ongoing and uncertain, a procedure is bounded and SCHEDULED, and the
+      // best thing this product can do for it is arrange the after in advance —
+      // which is why this is the only delivery paragraph that says "before
+      // you're home". It also deliberately does NOT carry the school run: the
+      // approved task set is four and does not include it, and an email that
+      // offers a fifth thing the page never shows is its own small betrayal.
+      return `A procedure is one thing; the weeks afterwards are another. ${giverName} has set up a page so the people around you can have the lifts, the meals and the shopping sorted before you're home — without you having to ask for any of it.`;
     case "bereavement":
       return `There are no right words for a time like this. ${giverName} has set up a page so the people who love you can quietly take a few things off your plate — meals, the school run, a friendly face — without you having to ask or organise a thing.`;
-    default:
-      return `Life's thrown a lot at you lately. ${giverName} has set up a page so the people who love you can help carry some of it — meals, the school run, a friendly face — without you having to ask or organise a thing.`;
+    case "ongoing_support":
+    case "other":
+      return neutral;
+    default: {
+      // Unreachable. If this stops compiling, an occasion was added without a
+      // delivery paragraph — decide on its words, don't widen this branch.
+      const _exhaustive: never = known;
+      void _exhaustive;
+      return neutral;
+    }
   }
 }
 

@@ -25,7 +25,11 @@ import {
   type SuggestedTask,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { situationHint, trustedHint } from "@/lib/inviteCopyHints";
+import {
+  NEUTRAL_LINE_FALLBACK,
+  situationHint,
+  trustedHint,
+} from "@/lib/inviteCopyHints";
 import {
   LIFT_WAIT_MODES,
   LIFT_WAIT_MODE_LABELS,
@@ -342,13 +346,13 @@ export function GiftActivation({ token }: { token: string }) {
     occasion: data?.occasion,
     babyStage,
     pronouns,
-    agnosticDefault: data?.situationLine ?? "just welcomed their new baby",
+    agnosticDefault: data?.situationLine ?? NEUTRAL_LINE_FALLBACK,
   });
   const trustedPlaceholder = trustedHint({
     occasion: data?.occasion,
     babyStage,
     pronouns,
-    agnosticDefault: data?.trustedLine ?? "getting ready for the new baby",
+    agnosticDefault: data?.trustedLine ?? NEUTRAL_LINE_FALLBACK,
   });
 
   return (

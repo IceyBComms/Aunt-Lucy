@@ -1092,6 +1092,13 @@ components:
       enum:
         - new_baby
         - illness_recovery
+        # Bug #058 — planned surgery is not illness. The person is currently
+        # WELL, the date is KNOWN, and the hard part is afterwards; the
+        # illness_recovery invite line ("not been well lately") is simply
+        # untrue of them. Ordered next to illness_recovery to match the
+        # physical order of the gift_occasion type in Postgres (migration
+        # 0012 adds it AFTER 'illness_recovery').
+        - surgery
         - bereavement
         - ongoing_support
         - other

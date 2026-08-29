@@ -14,6 +14,29 @@
  */
 import type { BabyStage, GiftOccasion, RecipientPronouns } from "@workspace/api-client-react";
 
+/**
+ * The last-resort ghost text, for when the server sends no occasion default at
+ * all — both `situationLine` and `trustedLine` are nullable in the API response.
+ *
+ * ⚠️ Bug #059. This slot used to hold NEW-BABY literals: "just welcomed their
+ * new baby" and "getting ready for the new baby". Unreachable in practice,
+ * because the server always sends a default — but unreachable is not the same
+ * as safe. The day anything upstream changed, a bereaved recipient would have
+ * been shown, as the suggested wording for her own invite, that her friends
+ * were about to be told she had just had a baby. Nothing would have failed and
+ * nobody would have been alerted.
+ *
+ * This is the `other` wording from SITUATION_LINE_DEFAULTS and
+ * TRUSTED_LINE_DEFAULTS in api-server/src/lib/inviteCopy.ts, where both entries
+ * are this same string. One constant covers both fields for that reason. It is
+ * occasion-neutral by construction, so a null is TRUE on every occasion rather
+ * than merely harmless on most of them.
+ *
+ * ✅ Kate's ruling, 30 Aug 2026: take the neutral wording now; making the two
+ * API fields non-nullable is a contract change for another day.
+ */
+export const NEUTRAL_LINE_FALLBACK = "got a lot on right now";
+
 /** Resolve {poss}/{obj} pronoun tokens in an occasion line for display. */
 export function resolvePronounTokens(
   line: string,
