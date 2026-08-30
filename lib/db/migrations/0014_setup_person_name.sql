@@ -1,0 +1,54 @@
+-- Bug #074 (and #070) — remember the name of the person who set a page up.
+--
+-- Hand-written and hand-applied (NOT drizzle-kit push).
+--
+-- ⚠️ APPLY THIS BEFORE MERGING THE PR, following the standing rule that #022,
+-- #023, #033, #048 and #058 were all caught by. Here the direction is merely
+-- PRUDENT rather than required — the column is nullable with no default, so the
+-- currently-deployed code neither reads nor writes it and production can carry
+-- this change safely with the old code still running. Applying early is free;
+-- applying late means the first crisis signup after deploy tries to INSERT a
+-- column that does not exist and 500s before the page is ever created.
+--
+-- WHY THE COLUMN IS NEEDED
+--   `organisers` has only id, email and created_at, so the product has never
+--   recorded who set a page up. #074's approved copy is
+--       "[Ellen] set this page up for you"
+--   and Kate's 22 August ruling is that the who-set-it-up line ALWAYS shows.
+--   Without a name the line degrades to "Someone set this page up for you",
+--   which on a bereavement page reads as eerie rather than reassuring — the
+--   name is the entire reason the sentence is comforting instead of unsettling.
+--
+-- PURELY ADDITIVE: one new nullable column. No new table, no constraint, no
+-- default, no backfill, no drops, no renames, no enum change. Nothing else in
+-- the schema is touched.
+--
+-- IDEMPOTENT: ADD COLUMN IF NOT EXISTS is a no-op when the column is already
+-- there, so a re-run (or a run against an already-migrated database) is safe.
+--
+-- NULLABLE ON PURPOSE, AND IT STAYS NULLABLE. Every organiser row that exists
+-- today was created without a name and there is nowhere honest to get one from,
+-- so a NOT NULL column would need an invented default and would make every
+-- existing row a lie. New signups collect the name as a required field in the
+-- form; old rows keep NULL, and the code that reads this must handle NULL
+-- rather than assume it. Do NOT "tidy" this into NOT NULL later without a
+-- backfill you can actually justify.
+--
+-- FIRST NAME ONLY, BY INTENT. The form asks for "Your first name" and the copy
+-- that consumes it renders one name inline ("Ellen set this page up for you").
+-- The column is plain text and does not enforce that — it is a product
+-- decision, recorded here so a future full-name field is a deliberate change
+-- rather than an accident.
+
+ALTER TABLE "organisers" ADD COLUMN IF NOT EXISTS "name" text;
+
+-- Verify after applying (expect a row with column_name = 'name',
+-- data_type = 'text', is_nullable = 'YES'):
+--   SELECT column_name, data_type, is_nullable
+--   FROM information_schema.columns
+--   WHERE table_name = 'organisers'
+--   ORDER BY ordinal_position;
+--
+-- Existing rows are untouched and will read NULL (expect a count equal to the
+-- current organiser count):
+--   SELECT count(*) AS unnamed FROM organisers WHERE name IS NULL;
