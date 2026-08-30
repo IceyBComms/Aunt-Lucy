@@ -1,5 +1,6 @@
 import { Resend } from "resend";
 import { logger } from "./logger";
+import { claimAddressee } from "./claimNotifyCopy";
 import { LIFT_WAIT_MODE_HELPER_LINES, type LiftWaitMode } from "./liftWaitMode";
 import { getAppBaseUrl } from "./appUrl";
 import { formatMoney, gstRateLabel, type GstBreakdown } from "./gst";
@@ -655,8 +656,28 @@ export interface RecipientClaimItem {
 export interface RecipientClaimNotificationParams {
   to: string;
   recipientFirstName: string;
-  /** The recipient's private /manage link — "see who's helping". */
+  /**
+   * THIS reader's own private /manage link. Not shared between targets: each
+   * grant holder has their own token, so a manager never receives the
+   * recipient's private handle (bug #025).
+   */
   manageLink: string;
+  /**
+   * Is the reader the person the page is ABOUT, or someone running it for them?
+   *
+   * The copy was written for the recipient. Sent unchanged to the sister
+   * running the page it says "someone's just shown up for you" and "you're
+   * being looked after", which tells the wrong person they are the one being
+   * cared for — the same fault as bug #039. When false, every addressee in the
+   * copy swaps to the recipient's name. Defaults true so the long-standing
+   * single-recipient case is untouched.
+   */
+  isRecipient?: boolean;
+  /**
+   * Who to greet. The recipient's own first name when she is the reader; a
+   * manager's own first name when it isn't. Falls back to recipientFirstName.
+   */
+  greetingFirstName?: string;
   claims: RecipientClaimItem[];
   /**
    * The page's occasion (gift_occasion enum value), used only to soften the
@@ -683,13 +704,26 @@ export function buildRecipientClaimNotificationEmail(
   // framing jars for someone grieving. Every other occasion is unchanged.
   const bereavement = params.occasion === "bereavement";
 
+  // ── Addressee swap (bug #025) ──────────────────────────────────────────────
+  // The reader who IS the page's person reads "you"; anyone else running the
+  // page reads her name. Shared with the SMS body so the two channels cannot
+  // say different things — see lib/claimNotifyCopy. Plural forms and the
+  // bereavement register are untouched by it: a manager on a bereavement page
+  // still gets the quiet register, addressed to the right person.
+  const isRecipient = params.isRecipient !== false;
+  const { addressee, possessive, possessiveCap, beingLookedAfter } = claimAddressee(
+    recipientFirstName,
+    isRecipient,
+  );
+  const greeting = params.greetingFirstName?.trim() || recipientFirstName;
+
   const subject = bereavement
     ? single
-      ? "Someone's looking after you 💛"
-      : "Your people are here 💛"
+      ? `Someone's looking after ${addressee} 💛`
+      : `${possessiveCap} people are here 💛`
     : single
-      ? "Someone's just shown up for you 💛"
-      : "Your people are showing up 💛";
+      ? `Someone's just shown up for ${addressee} 💛`
+      : `${possessiveCap} people are showing up 💛`;
 
   // Only the lead-in softens; the rest of the sentence and the claim list stay
   // identical across occasions.
@@ -710,16 +744,16 @@ export function buildRecipientClaimNotificationEmail(
     .join("\n");
 
   const contentHtml = `          <p style="margin:0 0 20px;color:#333;font-size:16px;line-height:1.6;">
-            Hi ${escapeHtml(recipientFirstName)},
+            Hi ${escapeHtml(greeting)},
           </p>
           <p style="margin:0 0 16px;color:#333;font-size:16px;line-height:1.6;">
-            ${opener}${single ? "someone's" : "a few of your people have"} stepped in:
+            ${opener}${single ? "someone's" : `a few of ${escapeHtml(possessive)} people have`} stepped in:
           </p>
           <ul style="margin:0 0 24px;padding-left:20px;color:#333;font-size:16px;line-height:1.7;">
 ${itemsHtml}
           </ul>
           <p style="margin:0 0 24px;color:#333;font-size:16px;line-height:1.6;">
-            There's nothing you need to do. We just wanted you to know you're being looked after.
+            There's nothing you need to do. We just wanted you to know ${escapeHtml(beingLookedAfter)}.
           </p>
           ${renderButton(manageLink, "See who's helping")}
           <p style="margin:0;color:#2D6A4F;font-size:15px;line-height:1.6;">
@@ -734,13 +768,13 @@ ${itemsHtml}
     .join("\n");
 
   const text = [
-    `Hi ${recipientFirstName},`,
+    `Hi ${greeting},`,
     ``,
-    `${opener}${single ? "someone's" : "a few of your people have"} stepped in:`,
+    `${opener}${single ? "someone's" : `a few of ${possessive} people have`} stepped in:`,
     ``,
     textItems,
     ``,
-    `There's nothing you need to do. We just wanted you to know you're being looked after.`,
+    `There's nothing you need to do. We just wanted you to know ${beingLookedAfter}.`,
     ``,
     `See who's helping: ${manageLink}`,
     ``,

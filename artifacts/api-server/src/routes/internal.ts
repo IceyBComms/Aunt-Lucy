@@ -13,6 +13,9 @@ import {
 } from "@workspace/db";
 import { and, eq, inArray, isNull, isNotNull, lte, ne, sql } from "drizzle-orm";
 import { logger } from "../lib/logger";
+import { isContactSuppressed, resolvePageNotifyTargets } from "../lib/notifyTargetsDb";
+import { notifyPageOfClaims } from "../lib/claimNotifyDispatch";
+import { buildRecipientClaimSms } from "../lib/claimNotifyCopy";
 import { LIFT_WAIT_MODE_HELPER_LINES } from "../lib/liftWaitMode";
 import { firstName, giftLinkFor, sealCard } from "../lib/giftFulfilment";
 import {
@@ -579,7 +582,12 @@ router.post("/internal/dispatch-claim-notifications", async (req, res) => {
       and(
         eq(slotsTable.isClaimed, true),
         isNull(slotsTable.recipientNotifiedAt),
-        isNotNull(supportPagesTable.recipientEmail),
+        // Bug #025: this used to require supportPagesTable.recipientEmail, a
+        // column crisis and organiser pages never populate — so those pages
+        // were never even considered and a claim on them reached nobody. The
+        // audience now comes from resolvePageNotifyTargets below, which counts
+        // active grants too. A page that still resolves to nobody is left
+        // un-stamped exactly as before, so nothing is lost.
         ne(supportPagesTable.status, "closed"),
       ),
     )
@@ -611,19 +619,22 @@ router.post("/internal/dispatch-claim-notifications", async (req, res) => {
     const page = await db.query.supportPagesTable.findFirst({
       where: eq(supportPagesTable.id, pageId),
     });
-    if (!page || !page.recipientEmail) {
-      // Lost the email between select and now — release the rows for a retry.
+    if (!page) {
       await releaseNotificationStamp(rows.map((r) => r.id), now);
       continue;
     }
 
-    // The recipient's own management link — "see who's helping".
-    const grant = await db.query.pageGrantsTable.findFirst({
-      where: and(eq(pageGrantsTable.pageId, pageId), eq(pageGrantsTable.role, "recipient")),
-    });
-    const manageLink = grant
-      ? `${base}/manage/${grant.token}`
-      : `${base}/s/${page.slug}`;
+    // Bug #025: who hears about this page — the page-level contact AND every
+    // unrevoked grant with its own contact, de-duplicated. Shared with the
+    // release/reschedule/note path so the two can never diverge again.
+    const targets = await resolvePageNotifyTargets(page);
+    if (targets.length === 0) {
+      // Nobody to tell YET. Leave the claims un-stamped so the moment a contact
+      // or a grant appears, the next run picks the whole backlog up. The
+      // /manage "help arriving" view is the always-on fallback meanwhile.
+      await releaseNotificationStamp(rows.map((r) => r.id), now);
+      continue;
+    }
 
     const claims: RecipientClaimItem[] = rows.map((s) => ({
       helperName: s.claimedByName ?? "A friend",
@@ -634,20 +645,44 @@ router.post("/internal/dispatch-claim-notifications", async (req, res) => {
       note: s.claimedNote,
     }));
 
-    const ok = await sendRecipientClaimNotification({
-      to: page.recipientEmail,
-      recipientFirstName: firstName(page.recipientName),
-      manageLink,
-      claims,
-      occasion: page.occasion ?? null,
+    const tally = await notifyPageOfClaims({
+      page: {
+        id: page.id,
+        slug: page.slug,
+        recipientName: page.recipientName,
+        occasion: page.occasion ?? null,
+      },
+      targets,
+      claimCount: claims.length,
+      buildSmsBody: buildRecipientClaimSms,
+      onError: (err, contact) =>
+        logger.error({ err, contact, pageId }, "Claim notification threw for one reader"),
+      senders: {
+        sendEmail: (a) =>
+          sendRecipientClaimNotification({
+            to: a.to,
+            recipientFirstName: a.recipientFirstName,
+            greetingFirstName: a.greetingFirstName,
+            isRecipient: a.isRecipient,
+            manageLink: a.manageLink,
+            claims,
+            occasion: a.occasion,
+          }),
+        sendSms: (a) => sendSms({ to: a.to, body: a.body, label: "recipientClaimDigest" }),
+        isSuppressed: isContactSuppressed,
+        manageLinkFor: (token) => `${base}/manage/${token}`,
+        publicPageLink: (slug) => `${base}/s/${slug}`,
+      },
     });
 
-    if (ok) {
+    if (tally.delivered > 0 && tally.failed === 0) {
       pagesNotified += 1;
       claimsNotified += rows.length;
     } else {
       failed += 1;
-      // Revert so the next run retries rather than dropping the news entirely.
+      // Ruling 3 — one stamp, N readers. We cannot record a partial success, so
+      // the whole page reverts and everyone is re-sent next run. A duplicate
+      // note about your own page costs nothing; silence costs you the news.
       await releaseNotificationStamp(rows.map((r) => r.id), now);
     }
   }
