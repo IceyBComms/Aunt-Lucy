@@ -91,9 +91,51 @@ export const LIFT_WAIT_MODE_HINTS: Record<LiftWaitMode, string> = {
  * the string that actually fixes the bug: without it the tile shows a lift and
  * a time and nothing about whether the afternoon is gone.
  */
+/**
+ * Bug #073 — how long the helper's calendar is ACTUALLY blocked.
+ *
+ * ⚠️ MUST MATCH `LIFT_WAIT_MODE_MINUTES` in
+ * `artifacts/api-server/src/lib/liftWaitMode.ts`. A drift test in the
+ * api-server suite reads THIS file and fails if the two disagree, because a
+ * mismatch is not a cosmetic bug: the tile would promise the helper one thing
+ * while their diary reserved another.
+ *
+ * Duplicated rather than shared because rally's only workspace dependency is
+ * @workspace/api-client-react — there is no shared home for this yet. The test
+ * is what makes the duplication safe.
+ */
+export const LIFT_WAIT_MODE_MINUTES: Record<LiftWaitMode, number> = {
+  drop_off: 60,
+  wait: 240,
+  pick_up: 60,
+};
+
+/** "4 hours" / "an hour" / "90 minutes" — a duration a person would say aloud. */
+export function approxDuration(minutes: number): string {
+  if (minutes < 60) return `${minutes} minutes`;
+  if (minutes === 60) return "an hour";
+  if (minutes % 60 === 0) return `${minutes / 60} hours`;
+  return `${(minutes / 60).toFixed(1).replace(/\.0$/, "")} hours`;
+}
+
+/**
+ * Bug #073 — the wait pill now states the duration the calendar already blocks.
+ *
+ * It used to read "Waiting — allow for the whole appointment" and never say how
+ * long, even though the system already knew: #033 reserves 240 minutes for a
+ * waiting lift. So the helper's CALENDAR told them half a day was gone while
+ * the tile they actually read before claiming told them nothing. The
+ * information existed and was being withheld from the one person who needed it.
+ *
+ * Derived from the constant above rather than typed out, so the tile and the
+ * diary entry cannot drift apart — which is the whole fault this fixes.
+ *
+ * Only the wait line changes. Drop-off and pick-up are short, self-evident and
+ * were never what Kate hit.
+ */
 export const LIFT_WAIT_MODE_TILE_LINES: Record<LiftWaitMode, string> = {
   drop_off: "Drop off only",
-  wait: "Waiting — allow for the whole appointment",
+  wait: `Waiting — allow up to about ${approxDuration(LIFT_WAIT_MODE_MINUTES.wait)}`,
   pick_up: "Pick up only",
 };
 

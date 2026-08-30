@@ -5,6 +5,7 @@ import { SlotCard } from "@/components/SlotCard";
 import { ClaimDialog } from "@/components/ClaimDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Heart, MapPin, ShieldAlert, Loader2, Clock } from "lucide-react";
 import { motion } from "framer-motion";
 import type { SlotResponse, ClaimSlotRequest } from "@workspace/api-client-react";
@@ -55,12 +56,32 @@ export default function SupportPage() {
           animate={{ opacity: 1, scale: 1 }}
           className="w-full max-w-md bg-card rounded-3xl p-8 shadow-xl border border-border/50 text-center"
         >
+          {/*
+            Bug #072 — this screen used to read "Protected Page — This support
+            page requires a PIN to view. Please enter it below.": system-shaped
+            language on a page about someone's worst week, and for some helpers
+            the FIRST Aunt Lucy they ever meet. Copy below is Kate's approved
+            wording, verbatim.
+
+            NO NAME IS INTERPOLATED, DELIBERATELY. The page is protected, so the
+            recipient's name may not be available here — and a blank where a
+            name should be reads as a fault, not as discretion.
+
+            ONLY THE WORDS CHANGED. The brief is explicit that the PIN feature
+            itself is a hit and "this is only the words", so the shield icon and
+            the layout are untouched even though a padlock-and-alarm motif is
+            arguably still the cold part. That is Kate's call to make, not a
+            change to slip in alongside approved copy.
+          */}
           <div className="w-16 h-16 bg-secondary rounded-2xl flex items-center justify-center mx-auto mb-6 text-primary">
             <ShieldAlert className="w-8 h-8" />
           </div>
-          <h1 className="text-3xl font-serif font-bold text-foreground mb-3">Protected Page</h1>
-          <p className="text-muted-foreground mb-8">
-            This support page requires a PIN to view. Please enter it below.
+          <h1 className="text-3xl font-serif font-bold text-foreground mb-3">
+            Just checking it&rsquo;s you
+          </h1>
+          <p className="text-muted-foreground mb-8 leading-relaxed">
+            This page is kept private, so it needs a short code. Whoever sent you the
+            link will have it.
           </p>
           <form 
             onSubmit={(e) => {
@@ -72,9 +93,14 @@ export default function SupportPage() {
             }}
             className="space-y-4"
           >
-            <Input 
-              type="password" 
-              placeholder="Enter PIN" 
+            <Label htmlFor="pin" className="sr-only">
+              Your code
+            </Label>
+            <Input
+              id="pin"
+              type="password"
+              placeholder="Your code"
+              aria-label="Your code"
               value={pinInput}
               onChange={(e) => { setPinInput(e.target.value); setPinSubmitted(false); }}
               className={`text-center text-2xl tracking-widest py-4 h-auto${pinSubmitted && isError ? " border-destructive focus-visible:ring-destructive/20" : ""}`}
@@ -85,8 +111,8 @@ export default function SupportPage() {
                 That PIN isn't right. Please check with the person who shared this link.
               </p>
             )}
-            <Button type="submit" size="lg" className="w-full text-lg">
-              View Page
+            <Button type="submit" size="lg" className="w-full text-lg font-serif">
+              Open the page
             </Button>
           </form>
         </motion.div>
