@@ -125,6 +125,43 @@ which point the occasion-aware examples rule will need a real test anyway and #0
 is no shared home for them. That duplication is guarded by a drift test that reads rally's source and fails if the two tables
 disagree — so the comment describes a rule the suite actually enforces. That is the shape to aim for.
 
+### P7 — Fix the CLASS, not the instance
+
+⚠️ **NUMBERED P7, NOT P6, DELIBERATELY.** Kate proposed this as "P6" on 30 Aug, but P6 (*the picture and the words must agree*) was
+already written that evening and is sitting in PR #98. Renumbering here keeps both rather than silently overwriting one. If the
+number matters more than the collision, rename at merge — but do not lose either pattern.
+
+**Six times on 30 August a fault was fixed WHERE IT WAS REPORTED while the same string, shape or fault stood untouched elsewhere.**
+The six are two classes of three:
+
+**The ADDRESSEE class — a string written for one reader, reaching another:**
+- **#039** — *"Zara has asked you to help run Zara's Aunt Lucy page"*: the granter name resolves to the recipient's own, so it doubles.
+- **#025** — the claim notification said *"someone's shown up for you"* to a manager running the page. **Fixed 30 Aug.**
+- **#085** — the *"keep this link"* email greets *"Hi Tammy"* and sends it to `fergus@`. **Still open** — and it was never in scope
+  when #025's swap was built that same afternoon.
+
+**The OCCASION-COPY class — words that assume an occasion the reader isn't having:**
+- **#058** — there was no `surgery` occasion at all, while the delivery email already carried a `surgery` branch waiting for it.
+- **#076** — the activation explainer names *"a meal, a lift, the school run"* on EVERY occasion, bereavement included.
+- **#076's second surface** — the same string in `homepageFooterLine()`, carried by two emails. **Found only because Kate read one.**
+
+⚖️ **THE RULE: when a bug is a CLASS — one string in many places, one shape in many templates — the fix is not done when the reported
+instance is fixed. It is done when the class has been SWEPT and the sweep is RECORDED.** A grep for the string, or for the shape, and
+a line in the row saying where else it was found and what was done about each. "I fixed the one they mentioned" is a report of
+progress, not of completion.
+
+🔑 **THE SHARPEST DETAIL, and the reason this is a pattern rather than three coincidences: TWO OF THE MISSES WERE IN FILES EDITED THAT
+SAME DAY.** #085's `crisis.ts` was edited that afternoon for #081. #076's footer sits in `buildRecipientClaimNotificationEmail` —
+the very template whose addressee swap was rewritten for #025 hours earlier. Being *inside the file* is not enough; nobody was
+looking for the class, so nobody saw it. **Proximity is not detection.**
+
+📌 **The cheap discipline this implies, and it costs about a minute:** before closing a copy or addressee bug, grep the repo for the
+offending string and for its siblings, and paste the hit list into the row — even when the answer is "one hit, nothing else to
+sweep". A recorded empty sweep is evidence; an unrecorded one is indistinguishable from never having looked.
+
+⚖️ **Relationship to the other patterns:** P5 says a rule guarded only by a comment is not guarded; P7 says a fix applied only where
+it was reported is not finished. Both are about the gap between *addressed* and *actually covered*.
+
 ---
 
 ## Open bugs
