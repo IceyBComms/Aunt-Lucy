@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import { motion } from "framer-motion";
 import { Heart, CheckCircle2, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { SiteFooter } from "@/components/SiteFooter";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { apiFetch } from "@/lib/api";
@@ -305,11 +306,7 @@ export default function PilotApply() {
       </div>
 
       {/* Footer */}
-      <footer className="border-t border-border/50 py-6 px-6 mt-12">
-        <div className="max-w-2xl mx-auto text-sm text-muted-foreground text-center">
-          © {new Date().getFullYear()} Aunt Lucy · auntlucy.com.au
-        </div>
-      </footer>
+      <SiteFooter compact />
     </div>
   );
 }
