@@ -21,12 +21,14 @@ import { formatPrice } from "@/lib/money";
 const OCCASIONS: { value: GiftOccasion; emoji: string; label: string }[] = [
   { value: "new_baby", emoji: "🍼", label: "New baby" },
   { value: "illness_recovery", emoji: "🏥", label: "Illness or recovery" },
-  // Bug #058. Label from the approved copy; glyph approved separately by Kate
-  // on 30 Aug 2026, since the copy fixed the words but not the emoji. 🩹 rather
-  // than anything more clinical: 🏥 is already spent on illness, and a bandage
-  // reads RECOVERY rather than sickness — which is the whole distinction this
-  // occasion exists to draw. Someone having a knee done in three weeks is well.
-  { value: "surgery", emoji: "🩹", label: "Surgery or a procedure" },
+  // Bug #058. Label from the approved copy. NO EMOJI, and that is deliberate —
+  // Kate's call, 30 Aug 2026, after seeing 🩹 proposed. "Something else" already
+  // carries none, so an unglyphed pill is an existing shape here rather than a
+  // gap; the render is empty because `opt.emoji &&` skips the span entirely.
+  // Every candidate was either clinical (🏥 is taken by illness anyway, 🩺, ⚕️)
+  // or said nothing about the occasion (💚), and this is the one field whose
+  // job is to be read carefully rather than recognised at a glance.
+  { value: "surgery", emoji: "", label: "Surgery or a procedure" },
   { value: "bereavement", emoji: "💙", label: "Loss" },
   { value: "ongoing_support", emoji: "🤍", label: "Ongoing support" },
   { value: "other", emoji: "", label: "Something else" },
