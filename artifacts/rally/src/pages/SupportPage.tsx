@@ -6,7 +6,7 @@ import { ClaimDialog } from "@/components/ClaimDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Heart, MapPin, ShieldAlert, Loader2, Clock } from "lucide-react";
+import { Heart, MapPin, Loader2, Clock } from "lucide-react";
 import { motion } from "framer-motion";
 import type { SlotResponse, ClaimSlotRequest } from "@workspace/api-client-react";
 
@@ -67,15 +67,22 @@ export default function SupportPage() {
             recipient's name may not be available here — and a blank where a
             name should be reads as a fault, not as discretion.
 
-            ONLY THE WORDS CHANGED. The brief is explicit that the PIN feature
-            itself is a hit and "this is only the words", so the shield icon and
-            the layout are untouched even though a padlock-and-alarm motif is
-            arguably still the cold part. That is Kate's call to make, not a
-            change to slip in alongside approved copy.
+            THE PICTURE HAD TO AGREE WITH THE WORDS (Kate, 30 Aug; see PATTERN
+            P6). This first shipped as copy-only, leaving a shield-and-alarm
+            icon sitting above "Just checking it's you" — a security motif
+            framing a friend arriving to help as a threat to be screened, and
+            arguing with every word beneath it. The teacup replaces it: for some
+            helpers this screen is the first Aunt Lucy they ever meet, so the
+            mark is doing useful work rather than merely being harmless.
           */}
-          <div className="w-16 h-16 bg-secondary rounded-2xl flex items-center justify-center mx-auto mb-6 text-primary">
-            <ShieldAlert className="w-8 h-8" />
-          </div>
+          <img
+            src="/brand/aunt-lucy-mark.svg"
+            alt=""
+            className="w-14 h-14 mx-auto mb-6"
+            onError={(e) => {
+              (e.currentTarget as HTMLImageElement).style.display = "none";
+            }}
+          />
           <h1 className="text-3xl font-serif font-bold text-foreground mb-3">
             Just checking it&rsquo;s you
           </h1>
