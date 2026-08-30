@@ -23,6 +23,7 @@ import { firstName } from "./giftFulfilment";
 import { sendSms } from "./sms";
 import { sendItem17Email } from "./email";
 import { logger } from "./logger";
+import { setupPersonGrantInput } from "./setupPersonGrant";
 
 function isEmailAddress(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
@@ -295,6 +296,61 @@ export async function mintManagerGrant(opts: {
   });
 
   return { grant, delivered };
+}
+
+/**
+ * Put the SETUP PERSON on the page's own access list (bug #081).
+ *
+ * WHY THIS EXISTS
+ * #025 widened who a notification can reach — the page's own contact plus every
+ * unrevoked grant. That fix is correct and deployed. But on the crisis and
+ * organiser paths the resulting set was EMPTY: neither flow sets a page-level
+ * contact, and the only grant either could mint was for the AFFECTED person,
+ * gated on having their contact AND ticking "they're ready to know". So the
+ * person actually running the page — who typed their own email into the form
+ * and is doing all the work — was never a notification target at all. A friend
+ * would say "I'll bring dinner Tuesday" and nobody would ever be told.
+ *
+ * Kate's framing, and it is the reason this is a one-line concept rather than a
+ * feature: `page_grants` is what models RUNS in the handover model — whoever is
+ * doing the work today. The setup person IS runs. This is not new machinery,
+ * it is the existing model finally being applied on the path that needs it most.
+ *
+ * ⚠️ IT SENDS NOTHING, DELIBERATELY. mintManagerGrant exists for handing the
+ * page to SOMEONE ELSE, so it messages them their link. This person is already
+ * holding the page — they are mid-setup on it in this very request — so an
+ * email saying "you've been added to help run this page" would be noise at
+ * best and confusing at worst. The grant is bookkeeping, not an announcement.
+ *
+ * ROLE IS THE CALLER'S CALL AND IT MATTERS FOR THE WORDS, not just for access.
+ * `isRecipient` on a grant drives the addressee swap in every claim
+ * notification ("shown up for you" vs "shown up for Val"). Someone setting a
+ * page up for a friend is a `manager` and reads the friend's name; someone
+ * setting one up for themselves is the `recipient` and reads "you". Passing
+ * the wrong one here tells a grieving person about themselves in third person.
+ *
+ * `grantedByGrantId` is null: this grant is the ORIGIN of the page's access
+ * chain, not something issued by an earlier grant.
+ */
+export async function grantSetupPersonAccess(opts: {
+  pageId: string;
+  /** The email or mobile they gave when creating the page. */
+  contact: string;
+  /** Their own name, when the form collected one. */
+  name: string | null;
+  /** True when the page is about the person setting it up. */
+  forSelf: boolean;
+}): Promise<PageGrant> {
+  const [grant] = await db
+    .insert(pageGrantsTable)
+    .values({
+      pageId: opts.pageId,
+      token: newToken(),
+      grantedByGrantId: null,
+      ...setupPersonGrantInput(opts),
+    })
+    .returning();
+  return grant;
 }
 
 /**

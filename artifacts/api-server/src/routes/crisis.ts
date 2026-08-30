@@ -13,7 +13,7 @@ import { sendMagicLink, sendCrisisPageSaved } from "../lib/email";
 import { getAppBaseUrl } from "../lib/appUrl";
 import { hitRateLimit } from "../lib/rateLimit";
 import { logger } from "../lib/logger";
-import { grantRecipientAccess } from "../lib/accessGrants";
+import { grantRecipientAccess, grantSetupPersonAccess } from "../lib/accessGrants";
 import type { Occasion } from "../lib/occasion";
 
 const router: IRouter = Router();
@@ -113,13 +113,35 @@ router.post("/crisis/pages", async (req, res) => {
   });
 
   let hasExistingPages = false;
+  // The setup person's own first name (migration 0014). Required by the form
+  // for a someone-else page, and the self name on a for-myself one; #074's
+  // "[Ellen] set this page up for you" line has nowhere else to get it from.
+  const organiserName =
+    typeof (req.body as any)?.organiserName === "string"
+      ? (req.body as any).organiserName.trim() || null
+      : null;
+  // Is the person filling this in the subject of the page, or setting it up for
+  // somebody else? Sent by the #070 fork. Defaults to "someone else", which is
+  // both the form's default and the safer assumption: it never addresses a
+  // grieving person about themselves in the third person by mistake.
+  const forSelf = (req.body as any)?.forSelf === true;
+
   if (!organiser) {
     const [created] = await db
       .insert(organisersTable)
-      .values({ email: emailTrimmed })
+      .values({ email: emailTrimmed, name: organiserName })
       .returning();
     organiser = created;
   } else {
+    // Fill in a name we never had. Never overwrite one we do — a returning
+    // organiser's established name is not this form's to change.
+    if (!organiser.name && organiserName) {
+      await db
+        .update(organisersTable)
+        .set({ name: organiserName })
+        .where(eq(organisersTable.id, organiser.id));
+      organiser = { ...organiser, name: organiserName };
+    }
     const existing = await db.query.supportPagesTable.findFirst({
       where: eq(supportPagesTable.organiserId, organiser.id),
       columns: { id: true },
@@ -143,6 +165,24 @@ router.post("/crisis/pages", async (req, res) => {
     })
     .returning();
 
+  // Bug #081 — the person setting this up goes on the page's access list NOW,
+  // so a claim actually reaches somebody. Before this, a crisis page had no
+  // page-level contact and no grants unless section E below happened to fire,
+  // which meant "someone claimed a task" reached nobody at all. Sends nothing:
+  // they are holding the page already.
+  await grantSetupPersonAccess({
+    pageId: page.id,
+    contact: emailTrimmed,
+    name: organiserName,
+    // For-self: they ARE the page's person, so the claim note says "for you".
+    // Otherwise they are running it for someone and read that person's name.
+    forSelf,
+  });
+  logger.info(
+    { event: "setup_person_granted", pageId: page.id, forSelf, flow: "crisis" },
+    "Setup person added to the page's access list",
+  );
+
   // Section E — the affected person's own always-on access ("nothing about them
   // without them"). Optional at setup, and only acted on when the setup person
   // both has their contact AND says they're ready to be looped in. When not
@@ -162,7 +202,9 @@ router.post("/crisis/pages", async (req, res) => {
       ? /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientContact)
       : /\d/.test(recipientContact));
 
-  if (recipientContact && recipientReady && contactLooksValid) {
+  // Skipped entirely on a for-self page: there is no separate person to loop
+  // in, and a second recipient grant would double-notify the same human.
+  if (!forSelf && recipientContact && recipientReady && contactLooksValid) {
     await grantRecipientAccess({
       pageId: page.id,
       recipientName: nameTrimmed,

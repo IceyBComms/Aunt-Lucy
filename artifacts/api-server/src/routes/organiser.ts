@@ -1,5 +1,11 @@
 import { Router, type IRouter } from "express";
-import { db, supportPagesTable, slotsTable, pilotApplicationsTable } from "@workspace/db";
+import {
+  db,
+  supportPagesTable,
+  slotsTable,
+  organisersTable,
+  pilotApplicationsTable,
+} from "@workspace/db";
 import { eq, and, desc } from "drizzle-orm";
 import { requireAuth, type AuthRequest } from "../middleware/requireAuth";
 import { hashPin } from "../lib/pin";
@@ -7,7 +13,7 @@ import { isAdminEmail } from "../lib/admin";
 import { uniqueSlug } from "../lib/slug";
 import { defaultFlexibility } from "../lib/slotFlexibility";
 import { asLiftWaitMode, isLiftCandidate } from "../lib/liftWaitMode";
-import { grantRecipientAccess } from "../lib/accessGrants";
+import { grantRecipientAccess, grantSetupPersonAccess } from "../lib/accessGrants";
 import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
@@ -78,6 +84,22 @@ router.post("/organiser/pages", requireAuth as any, async (req, res) => {
   // only when the setup person has their contact AND says they're ready to be
   // looped in. Not-ready / blank persists nothing (Option 1); the /manage nudge
   // invites completing it later. Both outcomes logged for Option 1 sizing.
+  // Bug #081 — same as the crisis path: whoever built this page is on its
+  // access list, so claims reach them. Always "manager" here: the organiser
+  // wizard has no "who is this for?" fork (that is #070, crisis-path only) and
+  // its whole framing is building a page FOR someone. If a fork is ever added
+  // to this form, the role must follow it — see grantSetupPersonAccess.
+  const organiserRow = await db.query.organisersTable.findFirst({
+    where: eq(organisersTable.id, authReq.organiserId),
+    columns: { name: true },
+  });
+  await grantSetupPersonAccess({
+    pageId: page.id,
+    contact: authReq.organiserEmail,
+    name: organiserRow?.name ?? null,
+    forSelf: false,
+  });
+
   const recipientContact =
     typeof (req.body as any)?.recipientContact === "string"
       ? (req.body as any).recipientContact.trim()
