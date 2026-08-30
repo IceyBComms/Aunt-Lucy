@@ -93,7 +93,15 @@ function emptySlot(): SlotDraft {
     slotType: "meal",
     customLabel: "",
     slotDate: today(),
-    slotTime: "18:00",
+    // Bug #082 — EMPTY, not 6pm. The field is labelled "(optional)" and used to
+    // arrive holding a time nobody chose, so a helper could read a task and turn
+    // up at 6pm because the page said 6pm. A form that states a value and calls
+    // it optional is contradicting itself in the same breath.
+    //
+    // ⚠️ THIS DOES NOT WEAKEN #033. A lift still REQUIRES a time on this path —
+    // the liftMissingTime guard below refuses to submit without one. Optional
+    // means the person chooses, not that the product stops asking.
+    slotTime: "",
     notes: "",
     dietaryNotes: "",
     headcount: "",
@@ -278,13 +286,13 @@ function SlotForm({
                   trustedHelpersOnly: SENSITIVE_TYPES.has(t.value)
                     ? true
                     : slot.trustedHelpersOnly,
-                  // Nudge the time toward a school-pickup-shaped default when
-                  // switching to a pickup, but only if it's still the untouched
-                  // meal default — never stomp a time the organiser chose.
-                  slotTime:
-                    t.value === "school_pickup" && slot.slotTime === "18:00"
-                      ? "15:00"
-                      : slot.slotTime,
+                  // Bug #082 — the school-pickup nudge is GONE, not ported. It
+                  // existed to correct a bad default (6pm on a school pickup) by
+                  // replacing it with a better guess. With no default there is
+                  // nothing to correct, and guessing 3pm here would just be the
+                  // same bug wearing a friendlier number: a time nobody chose,
+                  // on a field that says optional.
+                  slotTime: slot.slotTime,
                   // Bug #033 — drop the wait answer if this stops being a lift,
                   // so switching errand → meal can never carry a stale
                   // "wait and bring them home" onto a lasagne.
