@@ -3,6 +3,10 @@ import {
   db,
   supportPagesTable,
   slotsTable,
+  // giftsTable: #071's draft-delete guard (a gift page is a draft when
+  // activation is scheduled). organisersTable: #081's setup-person name.
+  // Both sides of this merge added one symbol; the union keeps both.
+  giftsTable,
   organisersTable,
   pilotApplicationsTable,
 } from "@workspace/db";
@@ -15,6 +19,7 @@ import { defaultFlexibility } from "../lib/slotFlexibility";
 import { asLiftWaitMode, isLiftCandidate } from "../lib/liftWaitMode";
 import { grantRecipientAccess, grantSetupPersonAccess } from "../lib/accessGrants";
 import { logger } from "../lib/logger";
+import { canDeleteDraft } from "../lib/draftDeletion";
 
 const router: IRouter = Router();
 
@@ -269,6 +274,70 @@ router.delete("/organiser/slots/:slotId", requireAuth as any, async (req, res) =
 
   await db.delete(slotsTable).where(eq(slotsTable.id, slotId));
   res.json({ ok: true });
+});
+
+/**
+ * DELETE /api/organiser/pages/:pageId — throw away a DRAFT page (bug #071).
+ *
+ * A draft could be neither re-opened nor deleted, so an abandoned attempt sat
+ * on the dashboard for ever with no way in and no way out. Kate's own dashboard
+ * carries eight of them, seven called "Support for Val". On the crisis path
+ * that is the serious half: someone setting up help for a dying relative gets
+ * interrupted — the single most likely thing to happen to that person — and
+ * their half-finished attempt becomes permanent clutter they cannot clear.
+ *
+ * ⚠️ DRAFT ONLY, AND THE GUARDS ARE THE POINT. Deleting a LIVE page would be a
+ * far worse bug than the one this fixes: helpers have committed to real tasks
+ * and a family is depending on them. Three independent locks, each of which
+ * would be sufficient on its own:
+ *
+ *   1. OWNERSHIP — the page must belong to the caller. This also happens to
+ *      exclude every gift page, because those are created with organiserId
+ *      null (gifts.ts) and NULL never equals a real id.
+ *   2. STATUS — draft only. Active and closed both refuse.
+ *   3. NO GIFT ATTACHED — belt and braces, and NOT redundant. A gift page IS
+ *      created as a draft when the recipient schedules activation for later
+ *      (`status: scheduledActivateAt ? "draft" : "active"`, gifts.ts:568), so
+ *      "draft" alone does not mean "disposable". Deleting one would destroy a
+ *      page somebody paid $59 for AND null its gifts.page_id (the FK is
+ *      onDelete: "set null"), leaving a gift marked redeemed but pointing at
+ *      nothing. Lock 1 already prevents it today; this lock means it stays
+ *      prevented if page ownership is ever reworked.
+ *
+ * The row really is removed rather than soft-deleted, which the confirm copy
+ * states plainly ("This can't be undone"). Safe to do: every child FK is
+ * onDelete cascade (slots, contacts, helper_invites, page_grants), so nothing
+ * is orphaned and no migration is needed.
+ */
+router.delete("/organiser/pages/:pageId", requireAuth as any, async (req, res) => {
+  const authReq = req as unknown as AuthRequest;
+  const { pageId } = req.params;
+
+  const page = await db.query.supportPagesTable.findFirst({
+    where: eq(supportPagesTable.id, pageId),
+  });
+  const gift = page
+    ? await db.query.giftsTable.findFirst({ where: eq(giftsTable.pageId, page.id) })
+    : undefined;
+
+  const verdict = canDeleteDraft(page, authReq.organiserId, !!gift);
+  if (!verdict.ok) {
+    if (verdict.status === 409 && gift) {
+      logger.warn(
+        { event: "draft_delete_refused_gift_page", pageId, giftId: gift.id },
+        "Refused to delete a draft that belongs to a gift",
+      );
+    }
+    res.status(verdict.status).json({ error: verdict.error });
+    return;
+  }
+
+  await db.delete(supportPagesTable).where(eq(supportPagesTable.id, page!.id));
+  logger.info(
+    { event: "draft_page_deleted", pageId: page!.id, origin: page!.origin },
+    "Draft support page deleted by its organiser",
+  );
+  res.status(204).end();
 });
 
 // POST /api/organiser/pages/:pageId/publish
