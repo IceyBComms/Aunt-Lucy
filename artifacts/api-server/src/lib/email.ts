@@ -1284,7 +1284,14 @@ function giftDeliveryParagraph(
   occasion: string | null | undefined,
   giverName: string,
 ): string {
-  const neutral = `Life's thrown a lot at you lately. ${giverName} has set up a page so the people who love you can help carry some of it — meals, the school run, a friendly face — without you having to ask or organise a thing.`;
+  // #076 sweep site ⑥, and NOT out of scope after all (Kate, 30 Aug). This is
+  // the catch-all: it serves `other`, `ongoing_support` AND any occasion that
+  // fails to map — so it fires precisely in the states nobody anticipated,
+  // which can include a bereavement whose occasion did not resolve. A FALLBACK
+  // IS THE ONE PLACE THAT MUST BE SAFE, because it is what is left when the
+  // thinking runs out. Takes the occasion-safe line rather than naming the
+  // school run to a reader nobody has identified.
+  const neutral = `Life's thrown a lot at you lately. ${giverName} has set up a page so the people who love you can help carry some of it — meals, lifts, the practical bits — without you having to ask or organise a thing.`;
 
   const known: Occasion | null = asOccasion(occasion);
   if (known === null) return neutral;
@@ -1308,7 +1315,21 @@ function giftDeliveryParagraph(
       // offers a fifth thing the page never shows is its own small betrayal.
       return `A procedure is one thing; the weeks afterwards are another. ${giverName} has set up a page so the people around you can have the lifts, the meals and the shopping sorted before you're home — without you having to ask for any of it.`;
     case "bereavement":
-      return `There are no right words for a time like this. ${giverName} has set up a page so the people who love you can quietly take a few things off your plate — meals, the school run, a friendly face — without you having to ask or organise a thing.`;
+      // #076 sweep site ②. This is BODY copy on the branch written specifically
+      // for a bereaved reader, and it named the school run — while the surgery
+      // branch directly above deliberately omits it (#058), with a comment
+      // saying why. One branch was thought about; the one beside it was not.
+      //
+      // Kate's ruling, 30 Aug, and it is the distinction that matters for this
+      // whole class: THE BUG WAS OCCASION-BLIND WORDING, NEVER OCCASION-SPECIFIC
+      // WORDING. This branch is bereavement-only, so bereavement-appropriate copy
+      // is exactly right here — the fix was never "say less", it was "stop saying
+      // things that assume an occasion the reader is not having".
+      //
+      // So "a friendly face" comes back (warm, and never at fault), and "lifts"
+      // goes: it is the odd one on a grief page, where the suggested task set is
+      // deliberately logistics-free.
+      return `There are no right words for a time like this. ${giverName} has set up a page so the people who love you can quietly take a few things off your plate — meals, a friendly face, the practical bits — without you having to ask or organise a thing.`;
     case "ongoing_support":
     case "other":
       return neutral;
