@@ -41,6 +41,7 @@ const TOKEN = "previewtoken";
 // ?occasion=bereavement etc. — lets one harness prove what every occasion renders.
 const OCCASION = new URLSearchParams(location.search).get("occasion") ?? "new_baby";
 const NO_LINE = new URLSearchParams(location.search).get("noline") === "1";
+const REVIEW_FAILS = new URLSearchParams(location.search).get("reviewfails") === "1";
 const KNOWN = ["new_baby", "illness_recovery", "surgery", "bereavement", "ongoing_support", "other"];
 if (!KNOWN.includes(OCCASION)) {
   throw new Error("preview035: no sample data for occasion " + OCCASION);
@@ -209,7 +210,13 @@ const realFetch = window.fetch.bind(window);
 window.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
   const url =
     typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
-  if (url.endsWith(`/api/gifts/${TOKEN}/review`)) return json(REVIEW);
+  // ?reviewfails=1 — the keepsake call succeeds and the REVIEW call fails. Two
+  // different endpoints back this screen, and only the first is guarded by the
+  // parent page, so this combination is the one worth being able to look at.
+  if (url.endsWith(`/api/gifts/${TOKEN}/review`)) {
+    if (REVIEW_FAILS) return new Response("{}", { status: 500 });
+    return json(REVIEW);
+  }
   if (url.endsWith(`/api/gifts/${TOKEN}`)) return json(GIFT);
   return realFetch(input as any, init);
 }) as typeof window.fetch;
