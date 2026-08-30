@@ -433,6 +433,7 @@ export type ManageInviteStatus =
 
 export const ManageInviteStatus = {
   queued: "queued",
+  sending: "sending",
   sent: "sent",
   failed: "failed",
   cancelled: "cancelled",

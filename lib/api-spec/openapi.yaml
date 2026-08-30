@@ -1803,7 +1803,11 @@ components:
           $ref: "#/components/schemas/InviteChannel"
         status:
           type: string
-          enum: [queued, sent, failed, cancelled]
+          # "sending" is the dispatcher's claim state (bug #048): the batch is
+          # claimed into it, and each invite then moves to sent/failed/cancelled
+          # on its own. A row that stays here is one the dispatcher started and
+          # could not finish — visible on purpose rather than falsely "sent".
+          enum: [queued, sending, sent, failed, cancelled]
         scheduledFor:
           type: string
         sentAt:

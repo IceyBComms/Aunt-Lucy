@@ -1,0 +1,62 @@
+-- Bug #048 — a `sending` state for helper_invites.
+--
+-- Hand-written and hand-applied (NOT drizzle-kit push).
+--
+-- ⚠️ APPLY THIS BEFORE MERGING THE PR, not after — the same rule that #022,
+-- #023, #033 and #058 were all caught by, and here the direction is REQUIRED,
+-- not merely prudent. The moment the new code deploys, the very first thing
+-- /internal/dispatch-invites does is
+--     UPDATE helper_invites SET status = 'sending' ...
+-- to claim its batch. If the enum has not learned the value yet that statement
+-- fails with 22P02 invalid_input_value, the endpoint 500s, and NO invite goes
+-- out at all until it is fixed. Applying early is free; applying late stops
+-- every helper invite in the product.
+--
+-- Purely additive: ONE new value on an existing enum. No new table, no new
+-- column, no default change, no backfill, no drops, no renames. Nothing reads
+-- or writes the new value until the code that uses it is deployed, so
+-- production can carry this safely with the old code still running — which is
+-- exactly why it goes first.
+--
+-- NO TRANSACTION WRAPPER — DELIBERATE, following the 0003 and 0012 precedent.
+-- ALTER TYPE ... ADD VALUE must not be followed by USE of that value in the
+-- same transaction (a standing Postgres restriction). Keeping this file free of
+-- BEGIN/COMMIT lets the ADD VALUE auto-commit on its own, which is the safest
+-- form across Postgres versions. Do not wrap this in a transaction, and do not
+-- merge it into another migration that has one.
+--
+-- IDEMPOTENT: ADD VALUE IF NOT EXISTS is a no-op if the value already exists,
+-- so a re-run (or a run against an already-migrated database) is safe.
+--
+-- WHY `AFTER 'queued'` RATHER THAN APPENDED AT THE END
+--   Sort order is cosmetic — nothing ORDER BYs this enum. The reason to place
+--   it is to keep the physical order of the Postgres type identical to the
+--   declared order in lib/db/src/schema/helperInvites.ts, so a future
+--   `drizzle-kit generate` sees no drift and proposes no spurious recreate.
+--   It also reads in lifecycle order, which is the point of the state.
+--
+-- WHAT THE STATE IS FOR
+--   The dispatcher claims its batch before sending (deliberately — see the
+--   comment on the endpoint). Before this change it claimed by flipping
+--   queued → SENT, so every row was marked delivered before a single message
+--   had left the building. A crash mid-batch left the remainder permanently
+--   marked "sent", having never been sent, with nothing to retry from and
+--   nothing to alert on. Claiming into "sending" keeps the same concurrency
+--   safety and the same one-shot discipline, but a crash now leaves those rows
+--   visibly unfinished instead of silently lying.
+--
+-- NOTE ON EXISTING ROWS: none are touched. There is no such thing as a legacy
+-- 'sending' row, and no row anywhere needs rewriting for the new code to be
+-- correct.
+
+ALTER TYPE "helper_invite_status" ADD VALUE IF NOT EXISTS 'sending' AFTER 'queued';
+
+-- Verify after applying (expect 5 rows, with sending second):
+--   SELECT e.enumlabel
+--   FROM pg_type t JOIN pg_enum e ON e.enumtypid = t.oid
+--   WHERE t.typname = 'helper_invite_status'
+--   ORDER BY e.enumsortorder;
+--
+-- And to find rows stranded by a crash (expect 0 in normal operation):
+--   SELECT id, page_id, name, channel, scheduled_for
+--   FROM helper_invites WHERE status = 'sending';

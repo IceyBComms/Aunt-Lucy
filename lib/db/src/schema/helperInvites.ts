@@ -23,8 +23,18 @@ export const helperInviteChannelEnum = pgEnum("helper_invite_channel", [
 // The outbox lifecycle. "queued" is claimed by the dispatcher when scheduled_for
 // passes; "send now" inserts already past-due and is sent inline. Kept separate
 // from gift_messages on purpose — that queue is email-only and gift-scoped.
+//
+// "sending" is the claim state (bug #048). The dispatcher flips queued →
+// sending to take ownership of a batch, then moves each row individually to
+// sent / failed / cancelled as it goes. It exists so that a hard crash — a
+// process kill, an OOM, Railway pulling the container mid-batch — leaves the
+// unfinished rows visibly stuck in "sending" instead of falsely claiming they
+// were sent. A row sitting in "sending" is a question someone can answer; a row
+// falsely marked "sent" is a helper who was never asked and nobody ever knows.
+// Nothing re-queues a stuck row automatically yet — see bug #009.
 export const helperInviteStatusEnum = pgEnum("helper_invite_status", [
   "queued",
+  "sending",
   "sent",
   "failed",
   "cancelled",
