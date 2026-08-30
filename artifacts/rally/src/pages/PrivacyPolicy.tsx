@@ -1,5 +1,6 @@
 import { useLocation } from "wouter";
 import { TeacupMark } from "@/components/TeacupMark";
+import { SiteFooter } from "@/components/SiteFooter";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -228,11 +229,7 @@ export default function PrivacyPolicy() {
       </div>
 
       {/* Footer */}
-      <footer className="border-t border-border/50 py-6 px-6">
-        <div className="max-w-2xl mx-auto text-sm text-muted-foreground text-center">
-          © {new Date().getFullYear()} Aunt Lucy · auntlucy.com.au
-        </div>
-      </footer>
+      <SiteFooter compact />
     </div>
   );
 }
