@@ -18,6 +18,7 @@ import OrganiseDashboard from "@/pages/OrganiseDashboard";
 import InviteClaim from "@/pages/InviteClaim";
 import ReleaseSlot from "@/pages/ReleaseSlot";
 import Manage from "@/pages/Manage";
+import Welcome from "@/pages/Welcome";
 import GiftExperience from "@/pages/GiftExperience";
 import GiftSigning from "@/pages/GiftSigning";
 import CardReview from "@/pages/CardReview";
@@ -72,6 +73,9 @@ function Router() {
           claim-confirmation email). No account — the token is the key. */}
       <Route path="/release/:token" component={ReleaseSlot} />
 
+      {/* Bug #074 — the doorway the affected person's own link lands on, in
+          front of the management screen. Same token; one screen earlier. */}
+      <Route path="/welcome/:token" component={Welcome} />
       {/* Recipient management — add people, send the Aunt Lucy invites */}
       <Route path="/manage/:token" component={Manage} />
 
