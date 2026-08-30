@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useLocation, useParams } from "wouter";
 import {
   Plus,
@@ -38,6 +38,17 @@ const SLOT_TYPES = [
 ];
 
 const SENSITIVE_TYPES = new Set(["school_pickup", "child_care"]);
+
+/** A task already saved on the server — shown on resume, not re-posted. */
+interface SavedSlot {
+  id: string;
+  slotType: string;
+  customLabel: string | null;
+  slotDate: string | null;
+  slotTime: string | null;
+  trustedHelpersOnly: boolean;
+  isClaimed: boolean;
+}
 
 interface TrustedHelper {
   id: string;
@@ -493,9 +504,64 @@ export default function OrganiseAddSlots() {
   const [, setLocation] = useLocation();
   const { token } = useAuth();
 
-  const [slots, setSlots] = useState<SlotDraft[]>([emptySlot()]);
+  /**
+   * Bug #071 — RESUMING A DRAFT.
+   *
+   * This screen used to start at `[emptySlot()]` unconditionally and never ask
+   * the server what was already saved. That made re-opening a draft actively
+   * dangerous rather than merely missing: every task the person had already
+   * added was invisible, and pressing Continue POSTed the form again, silently
+   * duplicating the lot. So the fix is not "add a link back" — it is this.
+   *
+   * Tasks already on the server are shown as saved, and are removed by deleting
+   * them rather than by editing a copy that would never be written back. The
+   * form below only ever creates NEW ones. Nothing the person typed earlier can
+   * be silently ignored, because nothing here pretends to edit it.
+   */
+  const [savedSlots, setSavedSlots] = useState<SavedSlot[]>([]);
+  const [isLoadingPage, setIsLoadingPage] = useState(true);
+  const [slots, setSlots] = useState<SlotDraft[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    apiFetch<{ status: string; slots: SavedSlot[] }>(`/organiser/pages/${pageId}`, {
+      token: token!,
+    })
+      .then((page) => {
+        if (cancelled) return;
+        setSavedSlots(page.slots);
+        // A fresh page opens on one blank task, exactly as before. A resumed
+        // one opens on what is already there, with no blank task demanding to
+        // be filled in — someone coming back to a half-finished page is being
+        // shown their work, not handed a form.
+        setSlots(page.slots.length > 0 ? [] : [emptySlot()]);
+      })
+      .catch(() => {
+        // Never strand them on a spinner: fall back to the original behaviour.
+        if (!cancelled) setSlots([emptySlot()]);
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoadingPage(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [pageId, token]);
+
+  const isResuming = savedSlots.length > 0;
+
+  async function removeSavedSlot(id: string) {
+    const previous = savedSlots;
+    setSavedSlots((s) => s.filter((sl) => sl.id !== id));
+    try {
+      await apiFetch(`/organiser/slots/${id}`, { method: "DELETE", token: token! });
+    } catch {
+      setSavedSlots(previous);
+      setError("That task couldn't be removed. Please try again.");
+    }
+  }
 
   function addSlot() {
     setSlots((s) => [...s, emptySlot()]);
@@ -544,10 +610,16 @@ export default function OrganiseAddSlots() {
       setError("A lift needs a time so the helper knows when to be there.");
       return;
     }
+    if (slots.length === 0 && savedSlots.length === 0) {
+      setError("Add at least one task before publishing the page.");
+      return;
+    }
     setError(null);
     setIsLoading(true);
 
     try {
+      // Only the NEW tasks are created. Anything already saved is left alone —
+      // re-posting it is exactly the duplication this bug caused.
       for (const slot of slots) {
         const isTrusted =
           SENSITIVE_TYPES.has(slot.slotType) || slot.trustedHelpersOnly;
@@ -607,15 +679,23 @@ export default function OrganiseAddSlots() {
     }
   }
 
+  if (isLoadingPage) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <div className="max-w-lg mx-auto px-5 py-10">
         <button
-          onClick={() => setLocation("/organise/create")}
+          onClick={() => setLocation("/organise/dashboard")}
           className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors mb-8"
         >
           <ArrowLeft className="w-4 h-4" />
-          Back to page details
+          Back to dashboard
         </button>
 
         <div className="mb-8">
@@ -623,13 +703,57 @@ export default function OrganiseAddSlots() {
             Step 2 of 3
           </p>
           <h1 className="font-serif text-3xl font-bold text-foreground mb-2">
-            Add help slots
+            {isResuming ? "Pick up where you left off" : "Add help slots"}
           </h1>
           <p className="text-muted-foreground leading-relaxed">
-            Each slot is one task a helper can claim. School pickups and child
-            care require a personal invitation for safety.
+            {isResuming
+              ? "Nothing has been sent yet. Here's what you'd already added — add more if you'd like, or carry on to publish."
+              : "Each slot is one task a helper can claim. School pickups and child care require a personal invitation for safety."}
           </p>
         </div>
+
+        {isResuming && (
+          <div className="mb-6 space-y-2">
+            <p className="text-sm font-semibold text-foreground/80 pl-1">
+              Already added
+            </p>
+            {savedSlots.map((slot) => {
+              const meta =
+                SLOT_TYPES.find((t) => t.value === slot.slotType) ??
+                SLOT_TYPES[SLOT_TYPES.length - 1];
+              return (
+                <div
+                  key={slot.id}
+                  className="flex items-center gap-3 bg-secondary/40 border border-border/50 rounded-2xl px-4 py-3"
+                >
+                  <span className="text-lg shrink-0" aria-hidden="true">
+                    {meta.icon}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-foreground truncate">
+                      {slot.customLabel || meta.label}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {slot.slotDate
+                        ? format(parseISO(slot.slotDate), "EEE d MMM")
+                        : "Whenever suits"}
+                      {slot.slotTime ? ` · ${slot.slotTime}` : ""}
+                      {slot.trustedHelpersOnly ? " · invitation only" : ""}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removeSavedSlot(slot.id)}
+                    aria-label={`Remove ${slot.customLabel || meta.label}`}
+                    className="shrink-0 text-muted-foreground hover:text-destructive transition-colors p-1"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {slots.map((slot) => (
@@ -648,7 +772,7 @@ export default function OrganiseAddSlots() {
             className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl border-2 border-dashed border-border text-muted-foreground hover:border-primary/40 hover:text-primary transition-colors text-sm"
           >
             <Plus className="w-4 h-4" />
-            Add another slot
+            {isResuming && slots.length === 0 ? "Add another task" : "Add another slot"}
           </button>
 
           {error && <p className="text-sm text-destructive pl-1">{error}</p>}
@@ -658,7 +782,7 @@ export default function OrganiseAddSlots() {
               type="submit"
               size="lg"
               className="w-full font-serif text-base"
-              disabled={isLoading || slots.length === 0}
+              disabled={isLoading || (slots.length === 0 && savedSlots.length === 0)}
             >
               {isLoading ? "Saving & sending invites…" : "Continue — publish page →"}
             </Button>

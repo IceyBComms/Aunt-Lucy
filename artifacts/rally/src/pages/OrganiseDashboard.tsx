@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
-import { Plus, ExternalLink, LogOut, MapPin, Users, Check, Building2 } from "lucide-react";
+import { Plus, ExternalLink, LogOut, MapPin, Users, Check, Building2, ArrowRight, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
@@ -30,6 +30,35 @@ export default function OrganiseDashboard() {
 
   const [pages, setPages] = useState<PageSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  /**
+   * Bug #071 — the draft the person is being asked to confirm deleting.
+   *
+   * PATTERN P1: this is a one-way door, so it gets a warning that names the
+   * REAL cost rather than restating the obvious. What is lost is the setup work
+   * itself; what makes it safe to lose is that nothing has gone out yet. Both
+   * halves are in the copy, so the person can decide rather than guess.
+   */
+  const [pendingDelete, setPendingDelete] = useState<PageSummary | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  async function confirmDelete() {
+    if (!pendingDelete) return;
+    setIsDeleting(true);
+    setDeleteError(null);
+    try {
+      await apiFetch(`/organiser/pages/${pendingDelete.id}`, {
+        method: "DELETE",
+        token: token!,
+      });
+      setPages((p) => p.filter((x) => x.id !== pendingDelete.id));
+      setPendingDelete(null);
+    } catch (err: any) {
+      setDeleteError(err?.message ?? "That draft couldn't be deleted. Please try again.");
+    } finally {
+      setIsDeleting(false);
+    }
+  }
 
   useEffect(() => {
     if (authLoading) return;
@@ -178,12 +207,89 @@ export default function OrganiseDashboard() {
                       </a>
                     </div>
                   )}
+
+                  {/*
+                    Bug #071 — a draft had NO controls at all: no way in, no way
+                    out, and it sat here for ever. Continuing is the primary
+                    action because being interrupted is the normal case, not the
+                    exception — especially on the crisis path.
+                  */}
+                  {page.status === "draft" && (
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setLocation(`/organise/create/${page.id}/slots`)}
+                        className="flex-1 flex items-center justify-center gap-1.5 text-sm py-2 px-3 rounded-xl bg-primary/10 hover:bg-primary/15 text-primary font-medium transition-colors"
+                      >
+                        Continue setting up
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => {
+                          setDeleteError(null);
+                          setPendingDelete(page);
+                        }}
+                        aria-label={`Delete draft for ${page.recipientName}`}
+                        className="flex items-center gap-1.5 text-sm py-2 px-3 rounded-xl bg-secondary/50 hover:bg-secondary/80 text-foreground/70 hover:text-destructive transition-colors"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        Delete
+                      </button>
+                    </div>
+                  )}
                 </motion.div>
               );
             })}
           </div>
         )}
       </div>
+
+      {/*
+        The confirm. Copy is Kate's approved wording, verbatim — it names what
+        is lost AND why losing it is safe, which is what earns the interruption
+        (PATTERN P1). "Keep it" rather than "Cancel": the safe choice should
+        read as a choice, not as backing out.
+      */}
+      {pendingDelete && (
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-foreground/40 px-4 py-6"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="delete-draft-title"
+        >
+          <div className="w-full max-w-sm bg-card rounded-3xl shadow-xl p-6">
+            <h2
+              id="delete-draft-title"
+              className="font-serif text-xl font-bold text-foreground mb-2"
+            >
+              Delete this draft?
+            </h2>
+            <p className="text-muted-foreground leading-relaxed mb-6">
+              Nothing has been sent and nobody has seen it. This can&rsquo;t be undone.
+            </p>
+            {deleteError && (
+              <p className="text-sm text-destructive mb-4">{deleteError}</p>
+            )}
+            <div className="flex flex-col-reverse sm:flex-row gap-2">
+              <Button
+                variant="outline"
+                className="flex-1 font-serif"
+                onClick={() => setPendingDelete(null)}
+                disabled={isDeleting}
+              >
+                Keep it
+              </Button>
+              <Button
+                variant="destructive"
+                className="flex-1 font-serif"
+                onClick={confirmDelete}
+                disabled={isDeleting}
+              >
+                {isDeleting ? "Deleting…" : "Delete"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
