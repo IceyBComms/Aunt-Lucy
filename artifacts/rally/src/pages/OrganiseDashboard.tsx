@@ -229,7 +229,7 @@ export default function OrganiseDashboard() {
                           setPendingDelete(page);
                         }}
                         aria-label={`Delete draft for ${page.recipientName}`}
-                        className="flex items-center gap-1.5 text-sm py-2 px-3 rounded-xl bg-secondary/50 hover:bg-secondary/80 text-foreground/70 hover:text-destructive transition-colors"
+                        className="flex items-center gap-1.5 text-sm py-2 px-3 rounded-xl bg-secondary/50 hover:bg-secondary/80 text-foreground/70 transition-colors"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                         Delete
@@ -269,22 +269,34 @@ export default function OrganiseDashboard() {
             {deleteError && (
               <p className="text-sm text-destructive mb-4">{deleteError}</p>
             )}
+            {/*
+              Kate's rule, 30 Aug: green is the thing you want them to do, quiet
+              is the escape hatch — and deleting a draft nobody has seen IS the
+              escape hatch, not a catastrophe. Red is a currency; spending it
+              here devalues it for the day something genuinely destructive needs
+              it. The seriousness is carried by the sentence above, which says
+              plainly that this can't be undone; the buttons don't need to shout
+              it a second time.
+
+              Order is deliberate: DOM is [Delete, Keep it], so the reversible
+              choice sits on top on a phone and on the right on a desktop — the
+              conventional resting place for the safe one, in both layouts.
+            */}
             <div className="flex flex-col-reverse sm:flex-row gap-2">
               <Button
-                variant="outline"
-                className="flex-1 font-serif"
-                onClick={() => setPendingDelete(null)}
-                disabled={isDeleting}
-              >
-                Keep it
-              </Button>
-              <Button
-                variant="destructive"
+                variant="secondary"
                 className="flex-1 font-serif"
                 onClick={confirmDelete}
                 disabled={isDeleting}
               >
                 {isDeleting ? "Deleting…" : "Delete"}
+              </Button>
+              <Button
+                className="flex-1 font-serif"
+                onClick={() => setPendingDelete(null)}
+                disabled={isDeleting}
+              >
+                Keep it
               </Button>
             </div>
           </div>
