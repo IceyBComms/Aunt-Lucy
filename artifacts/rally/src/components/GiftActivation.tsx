@@ -22,8 +22,10 @@ import {
   useGetGiftReview,
   useActivateGift,
   getGetGiftReviewQueryKey,
+  ApiError,
   type SuggestedTask,
 } from "@workspace/api-client-react";
+import { TeacupMark } from "@/components/TeacupMark";
 import { useQueryClient } from "@tanstack/react-query";
 import { situationHint, trustedHint } from "@/lib/inviteCopyHints";
 import {
@@ -132,9 +134,36 @@ function todayIso(): string {
 
 export function GiftActivation({ token }: { token: string }) {
   const queryClient = useQueryClient();
-  const { data, isLoading } = useGetGiftReview(token, {
-    query: { queryKey: getGetGiftReviewQueryKey(token), enabled: !!token, retry: false },
-  });
+  const { data, isLoading, isError, isFetching, refetch } = useGetGiftReview(
+    token,
+    {
+      query: {
+        queryKey: getGetGiftReviewQueryKey(token),
+        enabled: !!token,
+        /**
+         * Bug #077. This was `retry: false`, which on a stack with known Neon
+         * cold-start 500s meant a single blip was final — and the screen had no
+         * error branch, so the blip rendered an empty activation form with a
+         * live "Make it live" button.
+         *
+         * Retry only what retrying can actually fix. A 4xx is a settled answer
+         * (404 = the link really is wrong) and repeating it just delays the
+         * honest dead-end and hammers the server; a 5xx or a dropped connection
+         * is the transient case this exists for. `ApiError` carries `.status`;
+         * a network failure throws without one, so "no status" retries too.
+         */
+        retry: (failureCount, error) => {
+          const status = error instanceof ApiError ? error.status : null;
+          if (status !== null && status < 500) return false;
+          return failureCount < 2;
+        },
+        // 400ms then 800ms — about 1.2s of extra wait in the worst case, which
+        // is under the threshold where someone starts wondering if it is stuck,
+        // and comfortably longer than a cold start needs to finish waking.
+        retryDelay: (attempt) => 400 * 2 ** attempt,
+      },
+    },
+  );
 
   const [tasks, setTasks] = useState<DraftTask[]>([]);
   const [editingKey, setEditingKey] = useState<string | null>(null);
@@ -319,6 +348,51 @@ export function GiftActivation({ token }: { token: string }) {
             </div>
           </div>
         )}
+      </section>
+    );
+  }
+
+  // ── Couldn't load it (bug #077) ──
+  //
+  // This branch is NOT cosmetic, and it must stay above the form. Everything
+  // below reads `data`, and every one of those reads is optional-chained — so
+  // without this the form renders anyway on a failed fetch: no tasks, both
+  // invite boxes blank, the label reading "— they's…", and "Ready when you are"
+  // above an ENABLED "Make it live". That button is not a no-op. There is no
+  // task-count guard on the client or the server, so pressing it creates a real
+  // live page with zero tasks, mints the grant, and marks the gift redeemed —
+  // after which the review endpoint returns the activated branch forever and
+  // she can never get the pre-built list back.
+  //
+  // It sits AFTER the activated check on purpose: if the page is already live,
+  // "It's live" is still the true and more useful thing to show, even if a
+  // later refetch fails.
+  if (isError || !data) {
+    return (
+      <section className="mx-[1.25rem] mt-8 rounded-[1.6rem] border border-[#e7ddd0] bg-[#faf7f2] px-[1.6rem] py-[2.3rem] text-center">
+        <TeacupMark className="mx-auto mb-5 h-16 w-16 opacity-70" />
+        <h2 className="mb-3 font-serif text-[1.5rem] font-semibold text-[#2c2c2c]">
+          We can't load this page just now
+        </h2>
+        {/* No "error", no status code, no suggestion that she did something
+            wrong. She may be reading this the week before surgery. */}
+        <p className="mx-auto max-w-[34ch] text-[0.98rem] leading-relaxed text-[#52493f]">
+          Nothing's lost, and nothing's been sent. This happens occasionally
+          when the page has been quiet for a while. Give it a moment and try
+          again.
+        </p>
+        <button
+          type="button"
+          onClick={() => void refetch()}
+          disabled={isFetching}
+          className="mt-6 inline-flex items-center gap-2 rounded-full bg-[#2d6a4f] px-6 py-3 font-serif text-[1.02rem] font-semibold text-white shadow-[0_10px_24px_-12px_rgba(45,106,79,0.7)] transition-all hover:-translate-y-0.5 hover:bg-[#245842] disabled:opacity-70"
+        >
+          {isFetching ? (
+            <Loader2 className="h-5 w-5 animate-spin" />
+          ) : (
+            "Try again"
+          )}
+        </button>
       </section>
     );
   }
