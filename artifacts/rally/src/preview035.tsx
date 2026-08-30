@@ -41,7 +41,9 @@ const TOKEN = "previewtoken";
 // ?occasion=bereavement etc. — lets one harness prove what every occasion renders.
 const OCCASION = new URLSearchParams(location.search).get("occasion") ?? "new_baby";
 const NO_LINE = new URLSearchParams(location.search).get("noline") === "1";
-const REVIEW_FAILS = new URLSearchParams(location.search).get("reviewfails") === "1";
+const REVIEW_FAIL_PARAM = new URLSearchParams(location.search).get("reviewfails");
+const REVIEW_FAILS = REVIEW_FAIL_PARAM !== null && REVIEW_FAIL_PARAM !== "0";
+const REVIEW_FAIL_STATUS = REVIEW_FAIL_PARAM === "404" ? 404 : 500;
 const KNOWN = ["new_baby", "illness_recovery", "surgery", "bereavement", "ongoing_support", "other"];
 if (!KNOWN.includes(OCCASION)) {
   throw new Error("preview035: no sample data for occasion " + OCCASION);
@@ -214,7 +216,16 @@ window.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
   // different endpoints back this screen, and only the first is guarded by the
   // parent page, so this combination is the one worth being able to look at.
   if (url.endsWith(`/api/gifts/${TOKEN}/review`)) {
-    if (REVIEW_FAILS) return new Response("{}", { status: 500 });
+    // Counted so the RETRY POLICY can be observed. The stub replaces
+    // window.fetch, so no real request leaves the page and devtools/CDP see
+    // nothing — this counter is the only way to check that a 500 is actually
+    // retried rather than merely configured to be.
+    (window as unknown as { __reviewCalls?: number }).__reviewCalls =
+      ((window as unknown as { __reviewCalls?: number }).__reviewCalls ?? 0) + 1;
+    // reviewfails=1 → 500 (transient, retried). reviewfails=404 → a settled
+    // 4xx, which must NOT be retried: repeating a genuinely bad link just
+    // delays the honest dead-end.
+    if (REVIEW_FAILS) return new Response("{}", { status: REVIEW_FAIL_STATUS });
     return json(REVIEW);
   }
   if (url.endsWith(`/api/gifts/${TOKEN}`)) return json(GIFT);
