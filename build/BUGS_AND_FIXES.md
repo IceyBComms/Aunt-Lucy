@@ -199,6 +199,44 @@ sweep". A recorded empty sweep is evidence; an unrecorded one is indistinguishab
 ⚖️ **Relationship to the other patterns:** P5 says a rule guarded only by a comment is not guarded; P7 says a fix applied only where
 it was reported is not finished. Both are about the gap between *addressed* and *actually covered*.
 
+### P8 — Separate DECIDING from DOING
+
+**A rule that decides something — who gets notified, how a name is addressed, what a message says, whether a thing can be deleted —
+must be extractable and runnable ON ITS OWN: no database, no browser, no send. The code that does the sending or the writing stays
+thin around it.** (Kate, 30 August. The last pattern of the day, and arguably the one the other seven are symptoms of.)
+
+⚖️ **THE COROLLARY IS THE SHARP BIT: copy you cannot render is copy nobody checks, and a rule you cannot run is a rule nobody tests.**
+
+**The evidence, all from one day, verified against `main` rather than recalled:**
+
+| the rule | pulled out of | why it could not be checked before |
+|---|---|---|
+| `lib/inviteDispatch` (#048) | an inline loop in a route | ran over a module-singleton `db`; a failure mid-batch could only be seen in production |
+| `lib/notifyTargets` (#025) | the same route file | **type-only import of `@workspace/db`** — the query lives in `lib/notifyTargetsDb`, so the RULE runs with no database at all |
+| `lib/claimNotifyDispatch` (#025) | the cron handler | the fan-out could not be exercised without a Neon branch |
+| `claimAddressee` in `lib/claimNotifyCopy` (#025) | template string literals | reused verbatim by **#085**, which is the point: one rule, two callers |
+| `lib/draftDeletion` (#071) | the DELETE route | deleting the wrong page is worse than the bug being fixed, and the guard needed a database to exercise |
+| `lib/setupPersonGrant` (#081) | an inline ternary in `crisis.ts` | the ROLE it returns drives the addressee swap, so it decides words as well as access |
+| `buildInviteSmsBody` (#082) | **inside `sendInviteSms`, AFTER the early return that fires when Twilio is unconfigured** | the copy could not be READ, or its segment cost measured, without actually sending a text message |
+
+📌 **The last row is the clearest case in the table and the one that names the pattern.** That body was not merely hard to test — it
+was **unreadable**. Any developer, at any point, who wanted to know what that text message said would have had to send one. It was
+found only because Kate asked to see the SMS.
+
+🔑 **WHAT HID, AND WHICH SIDE OF THE LINE IT HID ON.** #025 reached nobody on a crisis page for eight days; #085 called Fergus
+"Tammy"; #076's footer named the school run inside a template rewritten that same afternoon; #082's SMS omitted the time on every
+dated task. **Every one of those sat behind a database call, a send, or an early return — on the far side of "can I run this?"**
+
+⚠️ **ONE HONEST QUALIFICATION, because the pattern is more useful bounded than universal: not every bug today hid there.** #048's
+grey "couldn't send", #071's red delete button and #072's shield icon were all perfectly runnable — they hid because nobody
+**looked** at them. That is **PATTERN P6**, and the two patterns are siblings rather than the same rule: P8 is *can I run it*, P6 is
+*have I seen it*. A thing needs both, and neither substitutes for the other.
+
+⚖️ **The test to apply before writing a route handler: if I wanted to check this decision was right, what would I have to stand up
+first?** If the honest answer is a database, a browser, a mail provider or a phone network, the decision is in the wrong place. Move
+it out, leave the I/O behind, and the tests write themselves — every guarded behaviour recorded today exists because something got
+moved across that line first.
+
 ---
 
 ## Open bugs
