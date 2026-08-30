@@ -486,6 +486,36 @@ export function GiftActivation({ token }: { token: string }) {
         <p>
           But when you need it most, asking is the last thing you can face.
         </p>
+        {/*
+            Bug #076, site ⑤ — the ORIGINAL instance, and the last one in the
+            class that reached a bereaved reader.
+
+            This sits ABOVE the task list, so it is the first description of the
+            product she reads. It used to promise "a meal, a lift, the school
+            run" on EVERY occasion.
+
+            ⚠️ NO EXAMPLES AT ALL HERE, AND THAT IS SPECIFIC TO THIS SURFACE.
+            The first fix swapped in the occasion-safe line the emails use —
+            "meals, lifts, the practical bits" — and that was still wrong here,
+            because the bereavement task set contains no lift either: it is a
+            meal at the door, someone to sit with, the everyday things, and
+            answering the phone. Swapping the examples removed the big wrong
+            promise and left a smaller one.
+
+            THE REAL LIST RENDERS DIRECTLY BENEATH THIS SENTENCE. So any example
+            in it is either redundant with the list or a promise the list does
+            not keep — and it can only drift as the suggestion sets change. The
+            list IS the examples. (Kate, 30 Aug.)
+
+            📌 This is why #087 — "make the explainer occasion-aware" — is CLOSED
+            for this surface rather than pending: occasion-awareness is what you
+            need when you cannot show the real thing. Here we can, and do. #087
+            stays open only for surfaces that show no list, which today means
+            #074's intro.
+
+            ⚠️ Do NOT reintroduce examples here "to make it concrete". The thing
+            immediately below is more concrete than any example could be.
+        */}
         <p>
           <a
             href={import.meta.env.BASE_URL || "/"}
@@ -496,10 +526,9 @@ export function GiftActivation({ token }: { token: string }) {
             Aunt Lucy
           </a>{" "}
           is the page that sorts it out for you. You approve a short list of
-          things that would genuinely help — a meal, a lift, the school run —
-          then share one link with whoever you'd want at the door, and they pick
-          what suits them. No one has to ask, and you never have to organise a
-          thing.
+          things that would genuinely help, then share one link with whoever
+          you'd want at the door, and they pick what suits them. No one has to
+          ask, and you never have to organise a thing.
         </p>
       </div>
 
