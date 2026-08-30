@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocation, useParams } from "wouter";
 import {
   Plus,
@@ -103,6 +103,58 @@ function emptySlot(): SlotDraft {
     trustedHelpers: [],
   };
 }
+
+/**
+ * Bug #084 — is this draft finished enough to be a REAL task on someone's page?
+ *
+ * Deliberately the SAME rules the Continue guards enforce, because a task
+ * autosaved on looser rules would be a task the server rejects, or worse one it
+ * accepts in a state the organiser never intended. If these two ever disagree,
+ * autosave becomes a second definition of "valid" and the looser one wins.
+ */
+function isDraftComplete(slot: SlotDraft): boolean {
+  if (!slot.slotDate) return false;
+  const isTrusted = SENSITIVE_TYPES.has(slot.slotType) || slot.trustedHelpersOnly;
+  // An invitation-only task with nobody invited is not a task, it is a hole.
+  if (isTrusted && slot.trustedHelpers.length === 0) return false;
+  // Bug #033 — a lift needs both halves before it can go out on this path.
+  if (isLiftCandidate(slot.slotType, true)) {
+    if (!slot.liftWaitMode) return false;
+    if (!slot.slotTime) return false;
+  }
+  return true;
+}
+
+/**
+ * Has anyone actually touched this draft? (bug #084)
+ *
+ * A pristine `emptySlot()` — meal, today, 6pm — passes every completeness rule
+ * above, so without this an untouched form would autosave a task nobody asked
+ * for the moment the screen loaded. That is #078's fault arriving by a new
+ * route: a real slot on a real page that no human chose.
+ *
+ * Pressing Continue still saves an untouched default, because that IS a
+ * deliberate choice. Autosave only ever acts on something someone edited.
+ */
+function isDraftTouched(slot: SlotDraft): boolean {
+  const pristine = emptySlot();
+  return (
+    slot.slotType !== pristine.slotType ||
+    slot.customLabel.trim() !== "" ||
+    slot.slotDate !== pristine.slotDate ||
+    slot.slotTime !== pristine.slotTime ||
+    slot.notes.trim() !== "" ||
+    slot.dietaryNotes.trim() !== "" ||
+    slot.headcount.trim() !== "" ||
+    slot.liftWaitMode !== "" ||
+    slot.repeatDays !== pristine.repeatDays ||
+    slot.trustedHelpersOnly !== pristine.trustedHelpersOnly ||
+    slot.trustedHelpers.length > 0
+  );
+}
+
+/** How long a draft must sit unchanged before it saves itself. */
+const AUTOSAVE_IDLE_MS = 1200;
 
 function TrustedHelperInput({
   onAdd,
@@ -550,6 +602,32 @@ export default function OrganiseAddSlots() {
     };
   }, [pageId, token]);
 
+  /**
+   * Bug #084 — AUTOSAVE, AND HOW IT CANNOT DOUBLE-CREATE.
+   *
+   * The de-duplication is not a check, it is the shape of the data. There are
+   * two lists: `savedSlots` is what the server has, `slots` is what it does
+   * not. `handleSubmit` iterates ONLY `slots`. So when autosave persists a
+   * draft, that draft LEAVES `slots` and joins `savedSlots` — a move, never a
+   * copy and never a flag. A saved task is therefore not in the list Continue
+   * walks, by construction rather than by a guard somebody has to remember.
+   *
+   * Both paths also go through the SAME `persistDraft`, so there is one
+   * creation routine rather than two that could drift apart. That matters more
+   * than it looks: #071 existed because leaving and returning re-POSTed
+   * everything, and autosave is the most likely way to reintroduce exactly that.
+   *
+   * `inFlight` holds the promise for each draft currently being written, so
+   * Continue can wait for them to settle before walking what is left. Without
+   * it, pressing Continue mid-autosave could write the same draft twice.
+   */
+  const inFlight = useRef<Map<string, Promise<void>>>(new Map());
+  /** Mirrors `slots` so async code reads the current list, not a stale closure. */
+  const slotsRef = useRef<SlotDraft[]>([]);
+  slotsRef.current = slots;
+  /** Quiet, temporary "Saved" marks — see the note where they render. */
+  const [justSaved, setJustSaved] = useState<string[]>([]);
+
   const isResuming = savedSlots.length > 0;
 
   async function removeSavedSlot(id: string) {
@@ -574,6 +652,115 @@ export default function OrganiseAddSlots() {
   function removeSlot(id: string) {
     setSlots((s) => s.filter((sl) => sl.id !== id));
   }
+
+  /**
+   * Create ONE draft on the server and hand back the rows it became.
+   *
+   * The only place tasks are created. Autosave calls it; Continue calls it for
+   * whatever autosave has not already taken. A draft with repeatDays > 1 becomes
+   * several rows, and all of them are returned, so the saved list reflects what
+   * the server actually holds rather than what the form looked like.
+   *
+   * Throws on failure, and deliberately does not remove the draft in that case:
+   * an unsaved draft must stay in `slots` so Continue still tries it.
+   */
+  async function persistDraft(slot: SlotDraft): Promise<SavedSlot[]> {
+    const isTrusted = SENSITIVE_TYPES.has(slot.slotType) || slot.trustedHelpersOnly;
+    const created: SavedSlot[] = [];
+
+    for (let i = 0; i < slot.repeatDays; i++) {
+      const date = format(addDays(parseISO(slot.slotDate), i), "yyyy-MM-dd");
+      const row = await apiFetch<{ id: string }>(`/organiser/pages/${pageId}/slots`, {
+        method: "POST",
+        body: JSON.stringify({
+          slotType: slot.slotType,
+          customLabel: slot.customLabel || null,
+          slotDate: date,
+          slotTime: slot.slotTime || null,
+          liftWaitMode: slot.liftWaitMode || null,
+          notes: slot.notes || null,
+          trustedHelpersOnly: isTrusted,
+          dietaryNotes:
+            slot.slotType === "meal" ? slot.dietaryNotes.trim() || null : null,
+          headcount:
+            slot.slotType === "meal" && slot.headcount.trim()
+              ? Number(slot.headcount)
+              : null,
+        }),
+        token: token!,
+      });
+
+      if (isTrusted && slot.trustedHelpers.length > 0) {
+        for (const helper of slot.trustedHelpers) {
+          await apiFetch(`/organiser/pages/${pageId}/slots/${row.id}/invites`, {
+            method: "POST",
+            body: JSON.stringify({ name: helper.name, contact: helper.contact }),
+            token: token!,
+          });
+        }
+      }
+
+      created.push({
+        id: row.id,
+        slotType: slot.slotType,
+        customLabel: slot.customLabel || null,
+        slotDate: date,
+        slotTime: slot.slotTime || null,
+        trustedHelpersOnly: isTrusted,
+        isClaimed: false,
+      });
+    }
+    return created;
+  }
+
+  /**
+   * THE MOVE. This is the whole de-duplication: the draft is removed from
+   * `slots` in the same update that adds its rows to `savedSlots`, so it can
+   * never be in both lists and Continue can never see it again.
+   */
+  function markPersisted(draftId: string, rows: SavedSlot[]) {
+    setSlots((cur) => cur.filter((d) => d.id !== draftId));
+    setSavedSlots((cur) => [...cur, ...rows]);
+    setJustSaved((cur) => [...cur, ...rows.map((r) => r.id)]);
+  }
+
+  // Autosave: a completed, edited draft saves itself once it has sat still.
+  // Any keystroke restarts the clock, so nothing saves mid-sentence.
+  useEffect(() => {
+    if (isLoadingPage || isLoading) return;
+    const ready = slots.filter(
+      (d) => !inFlight.current.has(d.id) && isDraftTouched(d) && isDraftComplete(d),
+    );
+    if (ready.length === 0) return;
+    const timer = setTimeout(() => {
+      for (const draft of ready) {
+        if (inFlight.current.has(draft.id)) continue;
+        const job = persistDraft(draft)
+          .then((rows) => {
+            markPersisted(draft.id, rows);
+          })
+          .catch(() => {
+            // Silent on purpose: the draft stays put and Continue will try it
+            // again. A failed autosave must never look like a lost task, and
+            // must never interrupt someone mid-form with an error they cannot
+            // act on.
+          })
+          .finally(() => {
+            inFlight.current.delete(draft.id);
+          });
+        inFlight.current.set(draft.id, job);
+      }
+    }, AUTOSAVE_IDLE_MS);
+    return () => clearTimeout(timer);
+  }, [slots, isLoading, isLoadingPage]);
+
+  // Clear the quiet "Saved" marks after a few seconds. They are an
+  // acknowledgement, not a permanent badge.
+  useEffect(() => {
+    if (justSaved.length === 0) return;
+    const t = setTimeout(() => setJustSaved([]), 4000);
+    return () => clearTimeout(t);
+  }, [justSaved]);
 
   // Validate: trusted slots must have at least one helper
   const hasTrustedWithNoHelpers = slots.some(
@@ -618,57 +805,20 @@ export default function OrganiseAddSlots() {
     setIsLoading(true);
 
     try {
-      // Only the NEW tasks are created. Anything already saved is left alone —
-      // re-posting it is exactly the duplication this bug caused.
-      for (const slot of slots) {
-        const isTrusted =
-          SENSITIVE_TYPES.has(slot.slotType) || slot.trustedHelpersOnly;
+      // Bug #084 — wait for any autosave already writing before deciding what
+      // is left. Without this, a draft mid-save would still be in `slots` here
+      // and would be written a SECOND time: the #071 duplicate, arriving by the
+      // new route. Settled, not resolved — a failed autosave leaves its draft
+      // in place, which is exactly what should then be retried below.
+      if (inFlight.current.size > 0) {
+        await Promise.allSettled([...inFlight.current.values()]);
+      }
 
-        for (let i = 0; i < slot.repeatDays; i++) {
-          const date = format(addDays(parseISO(slot.slotDate), i), "yyyy-MM-dd");
-
-          const created = await apiFetch<{ id: string }>(
-            `/organiser/pages/${pageId}/slots`,
-            {
-              method: "POST",
-              body: JSON.stringify({
-                slotType: slot.slotType,
-                customLabel: slot.customLabel || null,
-                slotDate: date,
-                slotTime: slot.slotTime || null,
-                // Bug #033 — lift-only; the server drops it on other types.
-                liftWaitMode: slot.liftWaitMode || null,
-                notes: slot.notes || null,
-                trustedHelpersOnly: isTrusted,
-                // Meal-only (bug #006); the server ignores these on other types.
-                dietaryNotes:
-                  slot.slotType === "meal" ? slot.dietaryNotes.trim() || null : null,
-                headcount:
-                  slot.slotType === "meal" && slot.headcount.trim()
-                    ? Number(slot.headcount)
-                    : null,
-              }),
-              token: token!,
-            },
-          );
-
-          // Send invites for each trusted helper
-          if (isTrusted && slot.trustedHelpers.length > 0) {
-            for (const helper of slot.trustedHelpers) {
-              await apiFetch(
-                `/organiser/pages/${pageId}/slots/${created.id}/invites`,
-                {
-                  method: "POST",
-                  body: JSON.stringify({
-                    name: helper.name,
-                    contact: helper.contact,
-                  }),
-                  token: token!,
-                },
-              );
-            }
-          }
-        }
+      // Whatever autosave did not already take. Read from the ref, because the
+      // awaits above mean the captured `slots` may be stale.
+      for (const slot of slotsRef.current) {
+        const rows = await persistDraft(slot);
+        markPersisted(slot.id, rows);
       }
 
       setLocation(`/organise/create/${pageId}/publish`);
@@ -710,6 +860,16 @@ export default function OrganiseAddSlots() {
               ? "Nothing has been sent yet. Here's what you'd already added — add more if you'd like, or carry on to publish."
               : "Each slot is one task a helper can claim. School pickups and child care require a personal invitation for safety."}
           </p>
+          {/*
+            Bug #084 — say it once, plainly. Someone who has just lost a task by
+            leaving will not risk it again on faith, and the "Saved" marks only
+            appear AFTER the first one saves. This is the line that makes the
+            first departure survivable.
+          */}
+          <p className="mt-2 text-sm text-muted-foreground/90">
+            Each task saves itself as you finish it, so you can leave and come
+            back whenever you need to.
+          </p>
         </div>
 
         {isResuming && (
@@ -732,6 +892,20 @@ export default function OrganiseAddSlots() {
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium text-foreground truncate">
                       {slot.customLabel || meta.label}
+                      {/*
+                        Bug #084 — the quiet acknowledgement. No banner and no
+                        toast: the task VISIBLY MOVING out of the form and into
+                        "Already added" is most of the signal, and this word is
+                        the rest of it. It fades after a few seconds because it
+                        is an acknowledgement, not a badge — a permanent "Saved"
+                        on every row would say nothing, and a toast would steal
+                        attention from someone mid-form.
+                      */}
+                      {justSaved.includes(slot.id) && (
+                        <span className="ml-2 text-xs font-normal text-primary/80">
+                          Saved
+                        </span>
+                      )}
                     </p>
                     <p className="text-xs text-muted-foreground">
                       {slot.slotDate
