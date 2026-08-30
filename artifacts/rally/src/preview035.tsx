@@ -142,35 +142,52 @@ const LETTERS: Record<string, string | null> = {
   other: null,
 };
 
+// WELL-WISHES ONLY. No note here may offer practical help.
+//
+// These are COLLEAGUES SIGNING A GIFT, and they are not the helpers. An offer
+// made on this card cannot be acted on: gift_signings holds signer_name +
+// message + status and nothing else — no phone, no email, no task reference —
+// and the rows are read for display and nothing more. So a fixture that says
+// "put me down for a lasagne" shows a promise the product can never keep.
+//
+// The earlier version of this block did exactly that, and the render was read
+// as a product fault twice. It was not one: these strings live only in this
+// file. But a harness that manufactures a false alarm every time it is looked
+// at is its own cost. See bug #065 (the real placeholder, which shapes what
+// colleagues actually write) and #079 (closed, folded into #065).
+//
+// Care about her JOB is safe and stays — "work's covered, don't give it a
+// thought" removes a worry without promising anyone will turn up. Care about
+// her HOME is not. That is the line.
 const NOTES: Record<string, { signerName: string; message: string }[]> = {
   new_baby: [
-    { signerName: "Priya", message: "Cannot wait to meet the little one. Call me for anything, day or night." },
-    { signerName: "Tom", message: "Put me down for a lasagne. It is the only thing I can cook but I cook it well." },
-    { signerName: "The Finance team", message: "Enjoy every second. We'll keep your desk plant alive, promise." },
+    { signerName: "Priya", message: "Cannot wait to meet the little one. Thinking of you all." },
+    { signerName: "Tom", message: "Wishing you a gentle few weeks. Enjoy every bit of it." },
+    { signerName: "The Finance team", message: "Enjoy every second. Work's covered — don't give it a thought." },
   ],
   illness_recovery: [
-    { signerName: "Priya", message: "Rest properly. I'm on standby for lifts to appointments, any day." },
-    { signerName: "Tom", message: "Put me down for a lasagne. It is the only thing I can cook but I cook it well." },
+    { signerName: "Priya", message: "Rest properly. Thinking of you." },
+    { signerName: "Tom", message: "Hope you're feeling better soon. No rush at all." },
     { signerName: "The Finance team", message: "Take the time you need. Nothing here is on fire." },
   ],
   surgery: [
-    { signerName: "Priya", message: "Good luck next week. I'm around all of the following one for lifts." },
-    { signerName: "Tom", message: "Put me down for a lasagne. It is the only thing I can cook but I cook it well." },
+    { signerName: "Priya", message: "Good luck next week. Thinking of you." },
+    { signerName: "Tom", message: "Hope it all goes well. Take it easy afterwards." },
     { signerName: "The Finance team", message: "Good luck with it all. Work's here when you're ready, not before." },
   ],
   bereavement: [
-    { signerName: "Priya", message: "I'm so sorry. I'll be around, and I won't expect anything back." },
-    { signerName: "Tom", message: "No words. Just here, and happy to sit with you or leave food at the door." },
+    { signerName: "Priya", message: "I'm so sorry, Zara. Thinking of you." },
+    { signerName: "Tom", message: "No words, just so sorry. Thinking of you and your family." },
     { signerName: "The Finance team", message: "Thinking of you and your family. Take all the time you need." },
   ],
   ongoing_support: [
-    { signerName: "Priya", message: "You've been carrying this a long while. Let us take a couple of things." },
-    { signerName: "Tom", message: "Put me down for a lasagne. It is the only thing I can cook but I cook it well." },
-    { signerName: "The Finance team", message: "We're not going anywhere. Ask us for the boring stuff." },
+    { signerName: "Priya", message: "You've been carrying this a long while. Thinking of you." },
+    { signerName: "Tom", message: "Thinking of you. Hope things ease up soon." },
+    { signerName: "The Finance team", message: "We're not going anywhere. No rush back." },
   ],
   other: [
-    { signerName: "Priya", message: "Whatever's going on, I'm around. Just say the word." },
-    { signerName: "Tom", message: "Put me down for a lasagne. It is the only thing I can cook but I cook it well." },
+    { signerName: "Priya", message: "Whatever's going on, thinking of you." },
+    { signerName: "Tom", message: "Thinking of you. Hope it all settles soon." },
   ],
 };
 
