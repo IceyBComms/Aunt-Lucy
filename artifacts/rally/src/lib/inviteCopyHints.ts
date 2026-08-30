@@ -14,29 +14,6 @@
  */
 import type { BabyStage, GiftOccasion, RecipientPronouns } from "@workspace/api-client-react";
 
-/**
- * The last-resort ghost text, for when the server sends no occasion default at
- * all — both `situationLine` and `trustedLine` are nullable in the API response.
- *
- * ⚠️ Bug #059. This slot used to hold NEW-BABY literals: "just welcomed their
- * new baby" and "getting ready for the new baby". Unreachable in practice,
- * because the server always sends a default — but unreachable is not the same
- * as safe. The day anything upstream changed, a bereaved recipient would have
- * been shown, as the suggested wording for her own invite, that her friends
- * were about to be told she had just had a baby. Nothing would have failed and
- * nobody would have been alerted.
- *
- * This is the `other` wording from SITUATION_LINE_DEFAULTS and
- * TRUSTED_LINE_DEFAULTS in api-server/src/lib/inviteCopy.ts, where both entries
- * are this same string. One constant covers both fields for that reason. It is
- * occasion-neutral by construction, so a null is TRUE on every occasion rather
- * than merely harmless on most of them.
- *
- * ✅ Kate's ruling, 30 Aug 2026: take the neutral wording now; making the two
- * API fields non-nullable is a contract change for another day.
- */
-export const NEUTRAL_LINE_FALLBACK = "got a lot on right now";
-
 /** Resolve {poss}/{obj} pronoun tokens in an occasion line for display. */
 export function resolvePronounTokens(
   line: string,
@@ -64,23 +41,41 @@ interface HintOpts {
   occasion: GiftOccasion | null | undefined;
   babyStage: BabyStage | null;
   pronouns: RecipientPronouns;
-  /** The stage-agnostic occasion default from the server, used when not new_baby
-   *  or when the baby stage is unanswered. */
-  agnosticDefault: string;
+  /**
+   * The stage-agnostic occasion default from the server, used when not new_baby
+   * or when the baby stage is unanswered. NULL/empty is meaningful: it means the
+   * server sent no default, and the caller must then render NO ghost text.
+   */
+  agnosticDefault: string | null | undefined;
 }
 
-export function situationHint(opts: HintOpts): string {
+/**
+ * ⚠️ RETURNS null WHEN THERE IS NOTHING TRUE TO SUGGEST, and callers must then
+ * render NO placeholder at all — not "e.g. ", not a guess.
+ *
+ * Bug #059, and Kate's ruling of 30 Aug 2026. This slot used to hold NEW-BABY
+ * literals ("just welcomed their new baby", "getting ready for the new baby"),
+ * unreachable in practice but one upstream change away from telling a bereaved
+ * recipient that her friends were about to hear she'd had a baby — silently,
+ * with nothing failing and nobody alerted. The first fix swapped them for the
+ * occasion-neutral `other` wording; this one goes further and renders nothing,
+ * because absent copy cannot be wrong on ANY occasion, whereas neutral copy is
+ * merely unlikely to be. The field is optional and the server fills the real
+ * default when the recipient leaves it blank, so an empty box costs her nothing.
+ */
+export function situationHint(opts: HintOpts): string | null {
   const base =
     opts.occasion === "new_baby" && opts.babyStage
       ? NEW_BABY_SITUATION_BY_STAGE[opts.babyStage]
       : opts.agnosticDefault;
-  return resolvePronounTokens(base, opts.pronouns);
+  return base ? resolvePronounTokens(base, opts.pronouns) : null;
 }
 
-export function trustedHint(opts: HintOpts): string {
+/** Its trusted-line counterpart. Same null contract — see situationHint. */
+export function trustedHint(opts: HintOpts): string | null {
   const base =
     opts.occasion === "new_baby" && opts.babyStage
       ? NEW_BABY_TRUSTED_BY_STAGE[opts.babyStage]
       : opts.agnosticDefault;
-  return resolvePronounTokens(base, opts.pronouns);
+  return base ? resolvePronounTokens(base, opts.pronouns) : null;
 }

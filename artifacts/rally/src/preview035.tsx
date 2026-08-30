@@ -40,6 +40,7 @@ const TOKEN = "previewtoken";
 
 // ?occasion=bereavement etc. — lets one harness prove what every occasion renders.
 const OCCASION = new URLSearchParams(location.search).get("occasion") ?? "new_baby";
+const NO_LINE = new URLSearchParams(location.search).get("noline") === "1";
 const KNOWN = ["new_baby", "illness_recovery", "surgery", "bereavement", "ongoing_support", "other"];
 if (!KNOWN.includes(OCCASION)) {
   throw new Error("preview035: no sample data for occasion " + OCCASION);
@@ -188,8 +189,11 @@ const REVIEW = {
   slug: null,
   status: null,
   scheduledActivateAt: null,
-  situationLine: SITUATION[OCCASION],
-  trustedLine: TRUSTED[OCCASION],
+  // ?noline=1 — simulate the server sending NO occasion default at all, which is
+  // what the two nullable fields allow. Bug #059: the placeholder must then be
+  // empty, never a guess. Reproducible from a URL so it can be re-checked.
+  situationLine: NO_LINE ? null : SITUATION[OCCASION],
+  trustedLine: NO_LINE ? null : TRUSTED[OCCASION],
   recipientEmail: "zara@example.com",
   manageToken: null,
   suggestions: SUGGESTIONS[OCCASION],
