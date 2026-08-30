@@ -27,6 +27,7 @@ import {
   useGrantRecipientAccess,
   type InvitePreview,
   type ManageTaskSummary,
+  type ManageInviteStatus,
   type BabyStage,
   type RecipientPronouns,
 } from "@workspace/api-client-react";
@@ -48,6 +49,28 @@ import {
   isLiftCandidate,
   type LiftWaitMode,
 } from "@/lib/liftWaitMode";
+
+/**
+ * What each invite state is called on the recipient's own page.
+ *
+ * EXHAUSTIVE ON PURPOSE (bug #048). The list below used to name `sent` and
+ * `queued` and then fall through to printing the raw status, so a failed invite
+ * already showed as the bare lowercase word "failed" beside a friend's name,
+ * and the new `sending` state would have joined it. Typing this as a Record
+ * over ManageInviteStatus means a future status is a compile error here rather
+ * than another raw enum value leaking onto the page.
+ *
+ * "couldn't send" blames neither her nor the friend, and deliberately does not
+ * promise a retry that isn't built — there is no control and no link, because
+ * the resend is bug #009.
+ */
+const INVITE_STATUS_LABEL: Record<ManageInviteStatus, string> = {
+  queued: "queued",
+  sending: "sending now",
+  sent: "invited",
+  failed: "couldn't send",
+  cancelled: "cancelled",
+};
 
 /** One row of the invite selection: whether to include, and which task (trusted). */
 interface Selection {
@@ -956,13 +979,7 @@ export function Manage() {
               >
                 <span className="text-[#2c2c2c]">{i.name}</span>
                 <span className="text-[#8b7e74]">
-                  {i.claimedAt
-                    ? "helping 💛"
-                    : i.status === "sent"
-                      ? "invited"
-                      : i.status === "queued"
-                        ? "queued"
-                        : i.status}
+                  {i.claimedAt ? "helping 💛" : INVITE_STATUS_LABEL[i.status]}
                 </span>
               </div>
             ))}
