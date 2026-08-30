@@ -1,6 +1,7 @@
 import { Resend } from "resend";
 import { logger } from "./logger";
 import { claimAddressee } from "./claimNotifyCopy";
+import { TIME_TBC_CLAUSE } from "./timeTbc";
 import { LIFT_WAIT_MODE_HELPER_LINES, type LiftWaitMode } from "./liftWaitMode";
 import { getAppBaseUrl } from "./appUrl";
 import { formatMoney, gstRateLabel, type GstBreakdown } from "./gst";
@@ -691,7 +692,12 @@ export interface RecipientClaimNotificationParams {
 function claimWhenLabel(slotDate: string | null, slotTime: string | null): string {
   const dateFormatted = formatDate(slotDate);
   const timeFormatted = slotDate && slotTime ? formatTime(slotTime) : null;
-  return timeFormatted ? `${dateFormatted} at ${timeFormatted}` : dateFormatted;
+  if (timeFormatted) return `${dateFormatted} at ${timeFormatted}`;
+  // Bug #082 — a DATED task with no time says so, rather than trailing off after
+  // the date and letting the reader fill the silence with "any time is fine".
+  // An UNDATED task already reads "Whenever suits you" and has no clock to
+  // confirm, so it is left alone.
+  return slotDate ? `${dateFormatted}, ${TIME_TBC_CLAUSE}` : dateFormatted;
 }
 
 export function buildRecipientClaimNotificationEmail(

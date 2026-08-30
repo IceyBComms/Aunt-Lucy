@@ -15,6 +15,8 @@
  *
  * Australian English throughout. 💛 in warm microcopy is intentional.
  */
+import { TIME_TBC_CLAUSE } from "./timeTbc";
+
 
 // Short, mid-sentence noun phrases for a task with no custom label. The
 // recipient's own wording (customLabel) is always preferred when present — it's
@@ -59,7 +61,10 @@ export function whenLabel(slotDate: string | null, slotTime: string | null): str
     month: "long",
     timeZone: "Australia/Sydney",
   });
-  return slotTime ? `${dateStr} at ${timeLabel(slotTime)}` : dateStr;
+  // Bug #082 — name the missing time instead of trailing off after the date.
+  return slotTime
+    ? `${dateStr} at ${timeLabel(slotTime)}`
+    : `${dateStr}, ${TIME_TBC_CLAUSE}`;
 }
 
 // ─── Messages to the HELPER (their invite channel) ───────────────────────────

@@ -3,7 +3,7 @@ import { Button } from "./ui/button";
 import { format, parseISO } from "date-fns";
 import { CarFront, CheckCircle2, Clock, ClipboardList, Users, Utensils } from "lucide-react";
 import {
-  LIFT_WAIT_MODE_TILE_LINES,
+  liftWaitTileLine,
   TIME_TBC,
   asLiftWaitMode,
 } from "@/lib/liftWaitMode";
@@ -50,7 +50,7 @@ export function SlotCard({ slot, onClaim, index }: SlotCardProps) {
       {waitMode && (
         <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary/70 px-3 py-1 text-xs font-medium text-foreground/80">
           <CarFront className="w-3.5 h-3.5" />
-          {LIFT_WAIT_MODE_TILE_LINES[waitMode]}
+          {liftWaitTileLine(waitMode, !!slot.slotTime)}
         </span>
       )}
       {hasMealDetail && !!slot.headcount && (

@@ -19,6 +19,7 @@ import { describe, expect, it } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 import { LIFT_WAIT_MODE_MINUTES } from "./liftWaitMode";
+import { TIME_TBC } from "./timeTbc";
 
 const RALLY_SOURCE = path.resolve(__dirname, "../../../rally/src/lib/liftWaitMode.ts");
 
@@ -51,5 +52,22 @@ describe("lift wait durations", () => {
     // If this ever drops below a couple of hours the pill's "allow up to about
     // N hours" stops being the warning it exists to be.
     expect(LIFT_WAIT_MODE_MINUTES.wait).toBeGreaterThanOrEqual(120);
+  });
+});
+
+/**
+ * Bug #082 — the same duplication problem as the minutes above, so the same
+ * guard. #033 decided this wording and put it in rally; the server needed its
+ * own copy because the two packages cannot import from each other. If they ever
+ * diverge, the task tile and the email about that same task would describe an
+ * unset time with two different phrases — a smaller version of the very bug
+ * being fixed, which was the tile saying one thing and the email nothing.
+ */
+describe("the 'time to be confirmed' wording", () => {
+  it("matches rally's copy exactly", () => {
+    const src = fs.readFileSync(RALLY_SOURCE, "utf8");
+    const m = src.match(/export const TIME_TBC = "([^"]*)";/);
+    if (!m) throw new Error("TIME_TBC not found in rally's liftWaitMode.ts");
+    expect(m[1]).toBe(TIME_TBC);
   });
 });

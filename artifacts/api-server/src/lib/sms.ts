@@ -1,4 +1,5 @@
 import twilio from "twilio";
+import { TIME_TBC_CLAUSE } from "./timeTbc";
 import { logger } from "./logger";
 import { measureSms } from "./smsSegments";
 
@@ -73,6 +74,45 @@ export async function sendSms({
   }
 }
 
+/**
+ * The invite SMS body. Extracted from the sender (bug #082) for one reason: it
+ * used to be built INSIDE `sendInviteSms`, after an early return when Twilio is
+ * unconfigured — so there was no way to read the copy, or measure its segment
+ * cost, without actually sending a text message. Copy you cannot render is copy
+ * nobody checks.
+ */
+export function buildInviteSmsBody({
+  recipientName,
+  slotTypeLabel,
+  slotDate,
+  slotTime,
+  helperName,
+  inviteUrl,
+}: {
+  recipientName: string;
+  slotTypeLabel: string;
+  slotDate: string | null;
+  slotTime: string | null;
+  helperName: string;
+  inviteUrl: string;
+}): string {
+  // An undated task takes "whenever suits" in place of "on <date>", so the
+  // sentence stays a sentence rather than reading "on whenever suits".
+  // Bug #082 — a DATED task with no time names it rather than trailing off,
+  // because silence there reads as "any time is fine".
+  const timeStr =
+    slotDate && slotTime
+      ? ` at ${formatTime(slotTime)}`
+      : slotDate
+        ? `, ${TIME_TBC_CLAUSE}`
+        : "";
+  const whenStr = slotDate ? `on ${formatDate(slotDate)}${timeStr}` : formatDate(null);
+  return (
+    `Hi ${helperName}, you've been personally invited to help ${recipientName} with a ${slotTypeLabel} ${whenStr}. ` +
+    `Tap to confirm: ${inviteUrl}`
+  );
+}
+
 export async function sendInviteSms({
   to,
   recipientName,
@@ -95,13 +135,14 @@ export async function sendInviteSms({
     return;
   }
 
-  // An undated task takes "whenever suits" in place of "on <date>", so the
-  // sentence stays a sentence rather than reading "on whenever suits".
-  const timeStr = slotDate && slotTime ? ` at ${formatTime(slotTime)}` : "";
-  const whenStr = slotDate ? `on ${formatDate(slotDate)}${timeStr}` : formatDate(null);
-  const body =
-    `Hi ${helperName}, you've been personally invited to help ${recipientName} with a ${slotTypeLabel} ${whenStr}. ` +
-    `Tap to confirm: ${inviteUrl}`;
+  const body = buildInviteSmsBody({
+    recipientName,
+    slotTypeLabel,
+    slotDate,
+    slotTime,
+    helperName,
+    inviteUrl,
+  });
 
   try {
     await client.messages.create({ body, from: fromNumber, to });

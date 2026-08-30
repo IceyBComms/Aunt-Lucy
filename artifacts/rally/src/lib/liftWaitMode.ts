@@ -140,6 +140,30 @@ export const LIFT_WAIT_MODE_TILE_LINES: Record<LiftWaitMode, string> = {
 };
 
 /**
+ * The tile line for a lift, given whether the task actually has a time yet.
+ *
+ * Bug #082's sweep found the contradiction this resolves: the pill renders on
+ * the wait answer ALONE, so a waiting lift with no time promised "allow up to
+ * about 4 hours" while the calendar — which cannot place a timed block without
+ * a time — reserved the WHOLE DAY as an all-day event. #073 exists precisely so
+ * the tile and the diary entry agree, and with no time they did not.
+ *
+ * ⚖️ Kate's ruling, 30 Aug: KEEP THE DURATION, NAME THE UNCERTAINTY. Softening
+ * to "allow for the whole appointment" would mean the LEAST-INFORMED case gets
+ * the LEAST information, which is backwards — the four hours is still true, it
+ * is the WHEN that is unknown. Saying both also agrees with the all-day
+ * calendar entry instead of contradicting it.
+ *
+ * Only the wait line changes: drop-off and pick-up state no duration, so they
+ * have no promise to qualify.
+ */
+export function liftWaitTileLine(mode: LiftWaitMode, hasTime: boolean): string {
+  const base = LIFT_WAIT_MODE_TILE_LINES[mode];
+  if (mode !== "wait" || hasTime) return base;
+  return `${base}, once the time is confirmed`;
+}
+
+/**
  * The fuller sentence, for the places that are a SENTENCE rather than a pill —
  * currently the post-claim confirmation on /invite. Mirrors the wording the
  * backend sends in the confirmation email, so a helper who reads both sees the
