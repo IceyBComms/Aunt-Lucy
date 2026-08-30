@@ -35,8 +35,28 @@ export default function HardestTimes() {
   const { signIn } = useAuth();
 
   const [occasion, setOccasion] = useState<string | null>(null);
-  const [name, setName] = useState("");
+  /**
+   * Bug #070 — WHO IS THIS FOR?
+   *
+   * The form never asked, then interleaved two people's details: one "name"
+   * field doing double duty (labelled "Who is this for?", hedged with "it can
+   * be your own"), YOUR email, and THEIR contact. Whoever was filling it in had
+   * to hold both roles in their head and guess which person each row meant.
+   *
+   * Ported from BuyDetails, deliberately NOT re-invented: same `forSelf`
+   * boolean, same two-button fork, same for-self name read-back before the
+   * name is committed. Two patterns for one question is how a product ends up
+   * asking it two different ways.
+   */
+  const [forSelf, setForSelf] = useState(false);
+  // Kept separate rather than one shared field. A remembered "your name" value
+  // landing in the recipient row is exactly the stale-autofill fault of #056.
+  const [recipientName, setRecipientName] = useState("");
+  const [selfName, setSelfName] = useState("");
   const [email, setEmail] = useState("");
+  // For-self only: the one name field becomes the page's name too, so we pause
+  // once to read it back. Any edit, or flipping the fork, drops back to unread.
+  const [confirmingSelf, setConfirmingSelf] = useState(false);
   // Section E — the affected person's own contact, so they can always get into
   // their own page. Entirely optional; the ready toggle only appears once a
   // contact is entered. Nothing is stored unless they're marked ready.
@@ -46,12 +66,32 @@ export default function HardestTimes() {
   const [error, setError] = useState<string | null>(null);
   const [emailedTo, setEmailedTo] = useState<string | null>(null);
 
+  // One value reaches the API either way — the fork only decides which field
+  // the person was actually answering.
+  const name = forSelf ? selfName : recipientName;
+
+  function chooseFork(value: boolean) {
+    setForSelf(value);
+    setConfirmingSelf(false);
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
 
     if (!occasion) {
       setError("Please choose what's happened.");
+      return;
+    }
+    if (!name.trim()) {
+      setError(forSelf ? "Please add your name." : "Please add their name.");
+      return;
+    }
+
+    // On the for-self path this name becomes the page's name and the word every
+    // helper reads, so pause once to read it back before anything is created.
+    if (forSelf && !confirmingSelf) {
+      setConfirmingSelf(true);
       return;
     }
 
@@ -63,8 +103,11 @@ export default function HardestTimes() {
           name,
           email,
           occasion,
-          recipientContact: recipientContact.trim() || undefined,
-          recipientReady: recipientContact.trim() ? recipientReady : false,
+          // Only meaningful when someone else is the subject. Setting up your
+          // own page, you ARE the affected person — asking for "their contact"
+          // when you just gave your email is the muddle #070 is about.
+          recipientContact: forSelf ? undefined : recipientContact.trim() || undefined,
+          recipientReady: !forSelf && recipientContact.trim() ? recipientReady : false,
         }),
       });
 
@@ -155,18 +198,113 @@ export default function HardestTimes() {
               </div>
             </div>
 
-            <div className="space-y-1.5">
-              <Label htmlFor="name" className="text-foreground/80 pl-1">
-                Who is this for?
-              </Label>
-              <Input
-                id="name"
-                placeholder="A first name is fine — it can be your own"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required
-              />
+            {/* Bug #070 — the fork, ported from BuyDetails.tsx verbatim in shape:
+                same two buttons, same "Someone else" default, same styling. */}
+            <div className="space-y-3">
+              <Label className="text-foreground/80 pl-1">Who is this for?</Label>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { value: false, label: "Someone else" },
+                  { value: true, label: "Myself" },
+                ].map((opt) => (
+                  <button
+                    key={String(opt.value)}
+                    type="button"
+                    onClick={() => chooseFork(opt.value)}
+                    className={`p-4 rounded-2xl border-2 text-sm font-medium transition-colors ${
+                      forSelf === opt.value
+                        ? "border-primary bg-primary/5 text-foreground"
+                        : "border-border bg-card text-muted-foreground hover:border-primary/30"
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
             </div>
+
+            {/* SOMEONE ELSE — their name and their contact first, then you.
+                The person the page is FOR leads; the person filling the form in
+                is the supporting detail, not the subject. */}
+            {!forSelf && (
+              <>
+                <div className="space-y-1.5">
+                  <Label htmlFor="recipientName" className="text-foreground/80 pl-1">
+                    Their name
+                  </Label>
+                  <Input
+                    id="recipientName"
+                    placeholder="e.g. Val"
+                    value={recipientName}
+                    onChange={(e) => setRecipientName(e.target.value)}
+                    // Someone else's name. A remembered value of your own
+                    // landing here is the #056 fault.
+                    autoComplete="off"
+                    required
+                  />
+                  <p className="text-xs text-muted-foreground pl-1">
+                    First name is plenty.
+                  </p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="recipientContact" className="text-foreground/80 pl-1">
+                    {recipientName.trim() ? `${recipientName.trim()}'s` : "Their"} own contact{" "}
+                    <span className="font-normal text-muted-foreground">(optional)</span>
+                  </Label>
+                  <Input
+                    id="recipientContact"
+                    placeholder="Their mobile or email"
+                    value={recipientContact}
+                    onChange={(e) => setRecipientContact(e.target.value)}
+                    autoComplete="off"
+                  />
+                  <p className="text-xs text-muted-foreground pl-1">
+                    So they can always get into their own page, if they want to. It's
+                    their page — this just makes sure they can find it.
+                  </p>
+                  {recipientContact.trim() && (
+                    <label className="mt-2 flex items-start gap-2.5 pl-1 text-sm text-foreground/80">
+                      <input
+                        type="checkbox"
+                        checked={recipientReady}
+                        onChange={(e) => setRecipientReady(e.target.checked)}
+                        className="mt-0.5 accent-primary"
+                      />
+                      <span>
+                        {recipientName.trim() || "They"} {recipientName.trim() ? "is" : "are"} ready
+                        to know about this page now — send them their own link. Leave
+                        this unticked and we'll hold off until you say so.
+                      </span>
+                    </label>
+                  )}
+                </div>
+              </>
+            )}
+
+            {/* MYSELF — your name is the page's name, so it is asked once and
+                read back below before anything is created. No "their contact"
+                row: you are them, and you are about to give your email. */}
+            {forSelf && (
+              <div className="space-y-1.5">
+                <Label htmlFor="selfName" className="text-foreground/80 pl-1">
+                  Your name
+                </Label>
+                <Input
+                  id="selfName"
+                  placeholder="e.g. Val"
+                  value={selfName}
+                  onChange={(e) => {
+                    setSelfName(e.target.value);
+                    setConfirmingSelf(false);
+                  }}
+                  required
+                />
+                <p className="text-xs text-muted-foreground pl-1">
+                  First name is plenty — it's what your helpers will see.
+                </p>
+              </div>
+            )}
 
             <div className="space-y-1.5">
               <Label htmlFor="email" className="text-foreground/80 pl-1">
@@ -185,39 +323,27 @@ export default function HardestTimes() {
               </p>
             </div>
 
-            {/* Section E — the affected person's own contact (optional). Copy is a
-                SUGGESTION for Kate to approve. */}
-            <div className="space-y-1.5">
-              <Label htmlFor="recipientContact" className="text-foreground/80 pl-1">
-                {name.trim() ? `${name.trim()}'s` : "Their"} own contact{" "}
-                <span className="font-normal text-muted-foreground">(optional)</span>
-              </Label>
-              <Input
-                id="recipientContact"
-                placeholder="Their mobile or email"
-                value={recipientContact}
-                onChange={(e) => setRecipientContact(e.target.value)}
-              />
-              <p className="text-xs text-muted-foreground pl-1">
-                So they can always get into their own page, if they want to. It's
-                their page — this just makes sure they can find it.
-              </p>
-              {recipientContact.trim() && (
-                <label className="mt-2 flex items-start gap-2.5 pl-1 text-sm text-foreground/80">
-                  <input
-                    type="checkbox"
-                    checked={recipientReady}
-                    onChange={(e) => setRecipientReady(e.target.checked)}
-                    className="mt-0.5 accent-primary"
-                  />
-                  <span>
-                    {name.trim() || "They"} {name.trim() ? "is" : "are"} ready to
-                    know about this page now — send them their own link. Leave
-                    this unticked and we'll hold off until you say so.
-                  </span>
-                </label>
-              )}
-            </div>
+            {/* The read-back, ported from BuyDetails: the guard against a stray
+                or autofilled name sailing through unseen onto a live page. */}
+            {forSelf && confirmingSelf && selfName.trim() && (
+              <div className="rounded-2xl border-2 border-primary/30 bg-primary/5 p-4 space-y-2">
+                <p className="text-sm text-foreground leading-relaxed">
+                  We'll set the page up for{" "}
+                  <strong className="font-semibold">{selfName.trim()}</strong> — that's
+                  the name your page and your helpers will use.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setConfirmingSelf(false);
+                    document.getElementById("selfName")?.focus();
+                  }}
+                  className="text-sm text-muted-foreground underline underline-offset-2 hover:text-foreground transition-colors"
+                >
+                  Change the name
+                </button>
+              </div>
+            )}
 
             {error && <p className="text-sm text-destructive pl-1">{error}</p>}
 
@@ -227,7 +353,13 @@ export default function HardestTimes() {
               size="lg"
               disabled={isLoading}
             >
-              {isLoading ? "Setting things up…" : "Set up the page"}
+              {isLoading
+                ? "Setting things up…"
+                : forSelf
+                  ? confirmingSelf
+                    ? "Yes, that's me →"
+                    : "Set up my page"
+                  : "Set up the page"}
             </Button>
           </form>
         </div>
