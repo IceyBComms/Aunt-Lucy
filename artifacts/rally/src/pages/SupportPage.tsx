@@ -3,6 +3,7 @@ import { useRoute } from "wouter";
 import { useSupportPageFlow } from "@/hooks/use-rally";
 import { SlotCard } from "@/components/SlotCard";
 import { ClaimDialog } from "@/components/ClaimDialog";
+import { SiteFooter } from "@/components/SiteFooter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -298,10 +299,11 @@ export default function SupportPage() {
         )}
       </main>
 
-      {/* Footer */}
-      <footer className="mt-auto py-8 text-center text-muted-foreground text-sm font-medium">
-        Powered by <span className="font-serif font-bold text-foreground">Aunt Lucy</span>
-      </footer>
+      {/* Bug #041 — the public support page was a dead end: no way to
+          find out what Aunt Lucy is, no Privacy Policy, no Terms, no contact.
+          Compact mode drops the homepage's brand-story paragraph; see
+          SiteFooter for why. */}
+      <SiteFooter compact />
 
       {/* Modals */}
       <ClaimDialog

@@ -2,6 +2,7 @@ import { useLocation, Link } from "wouter";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { TeacupMark } from "@/components/TeacupMark";
+import { SiteFooter } from "@/components/SiteFooter";
 import {
   Heart,
   Utensils,
@@ -300,37 +301,7 @@ export default function Home() {
         </motion.div>
       </section>
 
-      {/* Footer */}
-      <footer className="border-t border-border/50 py-8 px-6">
-        <p className="max-w-2xl mx-auto text-center text-sm text-muted-foreground leading-relaxed mb-8">
-          Aunt Lucy is named for every warm, capable, quietly brilliant woman
-          who's ever shown up with a casserole, taken the kids for an afternoon,
-          and made everything feel manageable again. This is to honour her — and
-          provide support to everyone who needs her.
-        </p>
-        <div className="max-w-4xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
-          <div className="flex items-center gap-2">
-            <TeacupMark className="w-4 h-4" />
-            <span className="font-serif font-semibold text-foreground">Aunt Lucy</span>
-            <span>· auntlucy.com.au</span>
-          </div>
-          <div className="flex items-center gap-4">
-            <p>© {new Date().getFullYear()} Aunt Lucy. Made with care in Australia.</p>
-            <button
-              onClick={() => setLocation("/privacy")}
-              className="underline underline-offset-2 hover:text-foreground transition-colors"
-            >
-              Privacy policy
-            </button>
-            <button
-              onClick={() => setLocation("/terms")}
-              className="underline underline-offset-2 hover:text-foreground transition-colors"
-            >
-              Terms &amp; refunds
-            </button>
-          </div>
-        </div>
-      </footer>
+      <SiteFooter />
     </div>
   );
 }
