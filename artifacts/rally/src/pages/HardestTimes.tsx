@@ -53,6 +53,18 @@ export default function HardestTimes() {
   // landing in the recipient row is exactly the stale-autofill fault of #056.
   const [recipientName, setRecipientName] = useState("");
   const [selfName, setSelfName] = useState("");
+  /**
+   * The setup person's own first name (#074, migration 0014).
+   *
+   * REQUIRED, not optional — Kate's 22 August ruling is that the who-set-it-up
+   * line ALWAYS shows, and without a name it degrades to "Someone set this page
+   * up for you", which on a bereavement page reads as eerie rather than
+   * reassuring. The name is what makes the sentence comforting.
+   *
+   * Only asked on the someone-else branch: setting a page up for yourself, the
+   * name above already IS your name.
+   */
+  const [organiserFirstName, setOrganiserFirstName] = useState("");
   const [email, setEmail] = useState("");
   // For-self only: the one name field becomes the page's name too, so we pause
   // once to read it back. Any edit, or flipping the fork, drops back to unread.
@@ -87,6 +99,10 @@ export default function HardestTimes() {
       setError(forSelf ? "Please add your name." : "Please add their name.");
       return;
     }
+    if (!forSelf && !organiserFirstName.trim()) {
+      setError("Please add your first name — it's how we introduce you on the page.");
+      return;
+    }
 
     // On the for-self path this name becomes the page's name and the word every
     // helper reads, so pause once to read it back before anything is created.
@@ -106,6 +122,9 @@ export default function HardestTimes() {
           // Only meaningful when someone else is the subject. Setting up your
           // own page, you ARE the affected person — asking for "their contact"
           // when you just gave your email is the muddle #070 is about.
+          forSelf,
+          // For-self, the one name field IS the setup person's name.
+          organiserName: (forSelf ? selfName : organiserFirstName).trim() || undefined,
           recipientContact: forSelf ? undefined : recipientContact.trim() || undefined,
           recipientReady: !forSelf && recipientContact.trim() ? recipientReady : false,
         }),
@@ -302,6 +321,25 @@ export default function HardestTimes() {
                 />
                 <p className="text-xs text-muted-foreground pl-1">
                   First name is plenty — it's what your helpers will see.
+                </p>
+              </div>
+            )}
+
+            {!forSelf && (
+              <div className="space-y-1.5">
+                <Label htmlFor="organiserFirstName" className="text-foreground/80 pl-1">
+                  Your first name
+                </Label>
+                <Input
+                  id="organiserFirstName"
+                  placeholder="e.g. Ellen"
+                  value={organiserFirstName}
+                  onChange={(e) => setOrganiserFirstName(e.target.value)}
+                  autoComplete="given-name"
+                  required
+                />
+                <p className="text-xs text-muted-foreground pl-1">
+                  So {recipientName.trim() || "they"} and their helpers know who set this up.
                 </p>
               </div>
             )}
