@@ -978,7 +978,20 @@ export function Manage() {
                 className="flex items-center justify-between rounded-[0.7rem] border border-[#e7ddd0] bg-white px-3.5 py-2 text-[0.88rem]"
               >
                 <span className="text-[#2c2c2c]">{i.name}</span>
-                <span className="text-[#8b7e74]">
+                {/* Every state is muted except "couldn't send", which takes the
+                    body colour the name itself uses (bug #048). A friend who
+                    was never reached should not read at the same weight as one
+                    who was — that is the bug's own shape, in visual form. Body
+                    colour and nothing else: no red, no bold, no icon, no badge.
+                    There is no resend control yet, so it has to read as a fact
+                    on a warm page, not as an alarm. */}
+                <span
+                  className={
+                    !i.claimedAt && i.status === "failed"
+                      ? "text-[#2c2c2c]"
+                      : "text-[#8b7e74]"
+                  }
+                >
                   {i.claimedAt ? "helping 💛" : INVITE_STATUS_LABEL[i.status]}
                 </span>
               </div>
