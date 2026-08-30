@@ -245,7 +245,16 @@ router.post("/crisis/pages", async (req, res) => {
     // sends nudges never sees them.
     sendCrisisPageSaved({
       to: emailTrimmed,
-      name: nameTrimmed,
+      // Bug #085 — greet the READER, not the page's person. `nameTrimmed` is
+      // the recipient's name, so passing it here sent "Hi Tammy" to fergus@.
+      // On a for-self page the two are the same human; otherwise the setup
+      // person's own name (migration 0014) is who is actually reading this.
+      // Falls back to "there" rather than to the wrong name: an organiser
+      // created before 0014 has none on file, and "Hi there" is honest where
+      // "Hi Tammy" is not.
+      name: forSelf ? nameTrimmed : organiserName || "there",
+      recipientName: nameTrimmed,
+      isRecipient: forSelf,
       pageLink: `${getAppBaseUrl()}/organise/dashboard`,
     }).catch((err) => {
       logger.error(

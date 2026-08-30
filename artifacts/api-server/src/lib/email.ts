@@ -1493,7 +1493,22 @@ export async function sendActivationReminder(
 
 export interface CrisisPageSavedParams {
   to: string;
+  /**
+   * THE READER'S OWN NAME — who we are greeting (bug #085).
+   *
+   * This used to be handed the RECIPIENT's name while the email went to the
+   * SETUP PERSON, so a page set up by Fergus for Tammy sent "Hi Tammy" to
+   * fergus@. It is the first email the person running the page ever receives,
+   * and it called them the person they are frightened for.
+   */
   name: string;
+  /** The person the page is ABOUT, for the addressee swap. */
+  recipientName?: string;
+  /**
+   * Is the reader the page's person, or someone running it for them? Defaults
+   * true so the long-standing for-self behaviour is untouched.
+   */
+  isRecipient?: boolean;
   /** Where they get back to their page (their organiser dashboard). */
   pageLink: string;
 }
@@ -1504,11 +1519,21 @@ export function buildCrisisPageSavedEmail(
   const firstNameOnly =
     params.name.trim().split(/\s+/)[0] || params.name.trim();
 
+  // Bug #085 — the same swap the claim notification uses, from the same helper.
+  // NOT a second conditional: one rule, two callers (Kate, 30 Aug). If the
+  // addressee rule ever changes it must change for both, and this is what makes
+  // that true rather than merely hoped for.
+  const isRecipient = params.isRecipient !== false;
+  const recipientFirst = (params.recipientName ?? params.name)
+    .trim()
+    .split(/\s+/)[0];
+  const { possessive } = claimAddressee(recipientFirst, isRecipient);
+
   const contentHtml = `          <p style="margin:0 0 20px;color:#333;font-size:16px;line-height:1.6;">
             Hi ${escapeHtml(firstNameOnly)},
           </p>
           <p style="margin:0 0 16px;color:#333;font-size:16px;line-height:1.6;">
-            Here's your page, so you can get back to it any time, from any device:
+            Here's ${escapeHtml(possessive)} page, so you can get back to it any time, from any device:
           </p>
           <p style="margin:0 0 24px;font-size:16px;line-height:1.6;">
             <a href="${escapeHtml(params.pageLink)}" style="color:#2D6A4F;font-weight:600;word-break:break-all;">${escapeHtml(params.pageLink)}</a>
@@ -1524,7 +1549,7 @@ export function buildCrisisPageSavedEmail(
   const text = [
     `Hi ${firstNameOnly},`,
     ``,
-    `Here's your page, so you can get back to it any time, from any device:`,
+    `Here's ${possessive} page, so you can get back to it any time, from any device:`,
     ``,
     params.pageLink,
     ``,
