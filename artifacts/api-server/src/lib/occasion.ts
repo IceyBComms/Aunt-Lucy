@@ -7,6 +7,7 @@
 export const OCCASIONS = [
   "new_baby",
   "illness_recovery",
+  "surgery",
   "bereavement",
   "ongoing_support",
   "other",

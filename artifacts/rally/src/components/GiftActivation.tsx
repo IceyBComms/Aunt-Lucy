@@ -342,13 +342,13 @@ export function GiftActivation({ token }: { token: string }) {
     occasion: data?.occasion,
     babyStage,
     pronouns,
-    agnosticDefault: data?.situationLine ?? "just welcomed their new baby",
+    agnosticDefault: data?.situationLine ?? null,
   });
   const trustedPlaceholder = trustedHint({
     occasion: data?.occasion,
     babyStage,
     pronouns,
-    agnosticDefault: data?.trustedLine ?? "getting ready for the new baby",
+    agnosticDefault: data?.trustedLine ?? null,
   });
 
   return (
@@ -874,7 +874,7 @@ export function GiftActivation({ token }: { token: string }) {
               value={situationLine}
               maxLength={120}
               onChange={(e) => setSituationLine(e.target.value)}
-              placeholder={`e.g. ${situationPlaceholder}`}
+              placeholder={situationPlaceholder ? `e.g. ${situationPlaceholder}` : ""}
               className="mt-1 w-full rounded-[0.7rem] border border-[#e0d6c8] bg-[#faf7f2] px-3 py-2.5 text-[0.95rem] text-[#2c2c2c] placeholder:text-[#b3a99d] focus:border-[#2d6a4f] focus:outline-none"
             />
           </label>
@@ -892,7 +892,7 @@ export function GiftActivation({ token }: { token: string }) {
               value={trustedLine}
               maxLength={120}
               onChange={(e) => setTrustedLine(e.target.value)}
-              placeholder={`e.g. ${trustedPlaceholder}`}
+              placeholder={trustedPlaceholder ? `e.g. ${trustedPlaceholder}` : ""}
               className="mt-1 w-full rounded-[0.7rem] border border-[#e0d6c8] bg-[#faf7f2] px-3 py-2.5 text-[0.95rem] text-[#2c2c2c] placeholder:text-[#b3a99d] focus:border-[#2d6a4f] focus:outline-none"
             />
           </label>

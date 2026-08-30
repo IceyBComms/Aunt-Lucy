@@ -109,6 +109,7 @@ export type GiftOccasion = (typeof GiftOccasion)[keyof typeof GiftOccasion];
 export const GiftOccasion = {
   new_baby: "new_baby",
   illness_recovery: "illness_recovery",
+  surgery: "surgery",
   bereavement: "bereavement",
   ongoing_support: "ongoing_support",
   other: "other",

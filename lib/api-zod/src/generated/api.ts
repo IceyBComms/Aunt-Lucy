@@ -240,6 +240,7 @@ export const CreateGiftBody = zod.object({
     .enum([
       "new_baby",
       "illness_recovery",
+      "surgery",
       "bereavement",
       "ongoing_support",
       "other",
@@ -278,6 +279,7 @@ export const GetGiftResponse = zod.object({
     .enum([
       "new_baby",
       "illness_recovery",
+      "surgery",
       "bereavement",
       "ongoing_support",
       "other",
@@ -316,6 +318,7 @@ export const GetGiftReviewResponse = zod.object({
     .enum([
       "new_baby",
       "illness_recovery",
+      "surgery",
       "bereavement",
       "ongoing_support",
       "other",
@@ -638,6 +641,7 @@ export const GetManageStateResponse = zod.object({
     .enum([
       "new_baby",
       "illness_recovery",
+      "surgery",
       "bereavement",
       "ongoing_support",
       "other",

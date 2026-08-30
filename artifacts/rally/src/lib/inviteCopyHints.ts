@@ -41,23 +41,41 @@ interface HintOpts {
   occasion: GiftOccasion | null | undefined;
   babyStage: BabyStage | null;
   pronouns: RecipientPronouns;
-  /** The stage-agnostic occasion default from the server, used when not new_baby
-   *  or when the baby stage is unanswered. */
-  agnosticDefault: string;
+  /**
+   * The stage-agnostic occasion default from the server, used when not new_baby
+   * or when the baby stage is unanswered. NULL/empty is meaningful: it means the
+   * server sent no default, and the caller must then render NO ghost text.
+   */
+  agnosticDefault: string | null | undefined;
 }
 
-export function situationHint(opts: HintOpts): string {
+/**
+ * ⚠️ RETURNS null WHEN THERE IS NOTHING TRUE TO SUGGEST, and callers must then
+ * render NO placeholder at all — not "e.g. ", not a guess.
+ *
+ * Bug #059, and Kate's ruling of 30 Aug 2026. This slot used to hold NEW-BABY
+ * literals ("just welcomed their new baby", "getting ready for the new baby"),
+ * unreachable in practice but one upstream change away from telling a bereaved
+ * recipient that her friends were about to hear she'd had a baby — silently,
+ * with nothing failing and nobody alerted. The first fix swapped them for the
+ * occasion-neutral `other` wording; this one goes further and renders nothing,
+ * because absent copy cannot be wrong on ANY occasion, whereas neutral copy is
+ * merely unlikely to be. The field is optional and the server fills the real
+ * default when the recipient leaves it blank, so an empty box costs her nothing.
+ */
+export function situationHint(opts: HintOpts): string | null {
   const base =
     opts.occasion === "new_baby" && opts.babyStage
       ? NEW_BABY_SITUATION_BY_STAGE[opts.babyStage]
       : opts.agnosticDefault;
-  return resolvePronounTokens(base, opts.pronouns);
+  return base ? resolvePronounTokens(base, opts.pronouns) : null;
 }
 
-export function trustedHint(opts: HintOpts): string {
+/** Its trusted-line counterpart. Same null contract — see situationHint. */
+export function trustedHint(opts: HintOpts): string | null {
   const base =
     opts.occasion === "new_baby" && opts.babyStage
       ? NEW_BABY_TRUSTED_BY_STAGE[opts.babyStage]
       : opts.agnosticDefault;
-  return resolvePronounTokens(base, opts.pronouns);
+  return base ? resolvePronounTokens(base, opts.pronouns) : null;
 }

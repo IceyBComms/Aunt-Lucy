@@ -1,0 +1,54 @@
+-- Bug #058 — a `surgery` occasion of its own.
+--
+-- Hand-written and hand-applied (NOT drizzle-kit push). See the runbook:
+-- 0012_bug_058_surgery_occasion.RUNBOOK.md.
+--
+-- ⚠️ APPLY THIS BEFORE MERGING THE PR, not after — the same rule that #022,
+-- #023 and #033 were all caught by. Here the ordering is not merely prudent,
+-- it is REQUIRED IN THIS DIRECTION: the moment the new code deploys, the buy
+-- form offers a sixth pill and posts occasion='surgery' straight into
+-- gifts.occasion. If the enum has not learned the value yet, that INSERT fails
+-- with 22P02 invalid_input_value and the buyer loses a purchase at Stripe
+-- hand-off. Applying early is free; applying late is a lost sale.
+--
+-- Purely additive: ONE new value on an existing enum. No new table, no new
+-- column, no default, no backfill, no drops, no renames. Nothing reads the new
+-- value until the code that writes it is deployed, so production can carry
+-- this safely with the old code still running — which is exactly why it goes
+-- first.
+--
+-- NO TRANSACTION WRAPPER — DELIBERATE, and it is the 0003 precedent, not the
+-- 0011 one. ALTER TYPE ... ADD VALUE must not be followed by USE of that value
+-- in the same transaction (a standing Postgres restriction). Keeping this file
+-- free of BEGIN/COMMIT lets the ADD VALUE auto-commit on its own, which is the
+-- safest form across Postgres versions. Do not wrap this in a transaction, and
+-- do not merge it into another migration that has one.
+--
+-- IDEMPOTENT: ADD VALUE IF NOT EXISTS is a no-op if the value already exists,
+-- so a re-run (or a run against an already-migrated database) is safe.
+--
+-- WHY `AFTER 'illness_recovery'` RATHER THAN APPENDED AT THE END
+--   Sort order is cosmetic here — nothing in the product ORDER BYs this enum,
+--   and the buy form's display order comes from the OCCASIONS array in
+--   BuyDetails.tsx, not from the database. The reason to place it is to keep
+--   the physical order of the Postgres type identical to the declared order in
+--   lib/db/src/schema/enums.ts, so a future `drizzle-kit generate` sees no
+--   drift and proposes no spurious recreate. Surgery sits next to illness and
+--   recovery because that is where a reader expects it.
+--
+-- WHY A NEW VALUE RATHER THAN REUSING illness_recovery
+--   Planned surgery is not illness. The everyday invite line for
+--   illness_recovery reads "<Name>'s not been well lately", which is simply
+--   untrue of someone who is perfectly well and having a knee done in three
+--   weeks — and it is the line thirty of their friends will read. The trusted
+--   line had already been written carefully enough to avoid assuming the
+--   procedure had happened; the everyday line never got the same care. One
+--   enum value is what lets the two diverge.
+
+ALTER TYPE "gift_occasion" ADD VALUE IF NOT EXISTS 'surgery' AFTER 'illness_recovery';
+
+-- Verify after applying (expect 6 rows, with surgery second):
+--   SELECT e.enumlabel
+--   FROM pg_type t JOIN pg_enum e ON e.enumtypid = t.oid
+--   WHERE t.typname = 'gift_occasion'
+--   ORDER BY e.enumsortorder;

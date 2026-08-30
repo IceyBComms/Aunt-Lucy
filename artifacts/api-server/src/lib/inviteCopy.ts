@@ -60,6 +60,13 @@ export function applyPronounTokens(line: string, p: RecipientPronouns): string {
 export const SITUATION_LINE_DEFAULTS: Record<Occasion, string> = {
   new_baby: "welcoming a new baby into the family",
   illness_recovery: "not been well lately",
+  // Bug #058. NOT a variant of the illness line — the opposite of it. Someone
+  // having a knee done in three weeks is perfectly well, so "not been well
+  // lately" is untrue, and it is the line thirty of their friends read.
+  // "a medical procedure" rather than "surgery" is deliberate and is Kate's
+  // wording: it covers a day procedure through to something serious, so she
+  // is never forced to disclose how bad it is to thirty people.
+  surgery: "got a medical procedure coming up",
   bereavement: "recently lost someone dear to {obj}",
   ongoing_support: "carrying a lot at the moment",
   other: "got a lot on right now",
@@ -70,6 +77,10 @@ export const TRUSTED_LINE_DEFAULTS: Record<Occasion, string> = {
   // Doesn't assume the procedure/event has already happened — "planned surgery"
   // is gifted ahead of the event just as recovery is gifted after it.
   illness_recovery: "getting some extra support with their health at the moment",
+  // Bug #058. Deliberately spans both sides of the date — it assumes neither
+  // that the procedure has happened nor that it hasn't, the same care the
+  // illness trusted line above was already written with.
+  surgery: "getting a bit of help around a procedure and the weeks after",
   bereavement: "going through a difficult time after a recent loss",
   ongoing_support: "could use a little extra support right now",
   other: "got a lot on right now",

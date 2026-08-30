@@ -12,6 +12,10 @@ import { pgEnum } from "drizzle-orm/pg-core";
 export const giftOccasionEnum = pgEnum("gift_occasion", [
   "new_baby",
   "illness_recovery",
+  // Bug #058. Added by migration 0012 with AFTER 'illness_recovery', so this
+  // declared order matches the physical order of the Postgres type and
+  // drizzle-kit sees no drift.
+  "surgery",
   "bereavement",
   "ongoing_support",
   "other",

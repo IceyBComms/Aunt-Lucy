@@ -618,12 +618,14 @@ export function Manage() {
               value={situationLine}
               maxLength={120}
               onChange={(e) => setSituationLine(e.target.value)}
-              placeholder={`e.g. ${situationHint({
-                occasion: data.occasion,
-                babyStage,
-                pronouns,
-                agnosticDefault: data.situationLineDefault ?? "",
-              })}`}
+              placeholder={((hint) => (hint ? `e.g. ${hint}` : ""))(
+                situationHint({
+                  occasion: data.occasion,
+                  babyStage,
+                  pronouns,
+                  agnosticDefault: data.situationLineDefault ?? null,
+                }),
+              )}
               className="mt-1 w-full rounded-[0.7rem] border border-[#e0d6c8] bg-[#faf7f2] px-3 py-2.5 text-[0.95rem] text-[#2c2c2c] placeholder:text-[#b3a99d] focus:border-[#2d6a4f] focus:outline-none"
             />
           </label>
@@ -638,12 +640,14 @@ export function Manage() {
               value={trustedLine}
               maxLength={120}
               onChange={(e) => setTrustedLine(e.target.value)}
-              placeholder={`e.g. ${trustedHint({
-                occasion: data.occasion,
-                babyStage,
-                pronouns,
-                agnosticDefault: data.trustedLineDefault ?? "",
-              })}`}
+              placeholder={((hint) => (hint ? `e.g. ${hint}` : ""))(
+                trustedHint({
+                  occasion: data.occasion,
+                  babyStage,
+                  pronouns,
+                  agnosticDefault: data.trustedLineDefault ?? null,
+                }),
+              )}
               className="mt-1 w-full rounded-[0.7rem] border border-[#e0d6c8] bg-[#faf7f2] px-3 py-2.5 text-[0.95rem] text-[#2c2c2c] placeholder:text-[#b3a99d] focus:border-[#2d6a4f] focus:outline-none"
             />
           </label>
