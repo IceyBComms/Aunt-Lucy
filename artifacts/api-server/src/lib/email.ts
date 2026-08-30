@@ -856,12 +856,38 @@ function formatAuDate(date: Date): string {
  * to find out what Aunt Lucy is — the emails all assumed the reader already
  * knew. This is the route to the homepage and nothing more: no button, no
  * pitch, no "buy one". The homepage does the selling. Only the words "Aunt
- * Lucy" link; the line sits in the same grey as the rest of the footer so it
- * reads as a footnote, not an ask.
+ * Lucy" link.
+ *
+ * ⚠️ NO TASK EXAMPLES (bug #076, second surface). This line used to read
+ * "practical help — meals, lifts, the school run — without the person in the
+ * thick of it having to ask". It is carried by buildRecipientClaimNotification-
+ * Email, so a BEREAVED reader being told someone had stepped in to help read
+ * "the school run" in the footer of that very email. The examples are gone
+ * rather than made occasion-aware because this footer has two callers and one
+ * of them (the magic-link email) has no occasion to be aware of. If examples
+ * are ever wanted back they must be occasion-aware on BOTH callers — see the
+ * identical constraint on the #074 intro copy.
+ *
+ * ⚠️ LEGIBILITY IS NOT COSMETIC HERE (bug #086). This was 12px #999 on the
+ * #FAF7F2 footer band: a contrast ratio of 2.67:1, against WCAG AA's 4.5:1 for
+ * text this size — a little over half the required contrast. It is the ONLY
+ * line in any email that explains what Aunt Lucy is to someone who has never
+ * heard of it, so making it the least readable text in the email was exactly
+ * backwards. Now 13px #5F574F = 6.63:1. Still a footnote, now a readable one.
  */
+/**
+ * The footer band's text colour (bug #086).
+ *
+ * #5F574F on the #FAF7F2 band is 6.63:1 — comfortably past WCAG AA's 4.5:1 for
+ * small text, where the previous #999 was 2.67:1. Kept as a token so the two
+ * lines in that band cannot drift apart again, and so the next person changing
+ * it can see the number it has to beat.
+ */
+const FOOTER_TEXT = "#5F574F";
+
 function homepageFooterLine(): string {
   const home = escapeHtml(getAppBaseUrl());
-  return `<p style="margin:12px 0 0;color:#999;font-size:12px;line-height:1.6;">New to <a href="${home}" style="color:#999;text-decoration:underline;">Aunt Lucy</a>? It's a simple way for friends and family to organise practical help — meals, lifts, the school run — without the person in the thick of it having to ask.</p>`;
+  return `<p style="margin:12px 0 0;color:${FOOTER_TEXT};font-size:13px;line-height:1.7;">New to <a href="${home}" style="color:${FOOTER_TEXT};text-decoration:underline;">Aunt Lucy</a>? It's a simple way for friends and family to organise practical help, without the person in the thick of it having to ask.</p>`;
 }
 
 /**
@@ -891,7 +917,7 @@ function renderGiftLayout(params: {
 ${params.contentHtml}
         </td></tr>
         <tr><td style="padding:20px 32px;background-color:#FAF7F2;text-align:center;">
-          <p style="margin:0;color:#999;font-size:12px;">${params.footerHtml ?? "auntlucy.com.au"}</p>
+          <p style="margin:0;color:${FOOTER_TEXT};font-size:13px;line-height:1.6;">${params.footerHtml ?? "auntlucy.com.au"}</p>
           ${homepageFooterLine()}
         </td></tr>
       </table>
