@@ -302,6 +302,7 @@ export function buildMagicLinkEmail(magicLink: string): RenderedEmail {
           <p style="margin:0;color:#999;font-size:12px;">Can't click the button? Copy this link:</p>
           <p style="margin:6px 0 0;color:#999;font-size:12px;line-height:1.5;word-break:break-all;overflow-wrap:anywhere;">${escapeHtml(magicLink)}</p>
           ${homepageFooterLine()}
+          ${senderIdentityLine()}
         </td></tr>
       </table>
     </td></tr>
@@ -891,6 +892,31 @@ function formatAuDate(date: Date): string {
  */
 const FOOTER_TEXT = "#5F574F";
 
+/**
+ * The sender-identity line every email footer carries (bug #089).
+ *
+ * The Terms tell people that our messages identify "Aunt Lucy (and, through
+ * the link/footer, Icebreaker Communications) as the sender" — a Spam Act
+ * clause. An email saying "Aunt Lucy" and linking to a site whose Terms name
+ * the entity ARGUABLY already satisfies that, and Kate's ruling is that the
+ * ambiguity is not a breach. This line exists because ending the ambiguity
+ * costs one sentence, and because it answers a real question for a helper who
+ * has never heard of us: who actually sent me this?
+ *
+ * ⚠️ THE SITE FOOTER DELIBERATELY DOES NOT CARRY THIS. On the website the
+ * entity is already one click away in the Terms, which every footer links to.
+ * Adding it there too would be brand noise on every page for no gain.
+ *
+ * Legal name comes from supplierName() — the same source as the tax receipt —
+ * so the entity can never be right in one place and stale in the other. (It is
+ * declared further down the file; function declarations hoist.)
+ */
+function senderIdentityLine(): string {
+  const year = new Date().getFullYear();
+  const name = escapeHtml(supplierName());
+  return `<p style="margin:8px 0 0;color:${FOOTER_TEXT};font-size:12px;line-height:1.6;">© ${year} Aunt Lucy, a service of ${name}.</p>`;
+}
+
 function homepageFooterLine(): string {
   const home = escapeHtml(getAppBaseUrl());
   return `<p style="margin:12px 0 0;color:${FOOTER_TEXT};font-size:13px;line-height:1.7;">New to <a href="${home}" style="color:${FOOTER_TEXT};text-decoration:underline;">Aunt Lucy</a>? It's a simple way for friends and family to organise practical help, without the person in the thick of it having to ask.</p>`;
@@ -925,6 +951,7 @@ ${params.contentHtml}
         <tr><td style="padding:20px 32px;background-color:#FAF7F2;text-align:center;">
           <p style="margin:0;color:${FOOTER_TEXT};font-size:13px;line-height:1.6;">${params.footerHtml ?? "auntlucy.com.au"}</p>
           ${homepageFooterLine()}
+          ${senderIdentityLine()}
         </td></tr>
       </table>
     </td></tr>
