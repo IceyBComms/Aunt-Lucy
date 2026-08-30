@@ -8,6 +8,7 @@ import {
   helperInvitesTable,
   giftsTable,
   pageGrantsTable,
+  organisersTable,
   type SupportPage,
   type Contact,
 } from "@workspace/db";
@@ -74,6 +75,51 @@ function isEmail(v: string): boolean {
 }
 
 // ─── Read: the manage home state ─────────────────────────────────────────────
+
+/**
+ * GET /api/welcome/:token — the intro a crisis recipient lands on (bug #074).
+ *
+ * The link texted to the affected person used to drop them straight onto the
+ * management screen — "Your people", an admin console — with no explanation of
+ * what the page was, who made it, or why it existed. Kate, 23 Aug: "when the
+ * link for the page is texted to the recipient, it goes straight to the Your
+ * people page." This endpoint feeds the doorway that now sits in front of it.
+ *
+ * It returns only what the copy needs, and everything it returns is already
+ * available to whoever holds this token — they have full management access to
+ * the page. No slots, no contacts, no invites: this is a greeting, not a view.
+ */
+router.get("/welcome/:token", requireManagementToken as any, async (req, res) => {
+  const { pageId, grantRole } = req as unknown as ManagementRequest;
+
+  const page = await db.query.supportPagesTable.findFirst({
+    where: eq(supportPagesTable.id, pageId),
+    columns: { recipientName: true, occasion: true, organiserId: true, status: true },
+  });
+  if (!page) {
+    res.status(404).json({ error: "Page not found." });
+    return;
+  }
+
+  // Who set this up. Null for any organiser created before migration 0014 —
+  // the copy has a nameless variant for exactly that case, because "Someone set
+  // this page up for you" is eerie rather than reassuring on a bereavement page.
+  const organiser = page.organiserId
+    ? await db.query.organisersTable.findFirst({
+        where: eq(organisersTable.id, page.organiserId),
+        columns: { name: true },
+      })
+    : null;
+
+  res.json({
+    setUpByFirstName: organiser?.name ? firstName(organiser.name) : null,
+    recipientFirstName: page.recipientName ? firstName(page.recipientName) : null,
+    occasion: page.occasion ?? null,
+    // A manager following their own link should not be told the page was set up
+    // "for you" — they are the one running it.
+    isRecipient: grantRole === "recipient",
+  });
+});
 
 router.get("/manage/:token", requireManagementToken as any, async (req, res) => {
   const { pageId, grantId, grantRole } = req as unknown as ManagementRequest;

@@ -30,6 +30,21 @@ function isEmailAddress(value: string): boolean {
 }
 
 /** The private management URL a grant token unlocks. */
+/**
+ * Where the AFFECTED PERSON's own link goes (bug #074).
+ *
+ * Not the management screen. Someone who never asked for any of this, and did
+ * not receive a gift, needs to be told what the page is and who made it before
+ * being handed an admin console. The doorway carries a button through to
+ * /manage, so nothing is hidden — it is one screen earlier, not a detour.
+ *
+ * A MANAGER's link still points straight at /manage: they were handed the
+ * running of the page deliberately, and their own email already explains it.
+ */
+export function welcomeLinkFor(token: string): string {
+  return `${getAppBaseUrl()}/welcome/${token}`;
+}
+
 export function manageLinkFor(token: string): string {
   return `${getAppBaseUrl()}/manage/${token}`;
 }
@@ -384,7 +399,7 @@ export async function grantRecipientAccess(opts: {
     personName: opts.recipientName,
     recipientName: opts.recipientName,
     role: "recipient",
-    link: manageLinkFor(token),
+    link: welcomeLinkFor(token),
     granterFirst: await granterFirstName(opts.byGrantId, opts.recipientName),
     occasion: opts.occasion ?? null,
   });
