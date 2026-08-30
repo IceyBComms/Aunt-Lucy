@@ -284,10 +284,32 @@ export function GiftActivation({ token }: { token: string }) {
             : "Share this link with anyone who's offered to help. They won't need an account."}
         </p>
 
-        <div className="mx-auto mb-4 flex max-w-full items-center gap-2 rounded-full border border-[#e7ddd0] bg-white px-4 py-3">
-          <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-left text-[0.9rem] text-[#52493f]">
+        {/* ── The PUBLIC link. Bug #036. ──
+            This and the private link below were the same white pill with the
+            same green Copy button, about 200px apart. Kate sent the wrong one,
+            and she built the product. The prose above each was already saying
+            the right thing — it just sat far enough away to detach under a
+            skim, so at a glance the screen offered two identical things.
+
+            Two changes, and the second is the one that matters. Each pill now
+            carries its own label, close enough that it cannot float off. And
+            the two are built out of DIFFERENT PARTS: this one is a raised
+            white card, bordered in green, with the URL boxed and a full-width
+            filled Copy button; the private one is a flat dashed strip on the
+            page background with a plain text Copy. Sharing is the primary act
+            on this screen, so it gets the weight. If a later change makes
+            these two read as a matching pair again, the bug is back — they
+            have to be tellable apart at a glance, not on a read. */}
+        <div className="mx-auto mb-5 rounded-[1.15rem] border-2 border-[#2d6a4f] bg-white p-[0.9rem] text-left shadow-[0_12px_28px_-16px_rgba(45,106,79,0.75)]">
+          <div className="mb-2 flex items-center gap-1.5">
+            <Users className="h-4 w-4 flex-none text-[#2d6a4f]" />
+            <span className="text-[0.88rem] font-semibold text-[#2d6a4f]">
+              The link you share
+            </span>
+          </div>
+          <div className="mb-2.5 overflow-hidden text-ellipsis whitespace-nowrap rounded-[0.7rem] bg-[#f7f3ec] px-3 py-2 text-[0.9rem] text-[#52493f]">
             {pageUrl}
-          </span>
+          </div>
           <button
             type="button"
             onClick={() => {
@@ -295,10 +317,10 @@ export function GiftActivation({ token }: { token: string }) {
               setCopied(true);
               setTimeout(() => setCopied(false), 2000);
             }}
-            className="flex flex-none items-center gap-1.5 rounded-full bg-[#2d6a4f] px-3 py-1.5 text-[0.8rem] font-semibold text-white transition-colors hover:bg-[#245842]"
+            className="flex w-full items-center justify-center gap-2 rounded-full bg-[#2d6a4f] px-4 py-3 text-[0.95rem] font-semibold text-white transition-colors hover:bg-[#245842]"
           >
-            {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-            {copied ? "Copied" : "Copy"}
+            {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+            {copied ? "Copied" : "Copy link"}
           </button>
         </div>
 
@@ -320,31 +342,44 @@ export function GiftActivation({ token }: { token: string }) {
               Add a few names and Aunt Lucy will do the asking — gently, no
               pressure on anyone. This is your private link; keep it handy.
             </p>
+            {/* Outlined, not filled. This is a real action and stays easy to
+                find, but a second solid green button would put the heaviest
+                thing on the screen inside the block she must NOT share. */}
             <a
               href={`/manage/${activatedPage.manageToken}`}
-              className="inline-flex items-center gap-2 rounded-full bg-[#2d6a4f] px-6 py-3 font-serif text-[1.02rem] font-semibold text-white shadow-[0_10px_24px_-12px_rgba(45,106,79,0.7)] transition-all hover:-translate-y-0.5 hover:bg-[#245842]"
+              className="inline-flex items-center gap-2 rounded-full border-[1.5px] border-[#2d6a4f] bg-transparent px-6 py-2.5 font-serif text-[1rem] font-semibold text-[#2d6a4f] transition-colors hover:bg-[#e8efe9]"
             >
               Add your people
               <ArrowRight className="h-4 w-4" />
             </a>
-            <div className="mx-auto mt-3 flex max-w-full items-center gap-2 rounded-full border border-[#e7ddd0] bg-white px-4 py-2.5">
-              <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-left text-[0.82rem] text-[#8b7e74]">
-                {`${window.location.origin}/manage/${activatedPage.manageToken}`}
-              </span>
-              <button
-                type="button"
-                onClick={() => {
-                  void navigator.clipboard.writeText(
-                    `${window.location.origin}/manage/${activatedPage.manageToken}`,
-                  );
-                  setManageCopied(true);
-                  setTimeout(() => setManageCopied(false), 2000);
-                }}
-                className="flex flex-none items-center gap-1.5 rounded-full bg-[#f3eadd] px-3 py-1.5 text-[0.78rem] font-semibold text-[#2d6a4f]"
-              >
-                {manageCopied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                {manageCopied ? "Copied" : "Copy"}
-              </button>
+            {/* The PRIVATE link — flat, dashed, no white fill, a text-button
+                Copy. Deliberately nothing like the card above. See #036. */}
+            <div className="mx-auto mt-5 max-w-full rounded-[0.9rem] border border-dashed border-[#cbbfae] px-3.5 py-3 text-left">
+              <div className="mb-1.5 flex items-center gap-1.5">
+                <Lock className="h-3.5 w-3.5 flex-none text-[#8b7e74]" />
+                <span className="text-[0.8rem] font-semibold text-[#6f6459]">
+                  {"Yours only — please don't share this one"}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[0.78rem] text-[#8b7e74]">
+                  {`${window.location.origin}/manage/${activatedPage.manageToken}`}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    void navigator.clipboard.writeText(
+                      `${window.location.origin}/manage/${activatedPage.manageToken}`,
+                    );
+                    setManageCopied(true);
+                    setTimeout(() => setManageCopied(false), 2000);
+                  }}
+                  className="flex flex-none items-center gap-1 text-[0.78rem] font-semibold text-[#6f6459] underline underline-offset-4 transition-colors hover:text-[#2d6a4f]"
+                >
+                  {manageCopied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                  {manageCopied ? "Copied" : "Copy"}
+                </button>
+              </div>
             </div>
           </div>
         )}

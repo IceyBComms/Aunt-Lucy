@@ -41,6 +41,10 @@ const TOKEN = "previewtoken";
 // ?occasion=bereavement etc. — lets one harness prove what every occasion renders.
 const OCCASION = new URLSearchParams(location.search).get("occasion") ?? "new_baby";
 const NO_LINE = new URLSearchParams(location.search).get("noline") === "1";
+// ?live=1 — the page is already activated, so the "It's live." screen renders
+// instead of the review form. Bug #036 lives on that screen (two links, one
+// public and one private) and there was previously no way to look at it.
+const LIVE = new URLSearchParams(location.search).get("live") === "1";
 const REVIEW_FAIL_PARAM = new URLSearchParams(location.search).get("reviewfails");
 const REVIEW_FAILS = REVIEW_FAIL_PARAM !== null && REVIEW_FAIL_PARAM !== "0";
 const REVIEW_FAIL_STATUS = REVIEW_FAIL_PARAM === "404" ? 404 : 500;
@@ -184,13 +188,16 @@ const GIFT = {
 };
 
 const REVIEW = {
-  activated: false,
+  activated: LIVE,
   canActivate: true,
   recipientName: "Zara",
   giftedBy: "The team at Meridian",
   occasion: OCCASION,
-  slug: null,
-  status: null,
+  // Both tokens are shaped like the real thing — an unguessable slug for the
+  // public page and a longer manage token — because the point of the #036
+  // render is how the two URLs sit next to each other at 375px.
+  slug: LIVE ? "xK9mR2pQ4w" : null,
+  status: LIVE ? "active" : null,
   scheduledActivateAt: null,
   // ?noline=1 — simulate the server sending NO occasion default at all, which is
   // what the two nullable fields allow. Bug #059: the placeholder must then be
@@ -198,7 +205,7 @@ const REVIEW = {
   situationLine: NO_LINE ? null : SITUATION[OCCASION],
   trustedLine: NO_LINE ? null : TRUSTED[OCCASION],
   recipientEmail: "zara@example.com",
-  manageToken: null,
+  manageToken: LIVE ? "7Qd2LpV9sT4bXhZk" : null,
   suggestions: SUGGESTIONS[OCCASION],
 };
 
@@ -245,3 +252,21 @@ createRoot(document.getElementById("root")!).render(
     </QueryClientProvider>
   </StrictMode>,
 );
+
+// With ?live=1 the screen under review sits below the whole keepsake, so park
+// it at the top of the viewport. Harness-only: the real page never does this.
+if (LIVE) {
+  const park = () => {
+    const heading = Array.from(document.querySelectorAll("h2")).find((el) =>
+      /It's live|All set for later/.test(el.textContent ?? ""),
+    );
+    const section = heading?.closest("section");
+    if (!section) return false;
+    section.scrollIntoView({ block: "start" });
+    return true;
+  };
+  let tries = 0;
+  const timer = setInterval(() => {
+    if (park() || ++tries > 40) clearInterval(timer);
+  }, 100);
+}
