@@ -486,6 +486,25 @@ export function GiftActivation({ token }: { token: string }) {
         <p>
           But when you need it most, asking is the last thing you can face.
         </p>
+        {/*
+            Bug #076, site ⑤ — the ORIGINAL instance, and the last one in the
+            class that reaches a bereaved reader.
+
+            This sits ABOVE the task list, so it is the first description of the
+            product she reads. It used to promise "a meal, a lift, the school
+            run" on EVERY occasion — including bereavement, surgery and "other",
+            where the school run is not in her suggested task set at all. So the
+            explainer offered a fifth thing the page then never showed her.
+
+            Adopts the occasion-safe line the emails now use, so the page and
+            every email say the same thing.
+
+            📌 BETTER LONG-TERM ANSWER, LOGGED AS #087 AND DELIBERATELY NOT BUILT
+            HERE: this explainer COULD be occasion-aware — unlike the email
+            footer, the activation page knows the occasion. Naming the tasks she
+            will actually be shown is warmer than naming none. That is a bigger
+            change than a string swap and is Kate's to rank.
+          */}
         <p>
           <a
             href={import.meta.env.BASE_URL || "/"}
@@ -496,7 +515,7 @@ export function GiftActivation({ token }: { token: string }) {
             Aunt Lucy
           </a>{" "}
           is the page that sorts it out for you. You approve a short list of
-          things that would genuinely help — a meal, a lift, the school run —
+          things that would genuinely help — meals, lifts, the practical bits —
           then share one link with whoever you'd want at the door, and they pick
           what suits them. No one has to ask, and you never have to organise a
           thing.
