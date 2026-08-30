@@ -105,8 +105,13 @@ function managerAccessEmail(
     ? `Hi ${personFirst}, ${granterFirst} has asked you to help run ${recipientFirst}'s Aunt Lucy page`
     : `Hi ${personFirst}, someone looking after ${recipientFirst}'s Aunt Lucy page has asked you to help run it`;
   return (
-    `${opener} — a simple page where friends and family coordinate practical ` +
-    `help: meals, lifts, the school run.\n\n` +
+    // #076 sweep site ④. Occasion-blind, so a manager on a bereavement page
+    // read "the school run". Adopts the shipped, occasion-safe line from
+    // recipientAccessGentleSms rather than drafting a new one. The lead-in
+    // "practical help:" is dropped only because the adopted fragment already
+    // carries "practical" — a deletion, not a rewrite.
+    `${opener} — a simple page where friends and family coordinate ` +
+    `meals, lifts, the practical bits.\n\n` +
     `You'll be able to see what's needed, add things and invite people. Here's your ` +
     `own private link — it's just for you:\n\n${link}\n\n` +
     `No pressure at all — if now's not the time, you can simply leave it.`
@@ -177,8 +182,13 @@ function recipientAccessGentleEmail(
     ? `Hi ${personFirst}, ${granterFirst} set up an Aunt Lucy page for you`
     : `Hi ${personFirst}, someone who's looking out for you has set up an Aunt Lucy page`;
   return (
-    `${opener} — one place where the people around you can pick up the practical ` +
-    `things: meals, lifts, the school run.\n\n` +
+    // #076 sweep site ③, and the sharpest one: `gentle` is selected ONLY for
+    // bereavement and illness_recovery, so the branch that exists TO BE
+    // GENTLER named the school run anyway — while its own SMS sibling below
+    // already said the right thing. The two halves of one message disagreed;
+    // this makes them agree by adopting the sibling's words verbatim.
+    `${opener} — one place where the people around you can pick up ` +
+    `meals, lifts, the practical bits.\n\n` +
     `It's yours now, to use or not. You can see everything on it, change anything, or ` +
     `close it whenever you like:\n\n${link}\n\n` +
     `There's nothing you have to do. Nothing on it happens without someone offering ` +

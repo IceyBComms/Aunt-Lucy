@@ -1308,7 +1308,17 @@ function giftDeliveryParagraph(
       // offers a fifth thing the page never shows is its own small betrayal.
       return `A procedure is one thing; the weeks afterwards are another. ${giverName} has set up a page so the people around you can have the lifts, the meals and the shopping sorted before you're home — without you having to ask for any of it.`;
     case "bereavement":
-      return `There are no right words for a time like this. ${giverName} has set up a page so the people who love you can quietly take a few things off your plate — meals, the school run, a friendly face — without you having to ask or organise a thing.`;
+      // #076 sweep site ②. This is BODY copy on the branch written specifically
+      // for a bereaved reader, and it named the school run — while the surgery
+      // branch directly above deliberately omits it (#058), with a comment
+      // saying why. One branch was thought about; the one beside it was not.
+      //
+      // Adopts the shipped, occasion-safe line from recipientAccessGentleSms.
+      // ⚠️ NOTE FOR REVIEW: this drops "a friendly face", which was warm and was
+      // not itself at fault — it goes because the adopted line replaces the whole
+      // three-item list rather than swapping one item for another. Restoring it
+      // is a copy decision, not a correctness one.
+      return `There are no right words for a time like this. ${giverName} has set up a page so the people who love you can quietly take a few things off your plate — meals, lifts, the practical bits — without you having to ask or organise a thing.`;
     case "ongoing_support":
     case "other":
       return neutral;
