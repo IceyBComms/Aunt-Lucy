@@ -776,7 +776,7 @@ export const GetManageStateResponse = zod.object({
       name: zod.string(),
       kind: zod.enum(["general", "trusted", "second_wave"]),
       channel: zod.enum(["sms", "email"]),
-      status: zod.enum(["queued", "sent", "failed", "cancelled"]),
+      status: zod.enum(["queued", "sending", "sent", "failed", "cancelled"]),
       scheduledFor: zod.string(),
       sentAt: zod.string().nullish(),
       claimedAt: zod.string().nullish(),

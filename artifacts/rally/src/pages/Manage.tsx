@@ -27,6 +27,7 @@ import {
   useGrantRecipientAccess,
   type InvitePreview,
   type ManageTaskSummary,
+  type ManageInviteStatus,
   type BabyStage,
   type RecipientPronouns,
 } from "@workspace/api-client-react";
@@ -48,6 +49,28 @@ import {
   isLiftCandidate,
   type LiftWaitMode,
 } from "@/lib/liftWaitMode";
+
+/**
+ * What each invite state is called on the recipient's own page.
+ *
+ * EXHAUSTIVE ON PURPOSE (bug #048). The list below used to name `sent` and
+ * `queued` and then fall through to printing the raw status, so a failed invite
+ * already showed as the bare lowercase word "failed" beside a friend's name,
+ * and the new `sending` state would have joined it. Typing this as a Record
+ * over ManageInviteStatus means a future status is a compile error here rather
+ * than another raw enum value leaking onto the page.
+ *
+ * "couldn't send" blames neither her nor the friend, and deliberately does not
+ * promise a retry that isn't built — there is no control and no link, because
+ * the resend is bug #009.
+ */
+const INVITE_STATUS_LABEL: Record<ManageInviteStatus, string> = {
+  queued: "queued",
+  sending: "sending now",
+  sent: "invited",
+  failed: "couldn't send",
+  cancelled: "cancelled",
+};
 
 /** One row of the invite selection: whether to include, and which task (trusted). */
 interface Selection {
@@ -955,14 +978,21 @@ export function Manage() {
                 className="flex items-center justify-between rounded-[0.7rem] border border-[#e7ddd0] bg-white px-3.5 py-2 text-[0.88rem]"
               >
                 <span className="text-[#2c2c2c]">{i.name}</span>
-                <span className="text-[#8b7e74]">
-                  {i.claimedAt
-                    ? "helping 💛"
-                    : i.status === "sent"
-                      ? "invited"
-                      : i.status === "queued"
-                        ? "queued"
-                        : i.status}
+                {/* Every state is muted except "couldn't send", which takes the
+                    body colour the name itself uses (bug #048). A friend who
+                    was never reached should not read at the same weight as one
+                    who was — that is the bug's own shape, in visual form. Body
+                    colour and nothing else: no red, no bold, no icon, no badge.
+                    There is no resend control yet, so it has to read as a fact
+                    on a warm page, not as an alarm. */}
+                <span
+                  className={
+                    !i.claimedAt && i.status === "failed"
+                      ? "text-[#2c2c2c]"
+                      : "text-[#8b7e74]"
+                  }
+                >
+                  {i.claimedAt ? "helping 💛" : INVITE_STATUS_LABEL[i.status]}
                 </span>
               </div>
             ))}
