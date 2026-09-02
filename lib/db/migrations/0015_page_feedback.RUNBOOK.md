@@ -23,11 +23,27 @@ middle of a live claim or activation.
 
 > **Apply the migration first. Merge the PR second. Never the other way round.**
 
-Here that direction is **required**, not merely prudent, and it is stricter than
-0011's or 0014's. Those added nullable columns nothing yet read. This adds a
-table the deployed code touches on **every single load of /manage** — the manage
-view SELECTs from `page_feedback` to decide whether to show the form or the
-thank-you. Merge first and every organiser's management page 500s.
+This adds a table the deployed code touches on **every single load of /manage** —
+the manage view SELECTs from `page_feedback` to decide whether to show the form
+or the thank-you.
+
+**As first written, merging first would have 500'd every organiser's management
+page.** That is not hypothetical: it happened during the build, on a database
+branch that did not have the table yet, and it took the whole route down — tasks,
+people, invites, access, all of it — over a feedback box.
+
+**That is now guarded** (`lookupFeedbackSafely` / `feedbackBlockState` in
+`artifacts/api-server/src/lib/pageFeedback.ts`). If the lookup fails for any
+reason the failure is logged at error level and /manage renders **without** the
+feedback block; every other section is untouched. Same shape as #077, where one
+unguarded call took a whole screen with it.
+
+So the ordering is now **prudent rather than enforced by breakage**. Apply first
+anyway — the guard is defence in depth, not a licence to merge in either order,
+and a page that silently drops its feedback block is still a degraded page. What
+the guard really protects is everything *after* this migration: a fresh Neon
+branch, a rollback, a restored copy, any future environment where the table is
+behind.
 
 The reverse order is completely safe and costs nothing: between apply and merge,
 production carries an empty table no running code knows about.
@@ -243,3 +259,9 @@ COMMIT;
 Dropping the table destroys any feedback already left in it and nothing else —
 no page, claim, contact, grant or gift data is touched. If any rows exist,
 export them first; they are the one thing here that cannot be recreated.
+
+Note that /manage keeps working through a rollback even if the app build has NOT
+been reverted: the read path is guarded, so it logs the failure and serves the
+page without the feedback block. The POST would fail, but the block is not shown,
+so there is nothing to press. Revert the build anyway — that is the tidy state,
+not the survivable one.

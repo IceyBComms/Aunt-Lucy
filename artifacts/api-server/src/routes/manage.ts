@@ -43,7 +43,11 @@ import {
   helperEmailSubject,
 } from "../lib/item17Copy";
 import { type SlotFlexibility } from "../lib/slotFlexibility";
-import { feedbackFormVisible, readFeedbackSubmission } from "../lib/pageFeedback";
+import {
+  feedbackBlockState,
+  lookupFeedbackSafely,
+  readFeedbackSubmission,
+} from "../lib/pageFeedback";
 import {
   resolvePronouns,
   applyPronounTokens,
@@ -183,11 +187,30 @@ router.get("/manage/:token", requireManagementToken as any, async (req, res) => 
   // thing. One extra query, and it removes the "did that actually save?" doubt
   // entirely — which matters more than usual here, because #102 has already
   // proved this product can swallow something silently.
-  const [existingFeedback] = await db
-    .select({ id: pageFeedbackTable.id })
-    .from(pageFeedbackTable)
-    .where(and(eq(pageFeedbackTable.pageId, pageId), eq(pageFeedbackTable.grantId, grantId)))
-    .limit(1);
+  //
+  // ⚠️ GUARDED, AND THE GUARD IS THE POINT. /manage is where an organiser runs
+  // everything; a feedback box must never be able to take it down. This exact
+  // failure happened during the build — the whole route 500'd on a database
+  // branch where page_feedback did not exist — and it is the server-side twin of
+  // #077, where one unguarded call took a whole screen with it. On failure the
+  // block simply is not offered (see feedbackBlockState) and every other section
+  // renders as normal.
+  const feedbackLookup = await lookupFeedbackSafely(
+    async () => {
+      const [row] = await db
+        .select({ id: pageFeedbackTable.id })
+        .from(pageFeedbackTable)
+        .where(and(eq(pageFeedbackTable.pageId, pageId), eq(pageFeedbackTable.grantId, grantId)))
+        .limit(1);
+      return !!row;
+    },
+    (err) =>
+      logger.error(
+        { err, pageId },
+        "Feedback lookup failed — serving /manage without the feedback block",
+      ),
+  );
+  const feedbackState = feedbackBlockState(page.slots, feedbackLookup);
 
   res.json({
     role: grantRole,
@@ -198,8 +221,9 @@ router.get("/manage/:token", requireManagementToken as any, async (req, res) => 
     // already answered. See lib/pageFeedback.ts — the rule is "once at least
     // one task has been claimed", because someone whose page has had no claims
     // has nothing to report yet and being asked reads as a product fishing.
-    feedbackVisible: feedbackFormVisible(page.slots),
-    feedbackGiven: !!existingFeedback,
+    // Both read false if the lookup above failed: the block is dropped, the
+    // rest of the page is untouched.
+    ...feedbackState,
     // Present only for a sealed team card — the "See your card 💛" entry point.
     cardKeepsakeUrl,
     slug: page.slug,

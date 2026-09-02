@@ -10,6 +10,8 @@
 import { describe, expect, it } from "vitest";
 import {
   feedbackFormVisible,
+  feedbackBlockState,
+  lookupFeedbackSafely,
   readFeedbackSubmission,
   buildFeedbackNotification,
   feedbackOccasionLabel,
@@ -33,6 +35,92 @@ describe("is the form shown?", () => {
 
   it("treats a null claim flag as unclaimed rather than as truthy", () => {
     expect(feedbackFormVisible([{ isClaimed: null }])).toBe(false);
+  });
+});
+
+describe("the feedback block must never take /manage down", () => {
+  // The server-side twin of #077. This is not hypothetical: during the build the
+  // whole manage route 500'd on a branch where page_feedback did not exist yet,
+  // and /manage is where an organiser runs everything — tasks, people, invites,
+  // access. A feedback box is the least important thing on that page.
+  const claimed = [{ isClaimed: true }];
+
+  it("shows the form normally when the lookup succeeds and nobody has answered", () => {
+    expect(feedbackBlockState(claimed, { ok: true, alreadyGiven: false })).toEqual({
+      feedbackVisible: true,
+      feedbackGiven: false,
+    });
+  });
+
+  it("shows the thank-you when the lookup says this person already answered", () => {
+    expect(feedbackBlockState(claimed, { ok: true, alreadyGiven: true })).toEqual({
+      feedbackVisible: true,
+      feedbackGiven: true,
+    });
+  });
+
+  it("DROPS the whole block when the lookup failed — the rest of the page stands", () => {
+    expect(feedbackBlockState(claimed, { ok: false })).toEqual({
+      feedbackVisible: false,
+      feedbackGiven: false,
+    });
+  });
+
+  it("hides rather than falls back to the form, so nothing can be typed and lost", () => {
+    // If the read failed the write may fail too. Not asking costs a piece of
+    // feedback; asking and dropping it costs the person's goodwill and tells
+    // them nothing went wrong — which is #102 exactly.
+    const failed = feedbackBlockState(claimed, { ok: false });
+    expect(failed.feedbackVisible).toBe(false);
+  });
+
+  it("swallows a thrown lookup into ok:false and reports it, rather than propagating", async () => {
+    const seen: unknown[] = [];
+    const boom = new Error("relation \"page_feedback\" does not exist");
+    const result = await lookupFeedbackSafely(
+      () => Promise.reject(boom),
+      (err) => seen.push(err),
+    );
+    expect(result).toEqual({ ok: false });
+    // Loud, not silent: the error reaches the logger with the real cause.
+    expect(seen).toEqual([boom]);
+  });
+
+  it("swallows a SYNCHRONOUS throw too, not just a rejected promise", async () => {
+    const seen: unknown[] = [];
+    const result = await lookupFeedbackSafely(
+      () => {
+        throw new Error("connection terminated");
+      },
+      (err) => seen.push(err),
+    );
+    expect(result).toEqual({ ok: false });
+    expect(seen).toHaveLength(1);
+  });
+
+  it("passes the answer straight through when nothing goes wrong", async () => {
+    const noop = () => {
+      throw new Error("onError must not be called on the happy path");
+    };
+    expect(await lookupFeedbackSafely(() => Promise.resolve(true), noop)).toEqual({
+      ok: true,
+      alreadyGiven: true,
+    });
+    expect(await lookupFeedbackSafely(() => Promise.resolve(false), noop)).toEqual({
+      ok: true,
+      alreadyGiven: false,
+    });
+  });
+
+  it("end to end: a thrown lookup becomes a hidden block", async () => {
+    const lookup = await lookupFeedbackSafely(
+      () => Promise.reject(new Error("42P01")),
+      () => {},
+    );
+    expect(feedbackBlockState(claimed, lookup)).toEqual({
+      feedbackVisible: false,
+      feedbackGiven: false,
+    });
   });
 });
 

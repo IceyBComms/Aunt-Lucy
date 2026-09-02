@@ -42,6 +42,69 @@ export function feedbackFormVisible(
   return tasks.some((t) => t.isClaimed === true);
 }
 
+/**
+ * The outcome of asking "has this person already left feedback?" — which is a
+ * question that can FAIL, separately from its answer being yes or no.
+ */
+export type FeedbackLookup =
+  /** The table answered. */
+  | { ok: true; alreadyGiven: boolean }
+  /** The lookup blew up. Nothing is known, and the block is not offered. */
+  | { ok: false };
+
+/**
+ * Runs the "already given?" lookup and swallows any failure into `{ ok: false }`,
+ * reporting it to `onError` so it is loud in the logs rather than silent.
+ *
+ * ⚠️ THE FEEDBACK FORM MUST NOT BE ABLE TO TAKE DOWN /manage. That page is where
+ * an organiser runs everything — the tasks, the people, the invites, who has
+ * access — and a feedback box is the least important thing on it by a wide
+ * margin. This guard exists because the failure is not hypothetical: during this
+ * build the whole manage route 500'd on a database branch where page_feedback
+ * did not exist yet. Same shape as #077, where one unguarded call took a whole
+ * screen with it and left a live button on an empty form.
+ *
+ * It takes the query as a function rather than running one, so this module still
+ * touches no database and the guard is exercisable by a test that actually runs.
+ *
+ * What it protects, now that 0015 is applied to production: a fresh Neon branch,
+ * a rollback, a restored copy, a future environment where the table is behind —
+ * and it turns the deploy ordering for 0015 from "enforced by breakage" into
+ * "prudent", which is the honest description of it.
+ */
+export async function lookupFeedbackSafely(
+  find: () => Promise<boolean>,
+  onError: (err: unknown) => void,
+): Promise<FeedbackLookup> {
+  try {
+    return { ok: true, alreadyGiven: await find() };
+  } catch (err) {
+    onError(err);
+    return { ok: false };
+  }
+}
+
+/**
+ * What the manage view shows for feedback: whether to offer the block at all,
+ * and whether this person has already answered.
+ *
+ * A FAILED LOOKUP HIDES THE WHOLE BLOCK — it does not fall back to showing the
+ * form. If the read failed there is every chance the write would fail too, and
+ * offering a box that then loses what someone typed is worse than not offering
+ * one at all. Not asking costs a piece of feedback; asking and dropping it costs
+ * the person's goodwill and tells them nothing went wrong (#102).
+ */
+export function feedbackBlockState(
+  tasks: readonly { isClaimed: boolean | null }[],
+  lookup: FeedbackLookup,
+): { feedbackVisible: boolean; feedbackGiven: boolean } {
+  if (!lookup.ok) return { feedbackVisible: false, feedbackGiven: false };
+  return {
+    feedbackVisible: feedbackFormVisible(tasks),
+    feedbackGiven: lookup.alreadyGiven,
+  };
+}
+
 // ─── 2. Is this submission worth keeping? ────────────────────────────────────
 
 /** A generous ceiling. Nobody writes this much; a runaway paste might. */
