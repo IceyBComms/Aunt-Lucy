@@ -5,9 +5,14 @@ hand-applied SQL, never `drizzle-kit push`. **Purely additive** — one new tabl
 and two indexes. No existing table is altered, no enum is created or extended,
 no column is dropped or renamed, and no existing row is read or written.
 
-**Status: NOT YET APPLIED.** Kate applies it from the Neon SQL editor when she
-is ready — no connection string is handed to Claude Code. This runbook is
-written *before* the code merges, which is the point.
+**Status: APPLIED to production 2026-09-02** (Kate, via the Neon SQL editor — no
+connection string was ever handed to Claude Code, matching house discipline).
+The runbook was written *before* the code merged, which was the point; it is
+kept as the record of what ran and how to re-run it against any fresh copy.
+
+Steps 1–4 are done. **Step 5 is now satisfied, so the PR is clear to merge.**
+Step 6 — proving it against the running system rather than a dashboard — is
+still outstanding and happens after the merge deploys.
 
 ## Why this needed its own runbook
 
