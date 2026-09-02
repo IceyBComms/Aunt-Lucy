@@ -1,6 +1,7 @@
 import { useLocation } from "wouter";
 import { TeacupMark } from "@/components/TeacupMark";
 import { SiteFooter } from "@/components/SiteFooter";
+import { LEGAL_ENTITY } from "@/lib/legalEntity";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -66,8 +67,8 @@ export default function PrivacyPolicy() {
           <Section title="Who we are">
             <p>
               Aunt Lucy (auntlucy.com.au) is operated by{" "}
-              <strong className="text-foreground">Icebreaker Communications</strong> (ABN 34 327
-              702 731), based in Victoria, Australia. Questions, requests, worries:{" "}
+              <strong className="text-foreground">{LEGAL_ENTITY.name}</strong> (ABN{" "}
+              {LEGAL_ENTITY.abn}), based in Victoria, Australia. Questions, requests, worries:{" "}
               <MailLink address="hello@auntlucy.com.au" />. We handle personal information in line
               with the Australian Privacy Act 1988 and the Australian Privacy Principles.
             </p>
@@ -150,7 +151,7 @@ export default function PrivacyPolicy() {
               Aunt Lucy only contacts a helper because someone they know — the person being
               supported, or someone acting for them — personally chose them and approved the
               message. Every text and email says who it's about and who sent it (Aunt Lucy, a
-              product of Icebreaker Communications), and carries a free, instant opt-out: reply{" "}
+              product of {LEGAL_ENTITY.name}), and carries a free, instant opt-out: reply{" "}
               <strong className="text-foreground">STOP</strong> to a text, or use the unsubscribe
               link in an email. Opt-outs are honoured immediately and remembered.
             </p>
@@ -217,8 +218,8 @@ export default function PrivacyPolicy() {
 
           <Section title="Contact">
             <p>
-              <strong className="text-foreground">Aunt Lucy</strong> — a product of Icebreaker
-              Communications (ABN 34 327 702 731)
+              <strong className="text-foreground">Aunt Lucy</strong> — a product of{" "}
+              {LEGAL_ENTITY.name} (ABN {LEGAL_ENTITY.abn})
             </p>
             <p>
               <strong className="text-foreground">Email:</strong>{" "}

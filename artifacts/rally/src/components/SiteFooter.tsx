@@ -1,5 +1,6 @@
 import { Link } from "wouter";
 import { TeacupMark } from "@/components/TeacupMark";
+import { LEGAL_ENTITY } from "@/lib/legalEntity";
 
 /**
  * The site footer — ONE component, two modes. Bug #041.
@@ -22,6 +23,23 @@ import { TeacupMark } from "@/components/TeacupMark";
  * who we are AFTERWARDS — not be sold to while they read. If a future change
  * wants a CTA in the footer, it belongs on the homepage's mode only, and it
  * needs Kate, not a judgement call here.
+ *
+ * ── WHY THE IDENTITY LINE IS IN BOTH MODES — Bug #095 ───────────────────────
+ * A real buyer read the free crisis path and concluded it was a scam. The
+ * pages already said "no card, no catch" THREE TIMES; more reassurance was the
+ * failed treatment, because that is also what a scam says. What was missing was
+ * a REASON and A NAME THAT CAN BE CHECKED — so this line names the person, the
+ * entity and the ABN, and says how the free version is paid for.
+ *
+ * It is NOT brand story, so `compact` does not drop it. Compact exists to keep
+ * the product from talking about itself beside someone's bereavement; a helper
+ * on a stranger's support page has MORE reason to want to know who is behind
+ * this, not less. And it does not sell: it says who we are and how this is
+ * funded, with nothing to click and nothing to buy.
+ *
+ * FIRST PERSON IS DELIBERATE (Kate's ruling). "I built it" is a person taking
+ * responsibility; "she built it" is a brand describing one, and believability
+ * is the entire point of the line. Do not tidy it into third person.
  */
 type SiteFooterProps = {
   /**
@@ -93,9 +111,24 @@ export function SiteFooter({ compact = false }: SiteFooterProps) {
         </nav>
       </div>
 
-      <p className="max-w-4xl mx-auto mt-6 text-center text-xs text-muted-foreground/80">
-        © {new Date().getFullYear()} Aunt Lucy. Made with care in Australia.
-      </p>
+      {/* "Made with care in Australia" used to live on the copyright line. This
+          replaces it rather than adding a block: same claim, plus who, plus the
+          entity, plus the ABN, plus the reason — a superset of the weaker line
+          that was already sitting in exactly the right place.
+
+          The entity and ABN come from LEGAL_ENTITY, not from a literal typed
+          here. This is the one surface whose whole job is being CHECKABLE
+          against the public register, and #092 was a wrong legal entity on a
+          tax document — so it reads from the same constant as the legal pages
+          rather than becoming a seventh independent copy of the number. */}
+      <div className="max-w-2xl mx-auto mt-6 text-center text-xs text-muted-foreground">
+        <p>© {new Date().getFullYear()} Aunt Lucy.</p>
+        <p className="mt-1 leading-relaxed">
+          Aunt Lucy was made in Australia by me — Kate Robertson, at{" "}
+          {LEGAL_ENTITY.name}, ABN {LEGAL_ENTITY.abn}. The paid version funds
+          the free one, and the free one is why I built it.
+        </p>
+      </div>
     </footer>
   );
 }
