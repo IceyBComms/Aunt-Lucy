@@ -265,10 +265,22 @@ export default function Home() {
           Bug #095: a real buyer read this and concluded it was a scam. "No card,
           no catch" was already here, and said twice more on /hardest-times, so
           MORE REASSURANCE IS THE FAILED TREATMENT — it is what a scam says too.
-          The added sentence gives a REASON instead. It stays in the same
-          paragraph, same text-sm muted type, no heading, no box, no bold:
+          The sentence that replaced it gives a REASON instead. It stays in the
+          same paragraph, same text-sm muted type, no heading, no box, no bold:
           anything that draws the eye turns an explanation into a pitch, and a
           pitch is what a suspicious reader is already braced for.
+
+          "No card, no catch" is GONE from this block (Kate, 2 Sep) — it was the
+          failed treatment, and the reason now does its job. It still stands
+          twice on /hardest-times, which is a different reader at a different
+          moment.
+
+          THE LINK SAYS "Set up a page", NOT "Start free". "Start free" is
+          freemium language — free-to-START — inside a sentence that says free
+          ALWAYS, on the exact page where a buyer decided this was a con. It
+          also did not foreshadow its destination, whose own button reads
+          "Set up my page". Aunt Lucy is a $59 product with a free crisis path,
+          never a free product with a paid tier; nothing here may blur that.
 
           NO ABN OR ENTITY NAME HERE — that belongs in the footer, not beside
           someone's diagnosis. It is in SiteFooter, which this page renders. */}
@@ -276,13 +288,13 @@ export default function Home() {
         <div className="max-w-xl mx-auto text-center">
           <p className="text-sm text-muted-foreground leading-relaxed">
             Going through a loss or a sudden illness right now? Aunt Lucy is free
-            for the hardest times — always. No card, no catch. The paid version
-            funds the free one, and the free one is why I built it.{" "}
+            for the hardest times — always. The paid version funds the free one,
+            and the free one is why I built it.{" "}
             <button
               onClick={() => setLocation("/hardest-times")}
               className="text-primary underline underline-offset-2 hover:text-primary/80 transition-colors"
             >
-              Start free
+              Set up a page
             </button>
           </p>
         </div>
