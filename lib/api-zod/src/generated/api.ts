@@ -822,6 +822,18 @@ export const GetManageStateResponse = zod.object({
     .describe(
       "Whether the person the page is ABOUT holds their own recipient grant. When false, the UI offers to give them their own always-on access (the section-E nudge).",
     ),
+  feedbackVisible: zod
+    .boolean()
+    .optional()
+    .describe(
+      "Whether to offer the feedback form: true once at least one task on this page has been claimed, and true from then on. Someone whose page has had no claims has nothing to report yet.",
+    ),
+  feedbackGiven: zod
+    .boolean()
+    .optional()
+    .describe(
+      'Whether the holder of THIS management link has already left feedback. Per-grant, not per-page, so the thank-you is only ever shown to the person who actually wrote something. Drives the persistent thank-you and its \"Add something else\" link.',
+    ),
 });
 
 /**
@@ -1112,6 +1124,26 @@ export const GrantRecipientAccessBody = zod
   })
   .describe(
     "Give the affected person their own always-on recipient access (the section-E loop-in from the nudge).",
+  );
+
+/**
+ * Stores the feedback and then notifies Kate. The ROW is written first and the email second, deliberately: the row is the record, the email is only the notification, and a send that fails must never lose the feedback nor show the person an error. Not gated on whether a task has been claimed — that rule decides whether the form is offered, not whether words are accepted. Multiple submissions per page are expected and allowed.
+ * @summary Tell Kate how the page actually went
+ */
+export const SubmitPageFeedbackParams = zod.object({
+  token: zod.coerce.string(),
+});
+
+export const SubmitPageFeedbackBody = zod
+  .object({
+    wentWell: zod
+      .string()
+      .nullish()
+      .describe("Did people show up? Tell us how it went."),
+    gotInTheWay: zod.string().nullish().describe("Anything get in the way?"),
+  })
+  .describe(
+    "Both fields optional; either one alone is a complete answer. The request is refused only when both are empty. Free text — never rendered on any page, and never quoted anywhere without asking that person first.",
   );
 
 /**

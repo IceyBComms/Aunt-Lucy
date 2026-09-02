@@ -364,6 +364,16 @@ export interface ConflictError {
   error: string;
 }
 
+/**
+ * Both fields optional; either one alone is a complete answer. The request is refused only when both are empty. Free text — never rendered on any page, and never quoted anywhere without asking that person first.
+ */
+export interface SubmitPageFeedbackRequest {
+  /** Did people show up? Tell us how it went. */
+  wentWell?: string | null;
+  /** Anything get in the way? */
+  gotInTheWay?: string | null;
+}
+
 export interface OkResponse {
   ok: boolean;
 }
@@ -517,6 +527,10 @@ export interface ManageState {
   managers: ManageManager[];
   /** Whether the person the page is ABOUT holds their own recipient grant. When false, the UI offers to give them their own always-on access (the section-E nudge). */
   recipientHasOwnAccess: boolean;
+  /** Whether to offer the feedback form: true once at least one task on this page has been claimed, and true from then on. Someone whose page has had no claims has nothing to report yet. */
+  feedbackVisible?: boolean;
+  /** Whether the holder of THIS management link has already left feedback. Per-grant, not per-page, so the thank-you is only ever shown to the person who actually wrote something. Drives the persistent thank-you and its "Add something else" link. */
+  feedbackGiven?: boolean;
 }
 
 /**

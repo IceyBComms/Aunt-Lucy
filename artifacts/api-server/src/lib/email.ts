@@ -7,6 +7,7 @@ import { getAppBaseUrl } from "./appUrl";
 import { formatMoney, gstRateLabel, type GstBreakdown } from "./gst";
 import type { FounderStats } from "./founderStats";
 import { asOccasion, type Occasion } from "./occasion";
+import { buildFeedbackNotification, feedbackOccasionLabel } from "./pageFeedback";
 
 // A RESEND_API_KEY containing "placeholder" means local development: don't send
 // real email. Magic links are logged to the console instead (see sendMagicLink).
@@ -1943,5 +1944,116 @@ export async function sendFounderDigest(stats: FounderStats): Promise<boolean> {
   }
 
   logger.info({ to: FOUNDER_DIGEST_RECIPIENT }, "Founder digest sent");
+  return true;
+}
+
+// ─── Page feedback notification ──────────────────────────────────────────────
+//
+// Internal-only: an organiser's own account of how their page actually went,
+// forwarded to Kate. Never sent to a customer, and — see pageFeedback.ts — the
+// text is never rendered on any page and never quoted anywhere without asking
+// that person first.
+//
+// THE ROW IS ALREADY WRITTEN BEFORE THIS FUNCTION IS CALLED. That is the whole
+// design: this is the notification, not the record. It is allowed to throw, and
+// the caller is required to catch. A failed send costs Kate an email; it must
+// never cost someone their words (#102).
+
+/** The one and only address page feedback is ever sent to. */
+export const PAGE_FEEDBACK_RECIPIENT = "hello@auntlucy.com.au";
+
+export function buildPageFeedbackEmail(params: {
+  recipientName: string;
+  occasion: Occasion | null;
+  receivedAt: Date;
+  wentWell: string | null;
+  gotInTheWay: string | null;
+}): RenderedEmail {
+  const built = buildFeedbackNotification({
+    recipientName: params.recipientName,
+    occasion: params.occasion,
+    receivedAt: formatAuDate(params.receivedAt),
+    submission: { wentWell: params.wentWell, gotInTheWay: params.gotInTheWay },
+  });
+
+  const factRows = built.facts
+    .map(
+      ([label, value]) => `            <tr>
+              <td style="padding:5px 0;color:#666;font-size:14px;line-height:1.5;width:110px;">${escapeHtml(label)}</td>
+              <td style="padding:5px 0;color:#333;font-size:14px;line-height:1.5;font-weight:600;">${escapeHtml(value)}</td>
+            </tr>`,
+    )
+    .join("\n");
+
+  // A blank answer is greyed and italic rather than dropped, so the shape of
+  // what was asked stays visible — "she answered one of the two" is itself
+  // information, and a missing heading would read as a rendering fault.
+  const answerBlocks = built.sections
+    .map(
+      (s) => `          <p style="margin:22px 0 6px;color:#666;font-size:12px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;">${escapeHtml(s.question)}</p>
+          <p style="margin:0;padding:14px 16px;background:#F3F6F2;border-radius:8px;color:${s.answered ? "#333" : "#999"};font-size:15px;line-height:1.7;${s.answered ? "" : "font-style:italic;"}white-space:pre-wrap;">${escapeHtml(s.answer)}</p>`,
+    )
+    .join("\n");
+
+  const contentHtml = `          <p style="margin:0 0 16px;color:#333;font-size:18px;font-weight:600;line-height:1.4;">
+            Someone left feedback on their page
+          </p>
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0;">
+${factRows}
+          </table>
+${answerBlocks}
+          <p style="margin:24px 0 0;color:#999;font-size:12px;line-height:1.6;">
+            Stored on the page as well as sent here, so it isn't lost if this email fails.
+            Never shown on any page, and never quoted anywhere without asking this person first.
+          </p>`;
+
+  return {
+    subject: built.subject,
+    html: renderGiftLayout({
+      preheader: `${params.recipientName}'s page — ${feedbackOccasionLabel(params.occasion)}`,
+      contentHtml,
+      footerHtml: "Aunt Lucy — internal feedback notification",
+    }),
+    text: built.text,
+  };
+}
+
+/**
+ * Sends the notification. THROWS on a genuine send failure, on purpose: the
+ * caller has already written the row and catches this, so the failure is
+ * logged loudly rather than swallowed — the exact fault behind #102, where a
+ * notification reached nobody and left no trace at all.
+ */
+export async function sendPageFeedbackNotification(params: {
+  recipientName: string;
+  occasion: Occasion | null;
+  receivedAt: Date;
+  wentWell: string | null;
+  gotInTheWay: string | null;
+}): Promise<boolean> {
+  const rendered = buildPageFeedbackEmail(params);
+
+  if (isPlaceholderResendKey) {
+    console.log(
+      `\n📝 Page feedback for ${PAGE_FEEDBACK_RECIPIENT} (local dev — sending disabled):\n${rendered.text}\n`,
+    );
+    return true;
+  }
+  if (!resend) {
+    logger.warn("RESEND_API_KEY not set — page feedback notification not sent");
+    return false;
+  }
+
+  const { error } = await resend.emails.send({
+    from: FROM_ADDRESS,
+    to: PAGE_FEEDBACK_RECIPIENT,
+    ...rendered,
+  });
+
+  if (error) {
+    throw new Error(`Resend error sending page feedback: ${JSON.stringify(error)}`);
+  }
+
+  logger.info({ to: PAGE_FEEDBACK_RECIPIENT }, "Page feedback notification sent");
   return true;
 }

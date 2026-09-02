@@ -6,6 +6,7 @@ export * from "./magicLinkTokens";
 export * from "./sessions";
 export * from "./contacts";
 export * from "./pageGrants";
+export * from "./pageFeedback";
 export * from "./helperInvites";
 export * from "./pilotApplications";
 export * from "./gifts";

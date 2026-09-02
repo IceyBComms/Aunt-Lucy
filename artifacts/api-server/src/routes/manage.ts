@@ -8,6 +8,7 @@ import {
   helperInvitesTable,
   giftsTable,
   pageGrantsTable,
+  pageFeedbackTable,
   organisersTable,
   type SupportPage,
   type Contact,
@@ -27,7 +28,7 @@ import { firstName } from "../lib/giftFulfilment";
 import { logger } from "../lib/logger";
 import { asLiftWaitMode, LIFT_WAIT_MODE_SMS_CLAUSES } from "../lib/liftWaitMode";
 import { sendSms } from "../lib/sms";
-import { sendHelperInviteEmail } from "../lib/email";
+import { sendHelperInviteEmail, sendPageFeedbackNotification } from "../lib/email";
 import {
   notifyHelperOfTaskEvent,
   shareLinkFor,
@@ -42,6 +43,15 @@ import {
   helperEmailSubject,
 } from "../lib/item17Copy";
 import { type SlotFlexibility } from "../lib/slotFlexibility";
+import {
+  feedbackBlockState,
+  feedbackRateLimitKey,
+  lookupFeedbackSafely,
+  readFeedbackSubmission,
+  FEEDBACK_RATE_LIMIT,
+  FEEDBACK_RATE_LIMITED,
+} from "../lib/pageFeedback";
+import { hitRateLimit } from "../lib/rateLimit";
 import {
   resolvePronouns,
   applyPronounTokens,
@@ -175,11 +185,49 @@ router.get("/manage/:token", requireManagementToken as any, async (req, res) => 
     };
   });
 
+  // Has THIS person already left feedback? Per-grant, not per-page, on purpose:
+  // if her sister submitted, thanking the recipient for words she never wrote
+  // would be a small lie, and she would lose the invitation to say her own
+  // thing. One extra query, and it removes the "did that actually save?" doubt
+  // entirely — which matters more than usual here, because #102 has already
+  // proved this product can swallow something silently.
+  //
+  // ⚠️ GUARDED, AND THE GUARD IS THE POINT. /manage is where an organiser runs
+  // everything; a feedback box must never be able to take it down. This exact
+  // failure happened during the build — the whole route 500'd on a database
+  // branch where page_feedback did not exist — and it is the server-side twin of
+  // #077, where one unguarded call took a whole screen with it. On failure the
+  // block simply is not offered (see feedbackBlockState) and every other section
+  // renders as normal.
+  const feedbackLookup = await lookupFeedbackSafely(
+    async () => {
+      const [row] = await db
+        .select({ id: pageFeedbackTable.id })
+        .from(pageFeedbackTable)
+        .where(and(eq(pageFeedbackTable.pageId, pageId), eq(pageFeedbackTable.grantId, grantId)))
+        .limit(1);
+      return !!row;
+    },
+    (err) =>
+      logger.error(
+        { err, pageId },
+        "Feedback lookup failed — serving /manage without the feedback block",
+      ),
+  );
+  const feedbackState = feedbackBlockState(page.slots, feedbackLookup);
+
   res.json({
     role: grantRole,
     recipientName: page.recipientName,
     managers,
     recipientHasOwnAccess,
+    // Whether to offer the feedback form at all, and whether this person has
+    // already answered. See lib/pageFeedback.ts — the rule is "once at least
+    // one task has been claimed", because someone whose page has had no claims
+    // has nothing to report yet and being asked reads as a product fishing.
+    // Both read false if the lookup above failed: the block is dropped, the
+    // rest of the page is untouched.
+    ...feedbackState,
     // Present only for a sealed team card — the "See your card 💛" entry point.
     cardKeepsakeUrl,
     slug: page.slug,
@@ -1165,5 +1213,98 @@ router.delete(
     res.json({ ok: true });
   },
 );
+
+// ─── Feedback: how did it actually go? ───────────────────────────────────────
+
+/**
+ * POST /manage/:token/feedback — the organiser's own account of how the page
+ * went, stored here and forwarded to Kate.
+ *
+ * ⚠️ THE ORDER OF OPERATIONS IS THE WHOLE DESIGN. WRITE THE ROW FIRST, THEN
+ * SEND THE EMAIL, and never the other way round. The row is the record; the
+ * email is only the notification. On 2 September a real notification reached
+ * nobody and logged nothing (#102) — feedback that vanishes the same way would
+ * be worse than never asking, because the person spent their goodwill, Kate got
+ * nothing, and nobody would ever find out. A send that throws is caught, logged
+ * loudly with the id of the row that DOES exist, and never shown to the person:
+ * they wrote it, it was kept, and an internal email problem is not their
+ * problem to be told about.
+ *
+ * NOT GATED ON A CLAIM. feedbackFormVisible decides whether the form is OFFERED,
+ * which is a presentation rule. Acceptance is not gated on it: if the only claim
+ * on the page is released while someone is part-way through typing, their words
+ * are still taken. Refusing them would be the same silent loss this endpoint
+ * exists to prevent.
+ */
+router.post("/manage/:token/feedback", requireManagementToken as any, async (req, res) => {
+  const { pageId, grantId } = req as unknown as ManagementRequest;
+
+  const verdict = readFeedbackSubmission((req.body ?? {}) as Record<string, unknown>);
+  if (!verdict.ok) {
+    res.status(verdict.status).json({ error: verdict.error });
+    return;
+  }
+
+  // RATE LIMIT — checked AFTER validation, so a fumbled empty submission (which
+  // writes nothing and sends nothing) never uses up someone's allowance. Only
+  // submissions that would really write a row and send an email are counted.
+  //
+  // Not a security control: the endpoint is already behind a 32-random-byte
+  // management token. What is being protected is the FEATURE — this is only
+  // worth anything because Kate reads every one of these herself, so a flood of
+  // hello@auntlucy.com.au attacks the feature rather than the server. The
+  // realistic case is a stuck client retrying, not an attacker.
+  const limited = hitRateLimit(
+    feedbackRateLimitKey(grantId),
+    FEEDBACK_RATE_LIMIT.limit,
+    FEEDBACK_RATE_LIMIT.windowMs,
+  );
+  if (limited.limited) {
+    // Same shape as the crisis limiter: a Retry-After and a warm line, never a
+    // wall. The client renders this sentence inline under the form, which still
+    // holds everything they typed.
+    res.setHeader("Retry-After", Math.ceil(limited.retryAfterMs / 1000));
+    res.status(429).json({ error: FEEDBACK_RATE_LIMITED });
+    return;
+  }
+
+  // 1. THE RECORD. Everything after this point may fail without costing the
+  //    person their words.
+  const [row] = await db
+    .insert(pageFeedbackTable)
+    .values({
+      pageId,
+      grantId,
+      wentWell: verdict.value.wentWell,
+      gotInTheWay: verdict.value.gotInTheWay,
+    })
+    .returning();
+
+  // 2. THE NOTIFICATION. Best effort, by design.
+  try {
+    const page = await db.query.supportPagesTable.findFirst({
+      where: eq(supportPagesTable.id, pageId),
+      columns: { recipientName: true, occasion: true },
+    });
+    await sendPageFeedbackNotification({
+      recipientName: page?.recipientName ?? "a page",
+      occasion: page?.occasion ?? null,
+      receivedAt: row.createdAt,
+      wentWell: row.wentWell,
+      gotInTheWay: row.gotInTheWay,
+    });
+  } catch (err) {
+    // Loud, and recoverable: the id is enough to read the feedback straight out
+    // of the table. The text itself is deliberately NOT logged — it belongs to
+    // Kate's inbox and the database, not to a log aggregator.
+    logger.error(
+      { err, pageId, feedbackId: row.id },
+      "Page feedback SAVED but the notification email failed — read it from page_feedback",
+    );
+  }
+
+  logger.info({ pageId, feedbackId: row.id }, "Page feedback received");
+  res.status(201).json({ ok: true });
+});
 
 export default router;
