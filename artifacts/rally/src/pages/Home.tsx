@@ -266,16 +266,37 @@ export default function Home() {
           no catch" was already here, and said twice more on /hardest-times, so
           MORE REASSURANCE IS THE FAILED TREATMENT — it is what a scam says too.
           The sentence that replaced it gives a REASON instead. It stays in the
-          same paragraph, same text-sm muted type, no heading, no box, no bold:
+          same paragraph, same text-sm muted type, no box, no accent colour:
           anything that draws the eye turns an explanation into a pitch, and a
           pitch is what a suspicious reader is already braced for.
+
+          THE HEADING IS DELIBERATELY THE QUIETEST THING THAT IS STILL A HEADING
+          (Kate, 2 Sep): FINDABLE, NOT PROMINENT. Same text-sm, same muted
+          colour as the body, differing only by font-medium. `font-sans` is
+          EXPLICIT and load-bearing: index.css:106 puts font-serif on every
+          heading globally, and the serif is the typeface of this page's five
+          real section headings (Lora 30px/700). Inheriting it would have made
+          this whisper in the loud headings' voice. No serif, no size bump, no
+          accent colour, no box, no icon, no border. It must NOT read
+          like "How it works" or "PRICING" elsewhere on this page; a section
+          heading here would announce the free path as a tier, which is the one
+          thing this block must never do. It is an <h2> so it is findable to a
+          screen reader and in the page outline, where being findable costs
+          nothing visually.
 
           "No card, no catch" is GONE from this block (Kate, 2 Sep) — it was the
           failed treatment, and the reason now does its job. It still stands
           twice on /hardest-times, which is a different reader at a different
           moment.
 
-          THE LINK SAYS "Set up a page", NOT "Start free". "Start free" is
+          THE BODY NAMES THE SAME TWO SITUATIONS THE FORM DOES, IN THE SAME
+          WORDS — "someone's seriously ill or injured" and "you've lost someone"
+          are HardestTimes.tsx's own two option labels (OCCASIONS, :24-25). A
+          reader who follows this link should recognise what they just read.
+          The old opening question moved INTO the heading, so it is deleted here
+          rather than reworded — the block asks once, not twice.
+
+          THE LINK SAYS "Set up your page", NOT "Start free". "Start free" is
           freemium language — free-to-START — inside a sentence that says free
           ALWAYS, on the exact page where a buyer decided this was a con. It
           also did not foreshadow its destination, whose own button reads
@@ -286,15 +307,18 @@ export default function Home() {
           someone's diagnosis. It is in SiteFooter, which this page renders. */}
       <section className="py-12 px-6">
         <div className="max-w-xl mx-auto text-center">
+          <h2 className="font-sans text-sm font-medium text-muted-foreground mb-2">
+            In the thick of it right now?
+          </h2>
           <p className="text-sm text-muted-foreground leading-relaxed">
-            Going through a loss or a sudden illness right now? Aunt Lucy is free
-            for the hardest times — always. The paid version funds the free one,
-            and the free one is why I built it.{" "}
+            Aunt Lucy is free when someone's seriously ill or injured, or you've
+            lost someone — always. The paid version funds the free one, and the
+            free one is why I built it.{" "}
             <button
               onClick={() => setLocation("/hardest-times")}
               className="text-primary underline underline-offset-2 hover:text-primary/80 transition-colors"
             >
-              Set up a page
+              Set up your page
             </button>
           </p>
         </div>
