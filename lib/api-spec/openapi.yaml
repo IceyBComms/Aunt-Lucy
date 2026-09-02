@@ -875,6 +875,19 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/NotFoundError"
+        "429":
+          description: >-
+            More than ten submissions from this management link in an hour.
+            Counted only after validation, so an empty submission never uses up
+            the allowance, and keyed on the grant so one page can never affect
+            another. Not a security control — it protects the feature, which is
+            worth something only because every one of these is read. The client
+            shows the returned sentence as a plain line under the form (which
+            still holds what was typed), never an error page.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotFoundError"
 
   /manage/{token}/tasks/{slotId}:
     patch:

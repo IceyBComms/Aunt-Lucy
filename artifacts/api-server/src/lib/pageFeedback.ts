@@ -157,6 +157,51 @@ function clean(v: unknown): string | null {
   return t.length > 0 ? t : null;
 }
 
+// ─── 2b. Is this person sending more than a person could? ────────────────────
+
+/**
+ * Ten submissions per grant per hour.
+ *
+ * ⚠️ THIS IS NOT A SECURITY CONTROL, AND IT SHOULD NOT BE REASONED ABOUT AS ONE.
+ * The endpoint already sits behind a 32-random-byte management token, so nobody
+ * reaches it by guessing. The thing being protected is the FEATURE: this whole
+ * build is worth something only because Kate reads every one of these herself,
+ * so anything capable of flooding hello@auntlucy.com.au attacks the feature
+ * rather than the server. The realistic case is not an attacker — it is a stuck
+ * client retrying.
+ *
+ * Ten an hour will never trouble a real person. Someone who thinks of three more
+ * things after sending, and sends them one at a time, is nowhere near it.
+ */
+export const FEEDBACK_RATE_LIMIT = {
+  limit: 10,
+  windowMs: 60 * 60 * 1000,
+} as const;
+
+/**
+ * KEYED ON THE GRANT, so one page can never affect another — and, within a page,
+ * one manager's runaway client can never use up the recipient's allowance. The
+ * "feedback:" prefix namespaces it away from every other limiter (see
+ * lib/rateLimit.ts, where keys are caller-namespaced by contract).
+ */
+export function feedbackRateLimitKey(grantId: string): string {
+  return `feedback:${grantId}`;
+}
+
+/**
+ * What the person meets when the limit trips — a plain line, never an error
+ * page. They have done nothing wrong, and on a bereavement page an error wall
+ * for "you cared too much, too fast" would be grotesque.
+ *
+ * IT MUST NOT CLAIM THE WORDS WERE SAVED, because at this point they were not:
+ * the limit is checked before the row is written. What it CAN truthfully say is
+ * that the text is still sitting in the box — the form is not cleared unless the
+ * submission succeeded — so nothing has to be retyped. Saying "nothing's lost"
+ * when a row was never written would be the #102 lie in miniature.
+ */
+export const FEEDBACK_RATE_LIMITED =
+  "That's a lot in one go. What you've written is still here — give it a little while and send it again.";
+
 // ─── 3. What does the email to Kate say? ─────────────────────────────────────
 
 /**

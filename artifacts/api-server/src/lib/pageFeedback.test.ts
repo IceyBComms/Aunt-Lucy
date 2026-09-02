@@ -7,7 +7,7 @@
  * an emoji, or a "would you recommend us". Those are pinned below so the edit
  * has to be deliberate.
  */
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import {
   feedbackFormVisible,
   feedbackBlockState,
@@ -18,7 +18,11 @@ import {
   FEEDBACK_FIELD_MAX,
   FEEDBACK_QUESTION_ONE,
   FEEDBACK_QUESTION_TWO,
+  FEEDBACK_RATE_LIMIT,
+  FEEDBACK_RATE_LIMITED,
+  feedbackRateLimitKey,
 } from "./pageFeedback";
+import { hitRateLimit, __resetRateLimitsForTest } from "./rateLimit";
 
 describe("is the form shown?", () => {
   it("is hidden on a page with no tasks at all", () => {
@@ -168,6 +172,70 @@ describe("is this submission worth keeping?", () => {
   it("takes a long, real answer — the ceiling is for runaway pastes only", () => {
     expect(readFeedbackSubmission({ wentWell: "a".repeat(FEEDBACK_FIELD_MAX) }).ok).toBe(true);
     expect(readFeedbackSubmission({ wentWell: "a".repeat(FEEDBACK_FIELD_MAX + 1) }).ok).toBe(false);
+  });
+});
+
+describe("nothing may flood Kate's inbox", () => {
+  // NOT a security control — the endpoint is already behind a 32-random-byte
+  // management token. What is protected is the FEATURE: this is only worth
+  // something because every one of these gets read, so a flood attacks the
+  // feature rather than the server. The realistic case is a stuck client.
+  beforeEach(() => __resetRateLimitsForTest());
+
+  const hit = (grantId: string) =>
+    hitRateLimit(
+      feedbackRateLimitKey(grantId),
+      FEEDBACK_RATE_LIMIT.limit,
+      FEEDBACK_RATE_LIMIT.windowMs,
+    ).limited;
+
+  it("is ten an hour — a figure no real person reaches", () => {
+    expect(FEEDBACK_RATE_LIMIT.limit).toBe(10);
+    expect(FEEDBACK_RATE_LIMIT.windowMs).toBe(60 * 60 * 1000);
+  });
+
+  it("lets ten through and refuses the eleventh", () => {
+    const results = Array.from({ length: 11 }, () => hit("grant-1"));
+    expect(results.slice(0, 10)).toEqual(Array(10).fill(false));
+    expect(results[10]).toBe(true);
+  });
+
+  it("KEYED ON THE GRANT — one page can never affect another", () => {
+    for (let i = 0; i < 11; i++) hit("grant-1");
+    expect(hit("grant-1")).toBe(true);
+    // A different page, untouched, still has its full allowance.
+    expect(hit("grant-2")).toBe(false);
+  });
+
+  it("keeps two managers of the SAME page independent of each other", () => {
+    // Grants are per person, so a manager's runaway client cannot use up the
+    // recipient's allowance on her own page.
+    for (let i = 0; i < 11; i++) hit("sister-grant");
+    expect(hit("sister-grant")).toBe(true);
+    expect(hit("recipient-grant")).toBe(false);
+  });
+
+  it("namespaces the key away from every other limiter", () => {
+    expect(feedbackRateLimitKey("abc")).toBe("feedback:abc");
+    expect(feedbackRateLimitKey("abc")).not.toBe(feedbackRateLimitKey("abd"));
+  });
+
+  it("refuses with a plain line, not a telling-off", () => {
+    expect(FEEDBACK_RATE_LIMITED).toBe(
+      "That's a lot in one go. What you've written is still here — give it a little while and send it again.",
+    );
+    expect(FEEDBACK_RATE_LIMITED).not.toContain("!");
+    expect(/\p{Extended_Pictographic}/u.test(FEEDBACK_RATE_LIMITED)).toBe(false);
+  });
+
+  it("does NOT claim the words were saved — the row is not written when it trips", () => {
+    // "Nothing's lost" would be the #102 lie in miniature. What is true, and
+    // what it says, is that the text is still sitting in the box.
+    const lower = FEEDBACK_RATE_LIMITED.toLowerCase();
+    expect(lower).not.toContain("nothing's lost");
+    expect(lower).not.toContain("got it");
+    expect(lower).not.toContain("received");
+    expect(lower).toContain("still here");
   });
 });
 

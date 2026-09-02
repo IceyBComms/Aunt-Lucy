@@ -26,6 +26,7 @@ import {
   useRevokeManager,
   useGrantRecipientAccess,
   useSubmitPageFeedback,
+  ApiError,
   type InvitePreview,
   type ManageTaskSummary,
   type ManageInviteStatus,
@@ -349,6 +350,17 @@ export function Manage() {
   const showFeedbackForm = !feedbackAnswered || feedbackReopened;
   // Both boxes are optional; either one alone is enough to send.
   const feedbackReady = fbWentWell.trim().length > 0 || fbGotInTheWay.trim().length > 0;
+  // A rate-limit refusal carries its own sentence and must show THAT one, not
+  // the generic failure line — fb.failed says "nothing was lost", which is true
+  // of a transport failure but would be a lie here, because the limit is checked
+  // before the row is written. Every other error keeps the generic line: a raw
+  // "Something went wrong." from a 500 is worse copy than the written one.
+  const feedbackErrorLine =
+    submitFeedback.error instanceof ApiError &&
+    submitFeedback.error.status === 429 &&
+    typeof (submitFeedback.error.data as { error?: string } | null)?.error === "string"
+      ? (submitFeedback.error.data as { error: string }).error
+      : fb.failed;
 
   const onAddContact = () => {
     const c = contact.trim();
@@ -1296,7 +1308,7 @@ export function Manage() {
               </button>
 
               {submitFeedback.isError && (
-                <p className="mt-3 text-[0.88rem] text-[#c0563a]">{fb.failed}</p>
+                <p className="mt-3 text-[0.88rem] text-[#c0563a]">{feedbackErrorLine}</p>
               )}
             </>
           ) : (

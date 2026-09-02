@@ -45,9 +45,13 @@ import {
 import { type SlotFlexibility } from "../lib/slotFlexibility";
 import {
   feedbackBlockState,
+  feedbackRateLimitKey,
   lookupFeedbackSafely,
   readFeedbackSubmission,
+  FEEDBACK_RATE_LIMIT,
+  FEEDBACK_RATE_LIMITED,
 } from "../lib/pageFeedback";
+import { hitRateLimit } from "../lib/rateLimit";
 import {
   resolvePronouns,
   applyPronounTokens,
@@ -1238,6 +1242,29 @@ router.post("/manage/:token/feedback", requireManagementToken as any, async (req
   const verdict = readFeedbackSubmission((req.body ?? {}) as Record<string, unknown>);
   if (!verdict.ok) {
     res.status(verdict.status).json({ error: verdict.error });
+    return;
+  }
+
+  // RATE LIMIT — checked AFTER validation, so a fumbled empty submission (which
+  // writes nothing and sends nothing) never uses up someone's allowance. Only
+  // submissions that would really write a row and send an email are counted.
+  //
+  // Not a security control: the endpoint is already behind a 32-random-byte
+  // management token. What is being protected is the FEATURE — this is only
+  // worth anything because Kate reads every one of these herself, so a flood of
+  // hello@auntlucy.com.au attacks the feature rather than the server. The
+  // realistic case is a stuck client retrying, not an attacker.
+  const limited = hitRateLimit(
+    feedbackRateLimitKey(grantId),
+    FEEDBACK_RATE_LIMIT.limit,
+    FEEDBACK_RATE_LIMIT.windowMs,
+  );
+  if (limited.limited) {
+    // Same shape as the crisis limiter: a Retry-After and a warm line, never a
+    // wall. The client renders this sentence inline under the form, which still
+    // holds everything they typed.
+    res.setHeader("Retry-After", Math.ceil(limited.retryAfterMs / 1000));
+    res.status(429).json({ error: FEEDBACK_RATE_LIMITED });
     return;
   }
 
