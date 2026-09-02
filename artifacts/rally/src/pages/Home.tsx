@@ -260,12 +260,24 @@ export default function Home() {
         </motion.div>
       </section>
 
-      {/* The quiet line — the free crisis path: present, never sold */}
+      {/* The quiet line — the free crisis path: present, never sold.
+
+          Bug #095: a real buyer read this and concluded it was a scam. "No card,
+          no catch" was already here, and said twice more on /hardest-times, so
+          MORE REASSURANCE IS THE FAILED TREATMENT — it is what a scam says too.
+          The added sentence gives a REASON instead. It stays in the same
+          paragraph, same text-sm muted type, no heading, no box, no bold:
+          anything that draws the eye turns an explanation into a pitch, and a
+          pitch is what a suspicious reader is already braced for.
+
+          NO ABN OR ENTITY NAME HERE — that belongs in the footer, not beside
+          someone's diagnosis. It is in SiteFooter, which this page renders. */}
       <section className="py-12 px-6">
         <div className="max-w-xl mx-auto text-center">
           <p className="text-sm text-muted-foreground leading-relaxed">
             Going through a loss or a sudden illness right now? Aunt Lucy is free
-            for the hardest times — always. No card, no catch.{" "}
+            for the hardest times — always. No card, no catch. The paid version
+            funds the free one, and the free one is why I built it.{" "}
             <button
               onClick={() => setLocation("/hardest-times")}
               className="text-primary underline underline-offset-2 hover:text-primary/80 transition-colors"

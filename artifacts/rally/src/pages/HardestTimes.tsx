@@ -402,9 +402,16 @@ export default function HardestTimes() {
           </form>
         </div>
 
+        {/* Bug #095 — the reason, once. The reader here may BE the person this
+            is about, so: one sentence, no emphasis, nothing else. The identical
+            line at :184 is deliberately LEFT ALONE — two explanations on one
+            page is a page protesting, which reads worse than one. And no ABN or
+            entity name on this page at all: that is footer material, not
+            something to put beside someone's diagnosis. */}
         <p className="text-center text-xs text-muted-foreground mt-6 leading-relaxed">
           This page is free — always. No card, no upsells, nothing to cancel.
-          Times like this are why Aunt Lucy exists.
+          Times like this are why Aunt Lucy exists. The paid version funds the
+          free one, and the free one is why I built it.
         </p>
       </div>
     </div>

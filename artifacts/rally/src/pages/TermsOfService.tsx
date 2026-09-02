@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { TeacupMark } from "@/components/TeacupMark";
 import { SiteFooter } from "@/components/SiteFooter";
+import { LEGAL_ENTITY } from "@/lib/legalEntity";
 
 function Section({
   title,
@@ -116,9 +117,9 @@ export default function TermsOfService() {
               you're agreeing to these Terms. If you don't agree, please don't use it.
             </p>
             <p>
-              <B>"We", "us", "Aunt Lucy"</B> means Icebreaker Communications (ABN 34 327 702 731), a
-              sole trader based at Pascoe Vale South, Victoria 3044, Australia — the provider of the
-              Aunt Lucy service at auntlucy.com.au. <B>"You"</B> means anyone using the service.
+              <B>"We", "us", "Aunt Lucy"</B> means {LEGAL_ENTITY.name} (ABN {LEGAL_ENTITY.abn}), a
+              sole trader based at {LEGAL_ENTITY.address} — the provider of the Aunt Lucy service at
+              auntlucy.com.au. <B>"You"</B> means anyone using the service.
             </p>
           </Section>
 
@@ -283,8 +284,8 @@ export default function TermsOfService() {
                 <B>leads with the recipient's name</B>, so the helper knows who it's about,
               </li>
               <li>
-                <B>identifies Aunt Lucy</B> (and, through the link/footer, Icebreaker Communications)
-                as the sender, and
+                <B>identifies Aunt Lucy</B> (and, through the link/footer, {LEGAL_ENTITY.name}) as
+                the sender, and
               </li>
               <li>
                 includes a <B>free, one-tap opt-out</B> — reply <B>STOP</B> to a text, or unsubscribe
@@ -408,7 +409,7 @@ export default function TermsOfService() {
               hear from you.
             </p>
             <p>
-              <B>Aunt Lucy</B> — a product of Icebreaker Communications (ABN 34 327 702 731), a sole
+              <B>Aunt Lucy</B> — a product of {LEGAL_ENTITY.name} (ABN {LEGAL_ENTITY.abn}), a sole
               trader
             </p>
             <p>
