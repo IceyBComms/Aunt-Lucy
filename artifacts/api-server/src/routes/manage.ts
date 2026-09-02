@@ -8,6 +8,7 @@ import {
   helperInvitesTable,
   giftsTable,
   pageGrantsTable,
+  pageFeedbackTable,
   organisersTable,
   type SupportPage,
   type Contact,
@@ -27,7 +28,7 @@ import { firstName } from "../lib/giftFulfilment";
 import { logger } from "../lib/logger";
 import { asLiftWaitMode, LIFT_WAIT_MODE_SMS_CLAUSES } from "../lib/liftWaitMode";
 import { sendSms } from "../lib/sms";
-import { sendHelperInviteEmail } from "../lib/email";
+import { sendHelperInviteEmail, sendPageFeedbackNotification } from "../lib/email";
 import {
   notifyHelperOfTaskEvent,
   shareLinkFor,
@@ -42,6 +43,7 @@ import {
   helperEmailSubject,
 } from "../lib/item17Copy";
 import { type SlotFlexibility } from "../lib/slotFlexibility";
+import { feedbackFormVisible, readFeedbackSubmission } from "../lib/pageFeedback";
 import {
   resolvePronouns,
   applyPronounTokens,
@@ -175,11 +177,29 @@ router.get("/manage/:token", requireManagementToken as any, async (req, res) => 
     };
   });
 
+  // Has THIS person already left feedback? Per-grant, not per-page, on purpose:
+  // if her sister submitted, thanking the recipient for words she never wrote
+  // would be a small lie, and she would lose the invitation to say her own
+  // thing. One extra query, and it removes the "did that actually save?" doubt
+  // entirely — which matters more than usual here, because #102 has already
+  // proved this product can swallow something silently.
+  const [existingFeedback] = await db
+    .select({ id: pageFeedbackTable.id })
+    .from(pageFeedbackTable)
+    .where(and(eq(pageFeedbackTable.pageId, pageId), eq(pageFeedbackTable.grantId, grantId)))
+    .limit(1);
+
   res.json({
     role: grantRole,
     recipientName: page.recipientName,
     managers,
     recipientHasOwnAccess,
+    // Whether to offer the feedback form at all, and whether this person has
+    // already answered. See lib/pageFeedback.ts — the rule is "once at least
+    // one task has been claimed", because someone whose page has had no claims
+    // has nothing to report yet and being asked reads as a product fishing.
+    feedbackVisible: feedbackFormVisible(page.slots),
+    feedbackGiven: !!existingFeedback,
     // Present only for a sealed team card — the "See your card 💛" entry point.
     cardKeepsakeUrl,
     slug: page.slug,
@@ -1165,5 +1185,75 @@ router.delete(
     res.json({ ok: true });
   },
 );
+
+// ─── Feedback: how did it actually go? ───────────────────────────────────────
+
+/**
+ * POST /manage/:token/feedback — the organiser's own account of how the page
+ * went, stored here and forwarded to Kate.
+ *
+ * ⚠️ THE ORDER OF OPERATIONS IS THE WHOLE DESIGN. WRITE THE ROW FIRST, THEN
+ * SEND THE EMAIL, and never the other way round. The row is the record; the
+ * email is only the notification. On 2 September a real notification reached
+ * nobody and logged nothing (#102) — feedback that vanishes the same way would
+ * be worse than never asking, because the person spent their goodwill, Kate got
+ * nothing, and nobody would ever find out. A send that throws is caught, logged
+ * loudly with the id of the row that DOES exist, and never shown to the person:
+ * they wrote it, it was kept, and an internal email problem is not their
+ * problem to be told about.
+ *
+ * NOT GATED ON A CLAIM. feedbackFormVisible decides whether the form is OFFERED,
+ * which is a presentation rule. Acceptance is not gated on it: if the only claim
+ * on the page is released while someone is part-way through typing, their words
+ * are still taken. Refusing them would be the same silent loss this endpoint
+ * exists to prevent.
+ */
+router.post("/manage/:token/feedback", requireManagementToken as any, async (req, res) => {
+  const { pageId, grantId } = req as unknown as ManagementRequest;
+
+  const verdict = readFeedbackSubmission((req.body ?? {}) as Record<string, unknown>);
+  if (!verdict.ok) {
+    res.status(verdict.status).json({ error: verdict.error });
+    return;
+  }
+
+  // 1. THE RECORD. Everything after this point may fail without costing the
+  //    person their words.
+  const [row] = await db
+    .insert(pageFeedbackTable)
+    .values({
+      pageId,
+      grantId,
+      wentWell: verdict.value.wentWell,
+      gotInTheWay: verdict.value.gotInTheWay,
+    })
+    .returning();
+
+  // 2. THE NOTIFICATION. Best effort, by design.
+  try {
+    const page = await db.query.supportPagesTable.findFirst({
+      where: eq(supportPagesTable.id, pageId),
+      columns: { recipientName: true, occasion: true },
+    });
+    await sendPageFeedbackNotification({
+      recipientName: page?.recipientName ?? "a page",
+      occasion: page?.occasion ?? null,
+      receivedAt: row.createdAt,
+      wentWell: row.wentWell,
+      gotInTheWay: row.gotInTheWay,
+    });
+  } catch (err) {
+    // Loud, and recoverable: the id is enough to read the feedback straight out
+    // of the table. The text itself is deliberately NOT logged — it belongs to
+    // Kate's inbox and the database, not to a log aggregator.
+    logger.error(
+      { err, pageId, feedbackId: row.id },
+      "Page feedback SAVED but the notification email failed — read it from page_feedback",
+    );
+  }
+
+  logger.info({ pageId, feedbackId: row.id }, "Page feedback received");
+  res.status(201).json({ ok: true });
+});
 
 export default router;

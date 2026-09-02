@@ -50,6 +50,7 @@ import type {
   SignCardRequest,
   SignCardResult,
   SlotResponse,
+  SubmitPageFeedbackRequest,
   SupportPageWithSlots,
   UpdateCardOrganisationRequest,
   UpdateCardOrganisationResponse,
@@ -2260,6 +2261,95 @@ export const useGrantRecipientAccess = <
   TContext
 > => {
   return useMutation(getGrantRecipientAccessMutationOptions(options));
+};
+
+/**
+ * Stores the feedback and then notifies Kate. The ROW is written first and the email second, deliberately: the row is the record, the email is only the notification, and a send that fails must never lose the feedback nor show the person an error. Not gated on whether a task has been claimed — that rule decides whether the form is offered, not whether words are accepted. Multiple submissions per page are expected and allowed.
+ * @summary Tell Kate how the page actually went
+ */
+export const getSubmitPageFeedbackUrl = (token: string) => {
+  return `/api/manage/${token}/feedback`;
+};
+
+export const submitPageFeedback = async (
+  token: string,
+  submitPageFeedbackRequest: SubmitPageFeedbackRequest,
+  options?: RequestInit,
+): Promise<OkResponse> => {
+  return customFetch<OkResponse>(getSubmitPageFeedbackUrl(token), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(submitPageFeedbackRequest),
+  });
+};
+
+export const getSubmitPageFeedbackMutationOptions = <
+  TError = ErrorType<NotFoundError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof submitPageFeedback>>,
+    TError,
+    { token: string; data: BodyType<SubmitPageFeedbackRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof submitPageFeedback>>,
+  TError,
+  { token: string; data: BodyType<SubmitPageFeedbackRequest> },
+  TContext
+> => {
+  const mutationKey = ["submitPageFeedback"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof submitPageFeedback>>,
+    { token: string; data: BodyType<SubmitPageFeedbackRequest> }
+  > = (props) => {
+    const { token, data } = props ?? {};
+
+    return submitPageFeedback(token, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SubmitPageFeedbackMutationResult = NonNullable<
+  Awaited<ReturnType<typeof submitPageFeedback>>
+>;
+export type SubmitPageFeedbackMutationBody =
+  BodyType<SubmitPageFeedbackRequest>;
+export type SubmitPageFeedbackMutationError = ErrorType<NotFoundError>;
+
+/**
+ * @summary Tell Kate how the page actually went
+ */
+export const useSubmitPageFeedback = <
+  TError = ErrorType<NotFoundError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof submitPageFeedback>>,
+    TError,
+    { token: string; data: BodyType<SubmitPageFeedbackRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof submitPageFeedback>>,
+  TError,
+  { token: string; data: BodyType<SubmitPageFeedbackRequest> },
+  TContext
+> => {
+  return useMutation(getSubmitPageFeedbackMutationOptions(options));
 };
 
 /**

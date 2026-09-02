@@ -25,6 +25,7 @@ import {
   useAddManager,
   useRevokeManager,
   useGrantRecipientAccess,
+  useSubmitPageFeedback,
   type InvitePreview,
   type ManageTaskSummary,
   type ManageInviteStatus,
@@ -40,6 +41,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog-framer";
 import { family as copy } from "@/lib/item17Copy";
+import { feedback as fb } from "@/lib/feedbackCopy";
 import {
   LIFT_WAIT_MODES,
   LIFT_WAIT_MODE_LABELS,
@@ -137,6 +139,10 @@ export function Manage() {
   const addManager = useAddManager({ mutation: { onSuccess: invalidate } });
   const revokeManager = useRevokeManager({ mutation: { onSuccess: invalidate } });
   const grantAccess = useGrantRecipientAccess({ mutation: { onSuccess: invalidate } });
+  // Feedback. No onSuccess: invalidate here — the button's own onSuccess needs
+  // to clear the boxes and flip to the thank-you in the same beat, so it does
+  // both there rather than splitting the two halves across two callbacks.
+  const submitFeedback = useSubmitPageFeedback();
 
   // Item 17 — task edit / cancel. `editing` / `cancelling` hold the task whose
   // dialog is open; `flash` shows the shared "Done — Aunt Lucy's on it." line.
@@ -233,6 +239,15 @@ export function Manage() {
   const [showGiveAccess, setShowGiveAccess] = useState(false);
   const [accessContact, setAccessContact] = useState("");
 
+  // Feedback ("How it went"). `feedbackReopened` is the "Add something else"
+  // link; `feedbackJustSent` shows the thank-you in the instant between the 201
+  // and the refetch that sets data.feedbackGiven, so the form never flickers
+  // back before the thank-you arrives.
+  const [fbWentWell, setFbWentWell] = useState("");
+  const [fbGotInTheWay, setFbGotInTheWay] = useState("");
+  const [feedbackReopened, setFeedbackReopened] = useState(false);
+  const [feedbackJustSent, setFeedbackJustSent] = useState(false);
+
   // Invite composition
   const [selections, setSelections] = useState<Record<string, Selection>>({});
   const [openingLine, setOpeningLine] = useState("");
@@ -325,6 +340,15 @@ export function Manage() {
 
   const anySelected = buildInvites().length > 0;
   const gated = data.bereavement && !confirmBereavement;
+
+  // The thank-you PERSISTS: once this person has left feedback the block stays
+  // as the thank-you on every later visit, and only the explicit "Add something
+  // else" link puts the form back. `feedbackJustSent` covers the gap between
+  // the 201 and the refetch, so the form never flashes back into view.
+  const feedbackAnswered = data.feedbackGiven || feedbackJustSent;
+  const showFeedbackForm = !feedbackAnswered || feedbackReopened;
+  // Both boxes are optional; either one alone is enough to send.
+  const feedbackReady = fbWentWell.trim().length > 0 || fbGotInTheWay.trim().length > 0;
 
   const onAddContact = () => {
     const c = contact.trim();
@@ -1191,6 +1215,108 @@ export function Manage() {
           )}
         </div>
       </section>
+
+      {/* ── How it went (the feedback button) ─────────────────────────────
+          Offered only once at least one task has been claimed: someone whose
+          page has had no claims has nothing to report yet, and asking them
+          reads as a product fishing rather than listening.
+
+          It lives HERE, on the organiser's own management page, and NOT on the
+          public /s/:slug — the reason is register, not scope. A "how did we do?"
+          button on a public page sits beside someone's cancer, and every helper
+          arriving to drop off a meal would be asked to rate an experience that
+          is not theirs. Same fault as #072's shield icon: a perfectly reasonable
+          element making the wrong claim about the moment.
+
+          No section heading, on purpose. Kate's signed line IS the opening — a
+          heading above it would be a second ask, and "How did it go?" in
+          console chrome is exactly the survey register the copy avoids. */}
+      {data.feedbackVisible && (
+        <section className="mb-7 rounded-[1.1rem] border border-[#e7ddd0] bg-white px-5 py-5">
+          {showFeedbackForm ? (
+            <>
+              <p className="text-[0.95rem] leading-relaxed text-[#52493f]">{fb.intro}</p>
+              <p className="mt-1 text-[0.95rem] text-[#52493f]">{fb.signature}</p>
+
+              <label className="mt-5 block">
+                <span className="mb-1.5 block text-[0.9rem] font-semibold text-[#2c2c2c]">
+                  {fb.labelWentWell}
+                </span>
+                <textarea
+                  value={fbWentWell}
+                  rows={3}
+                  onChange={(e) => setFbWentWell(e.target.value)}
+                  className="w-full rounded-[0.8rem] border border-[#e0d6c8] bg-[#faf7f2] px-3 py-2.5 text-[0.95rem] leading-relaxed text-[#2c2c2c] focus:border-[#2d6a4f] focus:outline-none"
+                />
+              </label>
+
+              <label className="mt-4 block">
+                <span className="mb-1.5 block text-[0.9rem] font-semibold text-[#2c2c2c]">
+                  {fb.labelGotInTheWay}
+                </span>
+                <textarea
+                  value={fbGotInTheWay}
+                  rows={3}
+                  onChange={(e) => setFbGotInTheWay(e.target.value)}
+                  className="w-full rounded-[0.8rem] border border-[#e0d6c8] bg-[#faf7f2] px-3 py-2.5 text-[0.95rem] leading-relaxed text-[#2c2c2c] focus:border-[#2d6a4f] focus:outline-none"
+                />
+              </label>
+
+              <button
+                type="button"
+                disabled={!feedbackReady || submitFeedback.isPending}
+                onClick={() =>
+                  submitFeedback.mutate(
+                    {
+                      token,
+                      data: {
+                        wentWell: fbWentWell.trim() || null,
+                        gotInTheWay: fbGotInTheWay.trim() || null,
+                      },
+                    },
+                    {
+                      onSuccess: () => {
+                        // The thank-you REPLACES the form, immediately. Not a
+                        // toast: a message that vanishes after four seconds
+                        // says "a system received your data", and someone who
+                        // has just written about their mother dying needs a
+                        // person answering instead.
+                        setFbWentWell("");
+                        setFbGotInTheWay("");
+                        setFeedbackReopened(false);
+                        setFeedbackJustSent(true);
+                        invalidate();
+                      },
+                    },
+                  )
+                }
+                className="mt-5 rounded-full bg-[#2d6a4f] px-6 py-2.5 text-[0.95rem] font-semibold text-white disabled:opacity-40"
+              >
+                {submitFeedback.isPending ? fb.submitBusy : fb.submit}
+              </button>
+
+              {submitFeedback.isError && (
+                <p className="mt-3 text-[0.88rem] text-[#c0563a]">{fb.failed}</p>
+              )}
+            </>
+          ) : (
+            <>
+              <p className="text-[0.95rem] leading-relaxed text-[#52493f]">{fb.thanks}</p>
+              <p className="mt-1 text-[0.95rem] text-[#52493f]">{fb.signature}</p>
+              <button
+                type="button"
+                onClick={() => {
+                  setFeedbackJustSent(false);
+                  setFeedbackReopened(true);
+                }}
+                className="mt-4 text-[0.9rem] font-semibold text-[#2d6a4f] underline underline-offset-4"
+              >
+                {fb.addMore}
+              </button>
+            </>
+          )}
+        </section>
+      )}
 
       <div className="mt-8 text-center">
         <a

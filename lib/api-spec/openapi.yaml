@@ -838,6 +838,44 @@ paths:
               schema:
                 $ref: "#/components/schemas/NotFoundError"
 
+  /manage/{token}/feedback:
+    post:
+      operationId: submitPageFeedback
+      tags: [manage]
+      summary: Tell Kate how the page actually went
+      description: >-
+        Stores the feedback and then notifies Kate. The ROW is written first and
+        the email second, deliberately: the row is the record, the email is only
+        the notification, and a send that fails must never lose the feedback nor
+        show the person an error. Not gated on whether a task has been claimed —
+        that rule decides whether the form is offered, not whether words are
+        accepted. Multiple submissions per page are expected and allowed.
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubmitPageFeedbackRequest"
+      responses:
+        "201":
+          description: Feedback stored (whether or not the notification sent)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResponse"
+        "400":
+          description: Both boxes were empty, or one was implausibly long
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotFoundError"
+
   /manage/{token}/tasks/{slotId}:
     patch:
       operationId: editTask
@@ -1653,6 +1691,22 @@ components:
       required:
         - error
 
+    SubmitPageFeedbackRequest:
+      type: object
+      description: >-
+        Both fields optional; either one alone is a complete answer. The request
+        is refused only when both are empty. Free text — never rendered on any
+        page, and never quoted anywhere without asking that person first.
+      properties:
+        wentWell:
+          type: string
+          nullable: true
+          description: "Did people show up? Tell us how it went."
+        gotInTheWay:
+          type: string
+          nullable: true
+          description: "Anything get in the way?"
+
     OkResponse:
       type: object
       properties:
@@ -1920,6 +1974,19 @@ components:
             Whether the person the page is ABOUT holds their own recipient
             grant. When false, the UI offers to give them their own always-on
             access (the section-E nudge).
+        feedbackVisible:
+          type: boolean
+          description: >-
+            Whether to offer the feedback form: true once at least one task on
+            this page has been claimed, and true from then on. Someone whose
+            page has had no claims has nothing to report yet.
+        feedbackGiven:
+          type: boolean
+          description: >-
+            Whether the holder of THIS management link has already left
+            feedback. Per-grant, not per-page, so the thank-you is only ever
+            shown to the person who actually wrote something. Drives the
+            persistent thank-you and its "Add something else" link.
       required:
         - role
         - recipientName
