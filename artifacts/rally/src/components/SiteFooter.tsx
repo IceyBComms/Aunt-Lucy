@@ -29,17 +29,33 @@ import { LEGAL_ENTITY } from "@/lib/legalEntity";
  * pages already said "no card, no catch" THREE TIMES; more reassurance was the
  * failed treatment, because that is also what a scam says. What was missing was
  * a REASON and A NAME THAT CAN BE CHECKED — so this line names the person, the
- * entity and the ABN, and says how the free version is paid for.
+ * entity and the ABN.
  *
  * It is NOT brand story, so `compact` does not drop it. Compact exists to keep
  * the product from talking about itself beside someone's bereavement; a helper
  * on a stranger's support page has MORE reason to want to know who is behind
- * this, not less. And it does not sell: it says who we are and how this is
- * funded, with nothing to click and nothing to buy.
+ * this, not less. And it does not sell: it says who we are, with nothing to
+ * click and nothing to buy.
  *
- * FIRST PERSON IS DELIBERATE (Kate's ruling). "I built it" is a person taking
- * responsibility; "she built it" is a brand describing one, and believability
- * is the entire point of the line. Do not tidy it into third person.
+ * ── IDENTITY ONLY — NO REASON SENTENCE HERE (Kate's ruling, 4 Sep 2026) ──────
+ * This line used to end "The paid version funds the free one, and the free one
+ * is why I built it." Bug #109. It is gone, and must not come back.
+ *
+ * The ruling was made on the SECOND problem, not the first. The symptom was
+ * doubling on the homepage, where the crisis block says it and the footer
+ * said it again. The FAULT was the same sentence on `/s/:slug`, under a
+ * stranger's illness — explaining how a paid product funds a free one to
+ * someone who came to drop off a meal, and who is being sold nothing.
+ *
+ * So they are SPLIT: the footer carries identity only — name, entity, ABN —
+ * on all six pages; the reason lives only where a free offer is actually
+ * being made, which is the homepage crisis block and `/hardest-times`, each
+ * in its own copy. Do not re-centralise them into here.
+ *
+ * FIRST PERSON IS DELIBERATE (Kate's ruling). "by me — Kate Robertson" is a
+ * person taking responsibility; "by Kate Robertson" is a brand describing one,
+ * and believability is the entire point of the line. Do not tidy it into
+ * third person.
  */
 type SiteFooterProps = {
   /**
@@ -113,8 +129,9 @@ export function SiteFooter({ compact = false }: SiteFooterProps) {
 
       {/* "Made with care in Australia" used to live on the copyright line. This
           replaces it rather than adding a block: same claim, plus who, plus the
-          entity, plus the ABN, plus the reason — a superset of the weaker line
-          that was already sitting in exactly the right place.
+          entity, plus the ABN — a superset of the weaker line that was already
+          sitting in exactly the right place. Identity, and nothing else: the
+          reason sentence was removed here by #109, see the ruling above.
 
           The entity and ABN come from LEGAL_ENTITY, not from a literal typed
           here. This is the one surface whose whole job is being CHECKABLE
@@ -125,8 +142,7 @@ export function SiteFooter({ compact = false }: SiteFooterProps) {
         <p>© {new Date().getFullYear()} Aunt Lucy.</p>
         <p className="mt-1 leading-relaxed">
           Aunt Lucy was made in Australia by me — Kate Robertson, at{" "}
-          {LEGAL_ENTITY.name}, ABN {LEGAL_ENTITY.abn}. The paid version funds
-          the free one, and the free one is why I built it.
+          {LEGAL_ENTITY.name}, ABN {LEGAL_ENTITY.abn}.
         </p>
       </div>
     </footer>
