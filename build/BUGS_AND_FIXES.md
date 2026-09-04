@@ -76,6 +76,47 @@ from "never applied". A sabotage whose green is unexplained is not evidence, and
 other kind of test failure announces itself; this one announces success. Treat an all-green sabotage as a claim requiring
 proof, not as a result.
 
+#### 🚨 WHAT HAPPENED, 4 September 2026
+
+**The #109 verification had to prove a sentence was ABSENT from five pages. Cowork's prompt listed the six routes carrying `SiteFooter` and named one of them `/pilot-apply`.**
+
+❗ **THERE IS NO SUCH ROUTE. It is `/pilot`. Claude Code loaded `/pilot-apply`, got the 404 page, and the 404 page has no footer — so the sentence was absent, exactly as required.**
+
+🔑 **THAT IS A PASS. It is also completely meaningless, and nothing in the result says so.**
+
+✅ **It was caught because Claude Code noticed the page rendered NO footer at all where five others rendered one, went to the router, found the real path, and re-tested. Retested properly on `/pilot`: reason 0, identity 1.**
+
+---
+
+#### 🧩 WHY THIS IS P2's SHAPE AND NOT A NEW ONE
+
+**P2, as written: *"A mutation that never reached the file looks EXACTLY like one the code survived. Both print green."***
+
+⚖️ **THIS IS THE SAME SENTENCE WITH ONE WORD CHANGED: A CHECK THAT NEVER REACHED THE TARGET LOOKS EXACTLY LIKE A CHECK THE TARGET PASSED. BOTH PRINT GREEN.** **P2 was written about sabotage because that is where it was first met. It was never really about sabotage — it is about the whole class of test whose PASS condition is *"the bad thing is not here"*, because that condition is satisfied for free by not being anywhere.**
+
+---
+
+#### ⚖️ THE RULE THIS ADDS — EVERY ABSENCE TEST NEEDS A POSITIVE CONTROL
+
+📌 **When a check's pass condition is that something is MISSING, the same run must also prove something is PRESENT that could only be present on the right target.**
+
+**In #109 that control existed by luck rather than design, and it is what made the re-test trustworthy: the identity line. *"Reason 0"* alone is satisfied by a 404, a typo, an unbuilt page or a blank response. *"Reason 0 AND identity 1"* can only be true on a page that actually rendered the footer.**
+
+| Check | What a pass proves |
+|---|---|
+| ❌ **"The sentence is not on `/pilot-apply`"** | **Nothing. True of every URL that does not exist.** |
+| ✅ **"The sentence is not on `/pilot`, AND the identity line is"** | **The page loaded, the footer rendered, and the sentence is gone.** |
+
+🚩 **AND THE COROLLARY, WHICH IS THE CHEAPER HALF: A LIST OF TARGETS IS ITSELF A CLAIM AND NEEDS CHECKING.** **The six route names in the #109 prompt were COMPONENT names — `Home`, `Employers`, `PilotApply`, `PrivacyPolicy`, `SupportPage`, `TermsOfService` — read out of #106's row and silently converted into URLs by Cowork. Five of the six conversions happened to be right. One was not, and nothing in the prompt would have revealed it.** ⚖️ **A component name is not a route. Read the router.**
+
+---
+
+#### 🔑 WHY THIS IS AN AMENDMENT, NOT A P9
+
+**Kate bounded P8 on 30 August to stop the pattern list inflating, and the P8 amendment of 2 September was written as an amendment for the same reason.**
+
+⚖️ **This is not a new shape. It is P2's shape, met on a different kind of test, and it belongs where someone reading P2 will meet it.** 📌 **A pattern list that grows every time someone notices a caveat stops being a list anyone reads.**
+
 ### P3 — Branch off `main`. Never off another feature branch.
 
 **FOUR stranded-branch incidents this week, and the last one happened with this rule already written down in CLAUDE.md.**
