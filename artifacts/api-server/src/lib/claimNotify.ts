@@ -20,7 +20,7 @@ import { sendSms } from "./sms";
 import { logger } from "./logger";
 import { LIFT_WAIT_MODE_SMS_CLAUSES, type LiftWaitMode } from "./liftWaitMode";
 import { getAppBaseUrl } from "./appUrl";
-import { calendarSubscribeUrl } from "./calendarFeed";
+import { calendarFeedUrl } from "./calendarFeed";
 import { firstName } from "./names";
 import { helperClaimConfirmed, taskLabel, whenClause } from "./item17Copy";
 
@@ -116,9 +116,12 @@ export async function sendClaimConfirmationToHelper(
     location: params.location,
     releaseUrl,
     // Dated tasks only: an undated "whenever suits" offer is not an appointment.
+    // Bug #037: the https .ics, offered as a one-tap download. Was webcal://
+    // until 6 September 2026, which failed in Outlook desktop — see
+    // calendarSubscribeUrl for why that cannot be fixed server-side.
     calendarUrl:
       params.slotDate && params.calendarToken
-        ? calendarSubscribeUrl(params.calendarToken)
+        ? calendarFeedUrl(params.calendarToken)
         : null,
   };
   await sendClaimConfirmation(emailParams);

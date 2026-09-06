@@ -42,7 +42,11 @@ describe("helperClaimConfirmed", () => {
   it("always carries the release link, and only that link", () => {
     const body = build("school_pickup", null, "2026-08-28", "15:15");
     expect(body).toContain(LINK);
-    // One URL by design: the calendar subscription lives on the page this opens.
+    // One URL by design. This SMS has never carried a calendar link, so bug
+    // #037 did not change the count — but the reason it used to give ("the
+    // calendar subscription lives on the page this opens") is now false: the
+    // release page carries no calendar link either. A phone-only helper has no
+    // calendar route at all until the subscription is un-parked.
     expect(body.match(/https?:\/\/|webcal:\/\//g)).toHaveLength(1);
   });
 

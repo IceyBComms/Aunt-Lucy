@@ -91,9 +91,12 @@ export function ClaimDialog({ slot, recipientName, isOpen, onClose, onSubmit, is
           </DialogDescription>
         </DialogHeader>
 
-        {/* SUGGESTED COPY — matches InviteClaim.tsx word-for-word; Kate to bless
-            final wording. webcal:// hands the feed to the OS calendar app as a
-            live subscription. Shown only when the claim returned a calendarUrl. */}
+        {/* Approved copy, bug #037 — matches InviteClaim.tsx and the confirmation
+            email word-for-word. calendarUrl is a one-tap .ics DOWNLOAD (it was a
+            webcal:// subscription until 6 September 2026, which failed in
+            Outlook desktop). A downloaded file never updates, so nothing here
+            may promise that it will. Shown only when the claim returned a
+            calendarUrl — dated tasks only. */}
         {claimedResult.calendarUrl && (
           <p className="text-center text-sm text-muted-foreground leading-relaxed">
             <a

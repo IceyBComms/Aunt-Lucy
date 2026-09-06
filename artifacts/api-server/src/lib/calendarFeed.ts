@@ -149,15 +149,43 @@ export function buildClaimIcs(data: CalendarClaimData): string {
   return cal.toString();
 }
 
-/** The direct https URL of a claim's feed (also works as a one-tap download). */
+/**
+ * The direct https URL of a claim's feed, offered to helpers as a ONE-TAP
+ * DOWNLOAD. This is the only calendar link the product surfaces (bug #037).
+ *
+ * What the helper gets is a snapshot: a downloaded .ics is read once and the
+ * file is finished with, so it never updates on any client. Copy must not
+ * promise otherwise. Changes reach helpers by email and SMS, which the product
+ * already does.
+ */
 export function calendarFeedUrl(calendarToken: string): string {
   return `${getAppBaseUrl()}/api/calendar/${calendarToken}.ics`;
 }
 
 /**
- * The webcal:// form of the same URL. webcal is the scheme calendar apps treat
- * as "subscribe to this live feed", so later time changes and cancellations are
- * picked up on the app's normal refresh — the reason this feature exists.
+ * The webcal:// form of the same URL — PARKED, and deliberately kept unused.
+ *
+ * webcal is the scheme calendar apps treat as "subscribe to this live feed", so
+ * a subscribed calendar picks up later time changes and cancellations on its
+ * normal refresh. That was this feature's original point, and it never worked
+ * for anybody: DROPPED FROM EVERY USER-FACING SURFACE ON 6 SEPTEMBER 2026
+ * (bug #037) because webcal:// fails in Outlook desktop.
+ *
+ * It CANNOT be fixed here. How a client maps webcal:// is the client's own
+ * scheme handling, unreachable from the server. Proved by measurement: the
+ * same feed pasted into Outlook → Add Calendar → From Internet subscribes and
+ * renders correctly over https. The endpoint, the .ics body, the all-day event
+ * with no DTEND, the Vercel proxy, the content type and the host were each
+ * suspected and each refuted.
+ *
+ * PARKED, NOT ABANDONED. The subscription machinery is intact and still live at
+ * this URL: routes/calendar.ts regenerates from the slot on every fetch, and a
+ * released slot keeps its calendar_token so the feed can serve
+ * STATUS:CANCELLED. Un-parking means finding a route a helper's client will
+ * honour — not rebuilding the feed.
+ *
+ * Kept rather than deleted so the reason survives. A deleted function takes its
+ * reason with it, and somebody reintroduces webcal in six months.
  */
 export function calendarSubscribeUrl(calendarToken: string): string {
   return calendarFeedUrl(calendarToken).replace(/^https?:\/\//i, "webcal://");

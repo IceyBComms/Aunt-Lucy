@@ -76,7 +76,12 @@ describe("sendClaimConfirmationToHelper", () => {
     expect(sendSms).not.toHaveBeenCalled();
     const [params] = sendClaimConfirmation.mock.calls[0];
     expect(params.releaseUrl).toContain(`/release/${base.cancelToken}`);
-    expect(params.calendarUrl).toContain(`webcal://`);
+    // Bug #037: a one-tap https .ics DOWNLOAD, not a webcal:// subscription.
+    // webcal:// failed in Outlook desktop and cannot be fixed server-side.
+    expect(params.calendarUrl).toMatch(
+      /^https?:\/\/.+\/api\/calendar\/.+\.ics$/,
+    );
+    expect(params.calendarUrl).not.toContain("webcal://");
     expect(params.slotId).toBe("slot-abc-123");
   });
 

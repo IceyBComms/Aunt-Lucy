@@ -57,7 +57,9 @@ export interface SlotResponse {
   claimedByName?: string | null;
   claimedNote?: string | null;
   createdAt: string;
-  /** webcal:// subscribe link to this claim's calendar feed. Populated ONLY on the response to POST /slots/{slotId}/claim, and only for a task with a date (an undated "whenever suits" offer isn't an appointment, so it's null). Absent/null everywhere else — the slot listing in GET /pages never sets it. Mirrors the trusted-invite claim response's calendarUrl field so both claim paths surface the same "Add to your calendar" link. */
+  /** https link to this claim's .ics, offered as a one-tap download. Populated ONLY on the response to POST /slots/{slotId}/claim, and only for a task with a date (an undated "whenever suits" offer isn't an appointment, so it's null). Absent/null everywhere else — the slot listing in GET /pages never sets it. Mirrors the trusted-invite claim response's calendarUrl field so both claim paths surface the same "Add to your calendar" link.
+
+This was a webcal:// subscribe link until 6 September 2026 (bug #037). webcal:// failed in Outlook desktop and the fault is the client's scheme handling, so it could not be fixed server-side. The downloaded file is a snapshot and never updates — the product tells helpers about changes by email and SMS. Subscription is PARKED, not abandoned: the .ics endpoint and its cancellation handling are intact behind the same URL. */
   calendarUrl?: string | null;
 }
 

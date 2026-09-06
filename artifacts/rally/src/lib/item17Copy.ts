@@ -92,20 +92,24 @@ export const helper = {
    */
   seeElseLink: "If another time or task suits better — see what else would help →",
 
-  /**
-   * "Add to your calendar" on the claim's own page. This page is the only
-   * durable home a helper has for their claim — the confirmation email can be
-   * archived and an SMS confirmation has no room for a second link — so the
-   * calendar subscription lives here rather than only in the email.
+  /*
+   * REMOVED 6 September 2026, bug #037 — there was a `calendar` entry here,
+   * read by the release page:
    *
-   * SUGGESTED COPY — Kate to bless final wording. Mirrors the phrasing already
-   * used on the post-claim screens (InviteClaim, and the confirmation email).
-   * Shown only for a dated task; an undated offer has nothing to put in a diary.
+   *     link: "Add this to your calendar"
+   *     help: "so it's there when you need it. It updates if the time changes."
+   *
+   * Two faults, and the second is why this is deleted rather than reworded.
+   * The link was webcal://, which fails in Outlook desktop. And the help line
+   * promised an update the product cannot deliver on any surface: a downloaded
+   * .ics is a snapshot, and even a live subscription only refreshes about once
+   * a day. Changes reach helpers by email and SMS.
+   *
+   * The release page now shows no calendar link at all (see ReleaseSlot.tsx for
+   * the reasoning — a snapshot of a slot you just handed back is worse than
+   * nothing). Recorded rather than dropped so the false promise is not
+   * reintroduced from memory.
    */
-  calendar: {
-    link: "Add this to your calendar",
-    help: "so it's there when you need it. It updates if the time changes.",
-  },
 
   /** The "n / 200" character counter under a note field. */
   noteCounter: (n: number) => `${n} / 200`,

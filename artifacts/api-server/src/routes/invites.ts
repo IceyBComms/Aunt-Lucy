@@ -10,7 +10,7 @@ import { logger } from "../lib/logger";
 import { LIFT_WAIT_MODE_HELPER_LINES } from "../lib/liftWaitMode";
 import { getAppBaseUrl } from "../lib/appUrl";
 import { firstName } from "../lib/giftFulfilment";
-import { calendarSubscribeUrl } from "../lib/calendarFeed";
+import { calendarFeedUrl } from "../lib/calendarFeed";
 import { inviteShape } from "../lib/inviteShape";
 import {
   resolvePronouns,
@@ -370,14 +370,15 @@ router.post("/invite/:token/claim", async (req, res) => {
 
   // Hand back the release token so the confirmed screen can offer a "Can't make
   // it?" link, matching the public path. It's the helper's own handle to the
-  // claim they just made. calendarUrl is the webcal:// subscribe form, given
-  // only for a dated task (an undated offer isn't an appointment); the confirmed
-  // screen shows an "Add to your calendar" link when present.
+  // claim they just made. calendarUrl is the https .ics as a one-tap download
+  // (bug #037 — it was webcal:// until 6 September 2026), given only for a dated
+  // task (an undated offer isn't an appointment); the confirmed screen shows an
+  // "Add to your calendar" link when present.
   res.json({
     ok: true,
     claimedByName: invite.name,
     cancelToken,
-    calendarUrl: claimed[0].slotDate ? calendarSubscribeUrl(calendarToken) : null,
+    calendarUrl: claimed[0].slotDate ? calendarFeedUrl(calendarToken) : null,
   });
 });
 
