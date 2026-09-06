@@ -65,8 +65,9 @@ export default function InviteClaim() {
   // re-visit shows the static "already confirmed" screen), so this stays null on
   // reload, which is fine: the confirmation email carries the same link.
   const [cancelToken, setCancelToken] = useState<string | null>(null);
-  // The webcal:// subscribe link to this claim's calendar feed, returned only on
-  // a fresh claim of a dated slot. null on reload (same as cancelToken) — the
+  // The https .ics for this claim, offered as a one-tap download (bug #037 — it
+  // was a webcal:// subscribe link until 6 September 2026). Returned only on a
+  // fresh claim of a dated slot. null on reload (same as cancelToken) — the
   // link isn't re-fetched, which is fine here since this path sends no email.
   const [calendarUrl, setCalendarUrl] = useState<string | null>(null);
 
@@ -154,8 +155,9 @@ export default function InviteClaim() {
           <p className="text-muted-foreground text-sm leading-relaxed">
             The family will be so grateful for your support.
           </p>
-          {/* SUGGESTED COPY — Kate to bless final wording. webcal:// hands the
-              feed to the OS calendar app as a live subscription. */}
+          {/* Approved copy, bug #037 — matches ClaimDialog.tsx and the
+              confirmation email word-for-word. A one-tap .ics download, which
+              never updates, so nothing here may promise that it will. */}
           {calendarUrl && (
             <p className="text-muted-foreground text-sm leading-relaxed mt-4">
               <a href={calendarUrl} className="text-primary font-bold underline">

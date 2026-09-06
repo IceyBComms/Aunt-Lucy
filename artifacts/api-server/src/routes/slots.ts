@@ -4,7 +4,7 @@ import { db, slotsTable, supportPagesTable } from "@workspace/db";
 import { eq, and, sql } from "drizzle-orm";
 import { sendClaimConfirmationToHelper } from "../lib/claimNotify";
 import { verifyPin } from "../lib/pin";
-import { calendarSubscribeUrl } from "../lib/calendarFeed";
+import { calendarFeedUrl } from "../lib/calendarFeed";
 import { logger } from "../lib/logger";
 import { notifyRecipientOfTaskEvent, shareLinkFor } from "../lib/item17Notify";
 import {
@@ -163,13 +163,16 @@ router.post("/slots/:slotId/claim", async (req, res) => {
     claimedByName: row.claimedByName ?? null,
     claimedNote: row.claimedNote ?? null,
     createdAt: row.createdAt.toISOString(),
-    // The webcal:// subscribe link to this claim's calendar feed — the SAME
-    // value already handed to the confirmation email above, now also returned so
-    // the public post-claim confirmation can show an "Add to your calendar" link
-    // (most helpers claim through the public page, not a trusted invite). Only
-    // for a dated task; an undated "whenever suits" offer isn't an appointment.
-    // Mirrors the trusted-invite claim response (routes/invites.ts).
-    calendarUrl: row.slotDate ? calendarSubscribeUrl(calendarToken) : null,
+    // The https .ics for this claim — the SAME value already handed to the
+    // confirmation email above, now also returned so the public post-claim
+    // confirmation can show an "Add to your calendar" link (most helpers claim
+    // through the public page, not a trusted invite). Only for a dated task; an
+    // undated "whenever suits" offer isn't an appointment. Mirrors the
+    // trusted-invite claim response (routes/invites.ts).
+    //
+    // Bug #037: a one-tap DOWNLOAD, not a webcal:// subscription. The file is a
+    // snapshot and never updates — copy must not promise it will.
+    calendarUrl: row.slotDate ? calendarFeedUrl(calendarToken) : null,
   });
 });
 
@@ -227,21 +230,22 @@ router.get("/slots/release/:token", async (req, res) => {
       claimedNote: slot.claimedNote ?? null,
     },
     helperName: slot.claimedByName,
-    // The webcal:// subscribe link to this claim's calendar feed, so this page
-    // — the claim's permanent, token-gated home — can offer "Add to your
-    // calendar" alongside release/reschedule. Previously the link existed only
-    // in the confirmation email, so an email helper who archived it lost the
-    // calendar for good and a phone-only helper never had one at all. Both
-    // tokens are minted on the same claim (see the claim handler above), so
-    // holding the release token is already proof of holding this claim.
+    // NO calendarUrl. This page carried a webcal:// subscribe link until bug
+    // #037 (6 September 2026), so that a helper who archived the email — or a
+    // phone-only helper, whose SMS has no room for a second link — still had a
+    // route to their calendar.
     //
-    // Null for an undated task (a "whenever suits" offer isn't an appointment,
-    // matching the claim response) and for any claim made before calendar_token
-    // existed, whose column is null — those simply get no calendar line.
-    calendarUrl:
-      slot.slotDate && slot.calendarToken
-        ? calendarSubscribeUrl(slot.calendarToken)
-        : null,
+    // It was NOT converted to the https download the other three surfaces now
+    // use. This is the page you reach to hand a slot back, and a downloaded
+    // .ics is a snapshot: it would sit in the helper's diary unchanged after
+    // they released the slot, showing an appointment they are no longer
+    // committed to. The live feed could say STATUS:CANCELLED; a file cannot.
+    // Better no link than a wrong one that never corrects itself.
+    //
+    // Consequence, recorded honestly: a phone-only helper now has no calendar
+    // link at all, and an email helper who deletes the email has lost theirs.
+    // That returns with the subscription when it is un-parked — see
+    // lib/calendarFeed.ts, calendarSubscribeUrl.
     page: {
       recipientName: page.recipientName,
       location: page.location,

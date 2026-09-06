@@ -120,10 +120,16 @@ export function buildHtml(params: ClaimEmailParams): string {
     : dateFormatted;
 
   // "Add to your calendar" — rendered only for dated tasks (the caller passes
-  // calendarUrl only then). SUGGESTED COPY — Kate to bless final wording.
+  // calendarUrl only then). Approved copy, bug #037.
+  //
+  // The old clause "it'll update if the time changes" was REMOVED and must not
+  // come back. calendarUrl is a one-tap .ics DOWNLOAD, and a downloaded file is
+  // read once and finished with — it never updates, on any client. The promise
+  // was false on every surface that carried it. Changes reach helpers by email
+  // and SMS, which is what the product actually does.
   const calendarBlock = calendarUrl
     ? `<p style="margin:0 0 8px;color:#333;font-size:16px;line-height:1.6;">
-            📅 <a href="${escapeHtml(calendarUrl)}" style="color:#2D6A4F;font-weight:600;">Add this to your calendar</a> so it's there when you need it — it'll update if the time changes.
+            📅 <a href="${escapeHtml(calendarUrl)}" style="color:#2D6A4F;font-weight:600;">Add this to your calendar</a> so it's there when you need it.
           </p>`
     : "";
 
@@ -242,8 +248,13 @@ export function buildPlainText(params: ClaimEmailParams): string {
   if (notes) text += `Notes: ${notes}\n`;
   text += `\nIf anything changes, just let the person looking after the page know.\n`;
   if (calendarUrl) {
-    // SUGGESTED COPY — Kate to bless final wording.
-    text += `\nAdd this to your calendar so it's there when you need it (it'll update if the time changes):\n${calendarUrl}\n`;
+    // Approved copy, bug #037 — the "it'll update if the time changes" clause
+    // is gone and must not return (see the HTML block above for why).
+    //
+    // Plain text carries the URL on its own line because plain text cannot
+    // hyperlink; the releaseUrl below does the same. The HTML part, which is
+    // what nearly every helper sees, shows no raw URL.
+    text += `\nAdd this to your calendar so it's there when you need it:\n${calendarUrl}\n`;
   }
   if (releaseUrl) {
     text += `\nCan't make it after all? No worries at all — release this slot so someone else can pick it up:\n${releaseUrl}\n`;

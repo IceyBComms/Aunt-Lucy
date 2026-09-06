@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "wouter";
 import { format, parseISO } from "date-fns";
-import { CalendarPlus, CarFront, CheckCircle2, Clock, Loader2, MapPin } from "lucide-react";
+import { CarFront, CheckCircle2, Clock, Loader2, MapPin } from "lucide-react";
 import {
   LIFT_WAIT_MODE_TILE_LINES,
   TIME_TBC,
@@ -30,9 +30,6 @@ interface ReleaseDetails {
     claimedNote: string | null;
   };
   helperName: string | null;
-  // webcal:// subscribe link to this claim's calendar feed. Null for an undated
-  // task and for claims made before calendar_token existed.
-  calendarUrl: string | null;
   page: {
     recipientName: string;
     location: string | null;
@@ -275,25 +272,18 @@ export default function ReleaseSlot() {
             </p>
           )}
 
-          {/* The claim's calendar subscription. Sits inside the task card
-              because it belongs to the booking, not to the "change your mind"
-              controls below it. webcal:// hands the feed to the OS calendar app
-              as a live subscription, so a later reschedule or cancellation
-              follows it. Absent on an undated task. */}
-          {details.calendarUrl && (
-            <p className="mt-4 pt-4 border-t border-border/50 text-sm text-muted-foreground leading-relaxed flex items-start gap-1.5">
-              <CalendarPlus className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-              <span>
-                <a
-                  href={details.calendarUrl}
-                  className="text-primary font-medium underline underline-offset-4"
-                >
-                  {copy.calendar.link}
-                </a>{" "}
-                {copy.calendar.help}
-              </span>
-            </p>
-          )}
+          {/* NO calendar link here. This page carried a webcal:// subscribe
+              link until bug #037 (6 September 2026), so a helper who archived
+              the confirmation email — or a phone-only helper, whose SMS has no
+              room for a second link — still had a route to their calendar.
+
+              It was NOT converted to the .ics download the other three surfaces
+              now use. This is the page you reach to hand a slot back, and a
+              downloaded .ics is a snapshot: it would sit in the helper's diary
+              unchanged after they released the slot, showing an appointment
+              they are no longer committed to. A live feed can say
+              STATUS:CANCELLED; a file cannot. Better no link than a wrong one
+              that never corrects itself. See routes/slots.ts. */}
         </div>
 
         {/* Item 17 — reschedule (flexible) or leave a note (any task). */}

@@ -139,7 +139,11 @@ describe("buildClaimIcs", () => {
 });
 
 describe("calendar link helpers", () => {
-  it("builds the https download URL and the webcal subscribe URL", () => {
+  // calendarSubscribeUrl still returns webcal:// and this assertion is still
+  // correct — the FUNCTION did not change on 6 September 2026, its CALLERS did.
+  // It is now parked and unused (see calendarFeed.ts). Kept under test so the
+  // kept-for-its-reason function does not rot before it is un-parked.
+  it("builds the https download URL, and the parked webcal subscribe URL", () => {
     // getAppBaseUrl falls back to localhost when APP_URL is unset; assert on the
     // shape rather than the host so the test is env-independent.
     expect(calendarFeedUrl("TOKENXYZ")).toMatch(
