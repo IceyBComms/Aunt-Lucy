@@ -4,6 +4,7 @@ import { CheckCircle2, Copy, ExternalLink, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
+import { SiteFooter } from "@/components/SiteFooter";
 
 export default function OrganisePublish() {
   const { pageId } = useParams<{ pageId: string }>();
@@ -37,28 +38,34 @@ export default function OrganisePublish() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-6">
-        <div className="text-center max-w-sm">
-          <p className="text-muted-foreground mb-4">{error}</p>
-          <Button onClick={() => setLocation("/organise/dashboard")}>Go to dashboard</Button>
+      <div className="min-h-screen bg-background flex flex-col">
+        <div className="flex-1 flex-col flex items-center justify-center p-6">
+          <div className="text-center max-w-sm">
+            <p className="text-muted-foreground mb-4">{error}</p>
+            <Button onClick={() => setLocation("/organise/dashboard")}>Go to dashboard</Button>
+          </div>
         </div>
+        <SiteFooter compact />
       </div>
     );
   }
 
   if (!slug) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-6">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2 className="w-10 h-10 text-primary animate-spin" />
-          <p className="text-muted-foreground">Publishing your page…</p>
+      <div className="min-h-screen bg-background flex flex-col">
+        <div className="flex-1 flex-col flex items-center justify-center p-6">
+          <div className="flex flex-col items-center gap-4">
+            <Loader2 className="w-10 h-10 text-primary animate-spin" />
+            <p className="text-muted-foreground">Publishing your page…</p>
+          </div>
         </div>
+        <SiteFooter compact />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background flex flex-col">
       <div className="max-w-lg mx-auto px-5 py-10">
         <div className="mb-8">
           <p className="text-sm font-semibold uppercase tracking-wide text-primary mb-2">Step 3 of 3</p>
@@ -122,6 +129,7 @@ export default function OrganisePublish() {
           Go to my dashboard
         </Button>
       </div>
+      <SiteFooter compact />
     </div>
   );
 }

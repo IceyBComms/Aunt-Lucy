@@ -10,6 +10,7 @@ import {
 import { CarFront, CheckCircle2, Clock, Loader2, XCircle, MapPin, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { apiFetch } from "@/lib/api";
+import { SiteFooter } from "@/components/SiteFooter";
 
 interface InviteDetails {
   inviteId: string;
@@ -109,16 +110,19 @@ export default function InviteClaim() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6">
-        <div className="w-full max-w-sm text-center">
-          <div className="w-16 h-16 bg-destructive/10 rounded-2xl flex items-center justify-center mx-auto mb-5">
-            <XCircle className="w-8 h-8 text-destructive" />
+      <div className="min-h-screen bg-background flex flex-col">
+        <div className="flex-1 flex flex-col items-center justify-center p-6">
+          <div className="w-full max-w-sm text-center">
+            <div className="w-16 h-16 bg-destructive/10 rounded-2xl flex items-center justify-center mx-auto mb-5">
+              <XCircle className="w-8 h-8 text-destructive" />
+            </div>
+            <h1 className="font-serif text-2xl font-bold text-foreground mb-3">
+              Invitation not found
+            </h1>
+            <p className="text-muted-foreground">{error}</p>
           </div>
-          <h1 className="font-serif text-2xl font-bold text-foreground mb-3">
-            Invitation not found
-          </h1>
-          <p className="text-muted-foreground">{error}</p>
         </div>
+        <SiteFooter compact />
       </div>
     );
   }
@@ -137,71 +141,77 @@ export default function InviteClaim() {
 
   if (claimed) {
     return (
-      <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6">
-        <div className="w-full max-w-sm text-center">
-          <div className="w-20 h-20 bg-primary/10 rounded-3xl flex items-center justify-center mx-auto mb-6">
-            <CheckCircle2 className="w-10 h-10 text-primary" />
+      <div className="min-h-screen bg-background flex flex-col">
+        <div className="flex-1 flex flex-col items-center justify-center p-6">
+          <div className="w-full max-w-sm text-center">
+            <div className="w-20 h-20 bg-primary/10 rounded-3xl flex items-center justify-center mx-auto mb-6">
+              <CheckCircle2 className="w-10 h-10 text-primary" />
+            </div>
+            <h1 className="font-serif text-2xl font-bold text-foreground mb-3">
+              You're confirmed!
+            </h1>
+            <p className="text-muted-foreground leading-relaxed mb-2">
+              Thank you, {details.helperName}. You're helping{" "}
+              <strong>{page.recipientName}</strong> with a{" "}
+              <strong>{slotLabel}</strong> on <strong>{formattedDate}</strong>
+              {formattedTime ? ` at ${formattedTime}` : ""}.
+              {waitMode ? ` ${LIFT_WAIT_MODE_HELPER_LINES[waitMode]}` : ""}
+            </p>
+            <p className="text-muted-foreground text-sm leading-relaxed">
+              The family will be so grateful for your support.
+            </p>
+            {/* Approved copy, bug #037 — matches ClaimDialog.tsx and the
+                confirmation email word-for-word. A one-tap .ics download, which
+                never updates, so nothing here may promise that it will. */}
+            {calendarUrl && (
+              <p className="text-muted-foreground text-sm leading-relaxed mt-4">
+                <a href={calendarUrl} className="text-primary font-bold underline">
+                  Add this to your calendar
+                </a>
+                <br />
+                so it's there when you need it.
+              </p>
+            )}
+            {cancelToken && (
+              <p className="text-muted-foreground text-sm leading-relaxed mt-4">
+                Plans change? You can{" "}
+                <Link href={`/release/${cancelToken}`} className="text-primary font-medium underline">
+                  release this slot
+                </Link>{" "}
+                any time.
+              </p>
+            )}
           </div>
-          <h1 className="font-serif text-2xl font-bold text-foreground mb-3">
-            You're confirmed!
-          </h1>
-          <p className="text-muted-foreground leading-relaxed mb-2">
-            Thank you, {details.helperName}. You're helping{" "}
-            <strong>{page.recipientName}</strong> with a{" "}
-            <strong>{slotLabel}</strong> on <strong>{formattedDate}</strong>
-            {formattedTime ? ` at ${formattedTime}` : ""}.
-            {waitMode ? ` ${LIFT_WAIT_MODE_HELPER_LINES[waitMode]}` : ""}
-          </p>
-          <p className="text-muted-foreground text-sm leading-relaxed">
-            The family will be so grateful for your support.
-          </p>
-          {/* Approved copy, bug #037 — matches ClaimDialog.tsx and the
-              confirmation email word-for-word. A one-tap .ics download, which
-              never updates, so nothing here may promise that it will. */}
-          {calendarUrl && (
-            <p className="text-muted-foreground text-sm leading-relaxed mt-4">
-              <a href={calendarUrl} className="text-primary font-bold underline">
-                Add this to your calendar
-              </a>
-              <br />
-              so it's there when you need it.
-            </p>
-          )}
-          {cancelToken && (
-            <p className="text-muted-foreground text-sm leading-relaxed mt-4">
-              Plans change? You can{" "}
-              <Link href={`/release/${cancelToken}`} className="text-primary font-medium underline">
-                release this slot
-              </Link>{" "}
-              any time.
-            </p>
-          )}
         </div>
+        <SiteFooter compact />
       </div>
     );
   }
 
   if (details.alreadyClaimed && !details.claimedByYou) {
     return (
-      <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6">
-        <div className="w-full max-w-sm text-center">
-          <div className="w-16 h-16 bg-secondary rounded-2xl flex items-center justify-center mx-auto mb-5">
-            <CheckCircle2 className="w-8 h-8 text-primary" />
+      <div className="min-h-screen bg-background flex flex-col">
+        <div className="flex-1 flex flex-col items-center justify-center p-6">
+          <div className="w-full max-w-sm text-center">
+            <div className="w-16 h-16 bg-secondary rounded-2xl flex items-center justify-center mx-auto mb-5">
+              <CheckCircle2 className="w-8 h-8 text-primary" />
+            </div>
+            <h1 className="font-serif text-2xl font-bold text-foreground mb-3">
+              This slot is taken
+            </h1>
+            <p className="text-muted-foreground leading-relaxed">
+              Someone else has already claimed this slot. The family has plenty of
+              support lined up — thank you for being willing to help.
+            </p>
           </div>
-          <h1 className="font-serif text-2xl font-bold text-foreground mb-3">
-            This slot is taken
-          </h1>
-          <p className="text-muted-foreground leading-relaxed">
-            Someone else has already claimed this slot. The family has plenty of
-            support lined up — thank you for being willing to help.
-          </p>
         </div>
+        <SiteFooter compact />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
       <div className="bg-primary text-white px-5 py-8">
         <div className="max-w-sm mx-auto">
@@ -290,6 +300,7 @@ export default function InviteClaim() {
           please contact the organiser directly.
         </p>
       </div>
+      <SiteFooter compact />
     </div>
   );
 }

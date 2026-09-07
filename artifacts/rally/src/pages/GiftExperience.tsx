@@ -4,6 +4,7 @@ import { Heart, ChevronDown, Loader2 } from "lucide-react";
 import { useGetGift, getGetGiftQueryKey } from "@workspace/api-client-react";
 import { TeacupMark } from "@/components/TeacupMark";
 import { GiftActivation } from "@/components/GiftActivation";
+import { SiteFooter } from "@/components/SiteFooter";
 
 // Warm tints cycled through the colleague notes, matching the mockup.
 const NOTE_TINTS = ["#fdf4ee", "#f4f6f0", "#fbf1e8", "#f5f2ea", "#fdf3f0", "#f2f5f1"];
@@ -42,15 +43,18 @@ export default function GiftExperience() {
 
   if (isError || !data) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-[#faf7f2] p-6 text-center">
-        <TeacupMark className="mb-6 h-20 w-20 opacity-70" />
-        <h1 className="mb-3 font-serif text-3xl font-semibold text-[#2c2c2c]">
-          This gift link isn't valid
-        </h1>
-        <p className="max-w-[32ch] text-[#52493f]">
-          The link may be incomplete or the gift may have been removed. If
-          someone shared it with you, please double-check it.
-        </p>
+      <div className="min-h-screen bg-[#faf7f2] flex flex-col">
+        <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
+          <TeacupMark className="mb-6 h-20 w-20 opacity-70" />
+          <h1 className="mb-3 font-serif text-3xl font-semibold text-[#2c2c2c]">
+            This gift link isn't valid
+          </h1>
+          <p className="max-w-[32ch] text-[#52493f]">
+            The link may be incomplete or the gift may have been removed. If
+            someone shared it with you, please double-check it.
+          </p>
+        </div>
+        <SiteFooter compact />
       </div>
     );
   }
@@ -223,6 +227,7 @@ export default function GiftExperience() {
             Aunt Lucy
           </strong>
         </div>
+        <SiteFooter compact />
       </div>
     </div>
   );

@@ -10,6 +10,7 @@ import {
   getGetOrganiserCardQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { SiteFooter } from "@/components/SiteFooter";
 
 const NOTE_TINTS = ["#fdf4ee", "#f4f6f0", "#fbf1e8", "#f5f2ea", "#fdf3f0", "#f2f5f1"];
 
@@ -68,6 +69,7 @@ export default function CardReview() {
           </strong>
         </div>
         {children}
+        <SiteFooter compact />
       </div>
     </div>
   );

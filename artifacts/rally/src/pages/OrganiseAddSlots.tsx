@@ -25,6 +25,7 @@ import {
   isLiftCandidate,
   type LiftWaitMode,
 } from "@/lib/liftWaitMode";
+import { SiteFooter } from "@/components/SiteFooter";
 
 const SLOT_TYPES = [
   { value: "meal", icon: "🍲", label: "Meal", trusted: false },
@@ -846,7 +847,7 @@ export default function OrganiseAddSlots() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background flex flex-col">
       <div className="max-w-lg mx-auto px-5 py-10">
         <button
           onClick={() => setLocation("/organise/dashboard")}
@@ -971,6 +972,7 @@ export default function OrganiseAddSlots() {
           </div>
         </form>
       </div>
+      <SiteFooter compact />
     </div>
   );
 }

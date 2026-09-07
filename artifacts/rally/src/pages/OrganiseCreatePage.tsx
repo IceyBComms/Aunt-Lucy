@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
+import { SiteFooter } from "@/components/SiteFooter";
 
 export default function OrganiseCreatePage() {
   const [, setLocation] = useLocation();
@@ -59,7 +60,7 @@ export default function OrganiseCreatePage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background flex flex-col">
       <div className="max-w-lg mx-auto px-5 py-10">
         <button
           onClick={() => setLocation("/organise/dashboard")}
@@ -228,6 +229,7 @@ export default function OrganiseCreatePage() {
           </div>
         </form>
       </div>
+      <SiteFooter compact />
     </div>
   );
 }

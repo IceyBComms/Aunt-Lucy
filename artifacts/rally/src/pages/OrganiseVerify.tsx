@@ -4,6 +4,7 @@ import { Loader2, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
+import { SiteFooter } from "@/components/SiteFooter";
 
 export default function OrganiseVerify() {
   const search = useSearch();
@@ -32,19 +33,22 @@ export default function OrganiseVerify() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6">
-        <div className="w-full max-w-sm text-center">
-          <div className="w-16 h-16 bg-destructive/10 rounded-2xl flex items-center justify-center mx-auto mb-5">
-            <XCircle className="w-8 h-8 text-destructive" />
+      <div className="min-h-screen bg-background flex flex-col">
+        <div className="flex-1 flex flex-col items-center justify-center p-6">
+          <div className="w-full max-w-sm text-center">
+            <div className="w-16 h-16 bg-destructive/10 rounded-2xl flex items-center justify-center mx-auto mb-5">
+              <XCircle className="w-8 h-8 text-destructive" />
+            </div>
+            <h1 className="font-serif text-2xl font-bold text-foreground mb-3">
+              Link expired
+            </h1>
+            <p className="text-muted-foreground mb-6">{error}</p>
+            <Button className="w-full" onClick={() => setLocation("/organise")}>
+              Request a new link
+            </Button>
           </div>
-          <h1 className="font-serif text-2xl font-bold text-foreground mb-3">
-            Link expired
-          </h1>
-          <p className="text-muted-foreground mb-6">{error}</p>
-          <Button className="w-full" onClick={() => setLocation("/organise")}>
-            Request a new link
-          </Button>
         </div>
+        <SiteFooter compact />
       </div>
     );
   }
