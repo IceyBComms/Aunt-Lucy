@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { TeacupMark } from "@/components/TeacupMark";
 import { apiFetch } from "@/lib/api";
 import { helper as copy } from "@/lib/item17Copy";
+import { SiteFooter } from "@/components/SiteFooter";
 
 // The helper's own view of the claim they made, fetched by the private release
 // token from their confirmation email. Mirrors InviteClaim's shape and style —
@@ -147,19 +148,22 @@ export default function ReleaseSlot() {
   // re-taken — all the same to the helper, none of them an error to worry about.
   if (error || !details) {
     return (
-      <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6">
-        <div className="w-full max-w-sm text-center">
-          <div className="w-16 h-16 bg-secondary rounded-2xl flex items-center justify-center mx-auto mb-5">
-            <CheckCircle2 className="w-8 h-8 text-primary" />
+      <div className="min-h-screen bg-background flex flex-col">
+        <div className="flex-1 flex flex-col items-center justify-center p-6">
+          <div className="w-full max-w-sm text-center">
+            <div className="w-16 h-16 bg-secondary rounded-2xl flex items-center justify-center mx-auto mb-5">
+              <CheckCircle2 className="w-8 h-8 text-primary" />
+            </div>
+            <h1 className="font-serif text-2xl font-bold text-foreground mb-3">
+              Nothing to release
+            </h1>
+            <p className="text-muted-foreground leading-relaxed">
+              This slot has already been released, or the link is no longer active.
+              Thank you for letting everyone know.
+            </p>
           </div>
-          <h1 className="font-serif text-2xl font-bold text-foreground mb-3">
-            Nothing to release
-          </h1>
-          <p className="text-muted-foreground leading-relaxed">
-            This slot has already been released, or the link is no longer active.
-            Thank you for letting everyone know.
-          </p>
         </div>
+        <SiteFooter compact />
       </div>
     );
   }
@@ -182,13 +186,36 @@ export default function ReleaseSlot() {
     // confirmation says so. Flexible keeps the original "it's open again" wording.
     if (slot.flexibility === "fixed") {
       return (
-        <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6">
+        <div className="min-h-screen bg-background flex flex-col">
+          <div className="flex-1 flex flex-col items-center justify-center p-6">
+            <div className="w-full max-w-sm text-center">
+              <div className="w-20 h-20 bg-primary/10 rounded-3xl flex items-center justify-center mx-auto mb-6">
+                <TeacupMark className="w-10 h-10" />
+              </div>
+              <p className="font-serif text-xl font-semibold text-foreground leading-relaxed">
+                {copy.confirmationFixedCancel(recipientFirstName)}
+              </p>
+              <a
+                href={`/s/${page.slug}`}
+                className="mt-5 inline-block text-sm text-primary underline underline-offset-4 hover:opacity-80"
+              >
+                {copy.seeElseLink}
+              </a>
+            </div>
+          </div>
+          <SiteFooter compact />
+        </div>
+      );
+    }
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        <div className="flex-1 flex flex-col items-center justify-center p-6">
           <div className="w-full max-w-sm text-center">
             <div className="w-20 h-20 bg-primary/10 rounded-3xl flex items-center justify-center mx-auto mb-6">
               <TeacupMark className="w-10 h-10" />
             </div>
             <p className="font-serif text-xl font-semibold text-foreground leading-relaxed">
-              {copy.confirmationFixedCancel(recipientFirstName)}
+              {copy.confirmationFlexibleCancel(recipientFirstName)}
             </p>
             <a
               href={`/s/${page.slug}`}
@@ -198,30 +225,13 @@ export default function ReleaseSlot() {
             </a>
           </div>
         </div>
-      );
-    }
-    return (
-      <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6">
-        <div className="w-full max-w-sm text-center">
-          <div className="w-20 h-20 bg-primary/10 rounded-3xl flex items-center justify-center mx-auto mb-6">
-            <TeacupMark className="w-10 h-10" />
-          </div>
-          <p className="font-serif text-xl font-semibold text-foreground leading-relaxed">
-            {copy.confirmationFlexibleCancel(recipientFirstName)}
-          </p>
-          <a
-            href={`/s/${page.slug}`}
-            className="mt-5 inline-block text-sm text-primary underline underline-offset-4 hover:opacity-80"
-          >
-            {copy.seeElseLink}
-          </a>
-        </div>
+        <SiteFooter compact />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
       <div className="bg-primary text-white px-5 py-8">
         <div className="max-w-sm mx-auto">
@@ -398,6 +408,7 @@ export default function ReleaseSlot() {
           </>
         )}
       </div>
+      <SiteFooter compact />
     </div>
   );
 }

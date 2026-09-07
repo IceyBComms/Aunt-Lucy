@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { motion } from "framer-motion";
+import { SiteFooter } from "@/components/SiteFooter";
 
 interface PageSummary {
   id: string;
@@ -89,7 +90,7 @@ export default function OrganiseDashboard() {
   const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
       <div className="bg-primary text-white px-5 py-8">
         <div className="max-w-lg mx-auto">
@@ -302,6 +303,7 @@ export default function OrganiseDashboard() {
           </div>
         </div>
       )}
+      <SiteFooter compact />
     </div>
   );
 }

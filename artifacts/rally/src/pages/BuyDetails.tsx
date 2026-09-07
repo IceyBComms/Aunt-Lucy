@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useListGiftTiers, useCreateGift } from "@workspace/api-client-react";
 import type { GiftOccasion } from "@workspace/api-client-react";
 import { formatPrice } from "@/lib/money";
+import { SiteFooter } from "@/components/SiteFooter";
 
 /**
  * Step 2 of the purchase flow — who it's for, and when it should arrive.
@@ -137,7 +138,7 @@ export default function BuyDetails() {
   // (The server refuses these too — this is just so the dead end is friendly.)
   if (!tiersLoading && (!tier || !tier.sellable)) {
     return (
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen bg-background flex flex-col">
         <div className="max-w-lg mx-auto px-5 py-10">
           <h1 className="font-serif text-2xl font-bold text-foreground mb-2">
             That gift isn't available yet
@@ -149,6 +150,7 @@ export default function BuyDetails() {
             See the gifts
           </Button>
         </div>
+        <SiteFooter compact />
       </div>
     );
   }
@@ -215,7 +217,7 @@ export default function BuyDetails() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background flex flex-col">
       <div className="max-w-lg mx-auto px-5 py-10">
         <button
           onClick={() => setLocation("/buy")}
@@ -534,6 +536,7 @@ export default function BuyDetails() {
           </div>
         </form>
       </div>
+      <SiteFooter compact />
     </div>
   );
 }

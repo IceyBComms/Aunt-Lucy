@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { TeacupMark } from "@/components/TeacupMark";
 import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
+import { SiteFooter } from "@/components/SiteFooter";
 
 /**
  * The free self-serve crisis entry (Item 14). Name + email + what's happened →
@@ -149,271 +150,277 @@ export default function HardestTimes() {
   // sign-in link rather than handing over a session.
   if (emailedTo) {
     return (
-      <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6">
-        <div className="w-full max-w-sm text-center">
-          <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-5">
-            <MailCheck className="w-8 h-8 text-primary" />
+      <div className="min-h-screen bg-background flex flex-col">
+        <div className="flex-1 flex flex-col items-center justify-center p-6">
+          <div className="w-full max-w-sm text-center">
+            <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-5">
+              <MailCheck className="w-8 h-8 text-primary" />
+            </div>
+            <h1 className="font-serif text-2xl font-bold text-foreground mb-3">
+              Check your email.
+            </h1>
+            <p className="text-muted-foreground leading-relaxed">
+              You've used Aunt Lucy before, so we've sent a sign-in link to{" "}
+              <strong className="text-foreground">{emailedTo}</strong> — that's
+              what keeps your pages safe. Click it and you'll land right back here,
+              ready to go.
+            </p>
+            <p className="text-xs text-muted-foreground leading-relaxed mt-4">
+              Nothing after a couple of minutes? Check your spam folder, or come
+              back and try again.
+            </p>
           </div>
-          <h1 className="font-serif text-2xl font-bold text-foreground mb-3">
-            Check your email.
-          </h1>
-          <p className="text-muted-foreground leading-relaxed">
-            You've used Aunt Lucy before, so we've sent a sign-in link to{" "}
-            <strong className="text-foreground">{emailedTo}</strong> — that's
-            what keeps your pages safe. Click it and you'll land right back here,
-            ready to go.
-          </p>
-          <p className="text-xs text-muted-foreground leading-relaxed mt-4">
-            Nothing after a couple of minutes? Check your spam folder, or come
-            back and try again.
-          </p>
         </div>
+        <SiteFooter compact />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6">
-      <div className="w-full max-w-md">
-        <div className="flex flex-col items-center mb-8">
-          <TeacupMark className="w-16 h-16 mb-5" />
-          <h1 className="font-serif text-3xl font-bold text-foreground mb-3 text-center">
-            Some news knocks the wind out of you.
-          </h1>
-          <p className="text-muted-foreground text-center leading-relaxed">
-            Aunt Lucy is free for times like this — no card, no catch. Tell her
-            what's happened, and in a couple of minutes you'll have one page
-            where your people can actually help.
-          </p>
-        </div>
+    <div className="min-h-screen bg-background flex flex-col">
+      <div className="flex-1 flex flex-col items-center justify-center p-6">
+        <div className="w-full max-w-md">
+          <div className="flex flex-col items-center mb-8">
+            <TeacupMark className="w-16 h-16 mb-5" />
+            <h1 className="font-serif text-3xl font-bold text-foreground mb-3 text-center">
+              Some news knocks the wind out of you.
+            </h1>
+            <p className="text-muted-foreground text-center leading-relaxed">
+              Aunt Lucy is free for times like this — no card, no catch. Tell her
+              what's happened, and in a couple of minutes you'll have one page
+              where your people can actually help.
+            </p>
+          </div>
 
-        <div className="bg-card rounded-3xl shadow-sm border border-border/50 p-6">
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="space-y-3">
-              <Label className="text-foreground/80 pl-1">
-                What's happened?
-              </Label>
-              <div className="space-y-2">
-                {OCCASIONS.map((opt) => (
-                  <label
-                    key={opt.key}
-                    className={`flex items-start gap-3 p-4 rounded-2xl border-2 cursor-pointer transition-colors ${
-                      occasion === opt.key
-                        ? "border-primary bg-primary/5"
-                        : "border-border bg-card hover:border-primary/30"
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="occasion"
-                      value={opt.key}
-                      checked={occasion === opt.key}
-                      onChange={() => setOccasion(opt.key)}
-                      className="mt-0.5 accent-primary"
+          <div className="bg-card rounded-3xl shadow-sm border border-border/50 p-6">
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <div className="space-y-3">
+                <Label className="text-foreground/80 pl-1">
+                  What's happened?
+                </Label>
+                <div className="space-y-2">
+                  {OCCASIONS.map((opt) => (
+                    <label
+                      key={opt.key}
+                      className={`flex items-start gap-3 p-4 rounded-2xl border-2 cursor-pointer transition-colors ${
+                        occasion === opt.key
+                          ? "border-primary bg-primary/5"
+                          : "border-border bg-card hover:border-primary/30"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="occasion"
+                        value={opt.key}
+                        checked={occasion === opt.key}
+                        onChange={() => setOccasion(opt.key)}
+                        className="mt-0.5 accent-primary"
+                      />
+                      <span className="text-sm text-foreground">{opt.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Bug #070 — the fork, ported from BuyDetails.tsx verbatim in shape:
+                  same two buttons, same "Someone else" default, same styling. */}
+              <div className="space-y-3">
+                <Label className="text-foreground/80 pl-1">Who is this for?</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { value: false, label: "Someone else" },
+                    { value: true, label: "Myself" },
+                  ].map((opt) => (
+                    <button
+                      key={String(opt.value)}
+                      type="button"
+                      onClick={() => chooseFork(opt.value)}
+                      className={`p-4 rounded-2xl border-2 text-sm font-medium transition-colors ${
+                        forSelf === opt.value
+                          ? "border-primary bg-primary/5 text-foreground"
+                          : "border-border bg-card text-muted-foreground hover:border-primary/30"
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* SOMEONE ELSE — their name and their contact first, then you.
+                  The person the page is FOR leads; the person filling the form in
+                  is the supporting detail, not the subject. */}
+              {!forSelf && (
+                <>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="recipientName" className="text-foreground/80 pl-1">
+                      Their name
+                    </Label>
+                    <Input
+                      id="recipientName"
+                      placeholder="e.g. Val"
+                      value={recipientName}
+                      onChange={(e) => setRecipientName(e.target.value)}
+                      // Someone else's name. A remembered value of your own
+                      // landing here is the #056 fault.
+                      autoComplete="off"
+                      required
                     />
-                    <span className="text-sm text-foreground">{opt.label}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
+                    <p className="text-xs text-muted-foreground pl-1">
+                      First name is plenty.
+                    </p>
+                  </div>
 
-            {/* Bug #070 — the fork, ported from BuyDetails.tsx verbatim in shape:
-                same two buttons, same "Someone else" default, same styling. */}
-            <div className="space-y-3">
-              <Label className="text-foreground/80 pl-1">Who is this for?</Label>
-              <div className="grid grid-cols-2 gap-2">
-                {[
-                  { value: false, label: "Someone else" },
-                  { value: true, label: "Myself" },
-                ].map((opt) => (
-                  <button
-                    key={String(opt.value)}
-                    type="button"
-                    onClick={() => chooseFork(opt.value)}
-                    className={`p-4 rounded-2xl border-2 text-sm font-medium transition-colors ${
-                      forSelf === opt.value
-                        ? "border-primary bg-primary/5 text-foreground"
-                        : "border-border bg-card text-muted-foreground hover:border-primary/30"
-                    }`}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-            </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="recipientContact" className="text-foreground/80 pl-1">
+                      {recipientName.trim() ? `${recipientName.trim()}'s` : "Their"} own contact{" "}
+                      <span className="font-normal text-muted-foreground">(optional)</span>
+                    </Label>
+                    <Input
+                      id="recipientContact"
+                      placeholder="Their mobile or email"
+                      value={recipientContact}
+                      onChange={(e) => setRecipientContact(e.target.value)}
+                      autoComplete="off"
+                    />
+                    <p className="text-xs text-muted-foreground pl-1">
+                      So they can always get into their own page, if they want to. It's
+                      their page — this just makes sure they can find it.
+                    </p>
+                    {recipientContact.trim() && (
+                      <label className="mt-2 flex items-start gap-2.5 pl-1 text-sm text-foreground/80">
+                        <input
+                          type="checkbox"
+                          checked={recipientReady}
+                          onChange={(e) => setRecipientReady(e.target.checked)}
+                          className="mt-0.5 accent-primary"
+                        />
+                        <span>
+                          {recipientName.trim() || "They"} {recipientName.trim() ? "is" : "are"} ready
+                          to know about this page now — send them their own link. Leave
+                          this unticked and we'll hold off until you say so.
+                        </span>
+                      </label>
+                    )}
+                  </div>
+                </>
+              )}
 
-            {/* SOMEONE ELSE — their name and their contact first, then you.
-                The person the page is FOR leads; the person filling the form in
-                is the supporting detail, not the subject. */}
-            {!forSelf && (
-              <>
+              {/* MYSELF — your name is the page's name, so it is asked once and
+                  read back below before anything is created. No "their contact"
+                  row: you are them, and you are about to give your email. */}
+              {forSelf && (
                 <div className="space-y-1.5">
-                  <Label htmlFor="recipientName" className="text-foreground/80 pl-1">
-                    Their name
+                  <Label htmlFor="selfName" className="text-foreground/80 pl-1">
+                    Your name
                   </Label>
                   <Input
-                    id="recipientName"
+                    id="selfName"
                     placeholder="e.g. Val"
-                    value={recipientName}
-                    onChange={(e) => setRecipientName(e.target.value)}
-                    // Someone else's name. A remembered value of your own
-                    // landing here is the #056 fault.
-                    autoComplete="off"
+                    value={selfName}
+                    onChange={(e) => {
+                      setSelfName(e.target.value);
+                      setConfirmingSelf(false);
+                    }}
                     required
                   />
                   <p className="text-xs text-muted-foreground pl-1">
-                    First name is plenty.
+                    First name is plenty — it's what your helpers will see.
                   </p>
                 </div>
+              )}
 
+              {!forSelf && (
                 <div className="space-y-1.5">
-                  <Label htmlFor="recipientContact" className="text-foreground/80 pl-1">
-                    {recipientName.trim() ? `${recipientName.trim()}'s` : "Their"} own contact{" "}
-                    <span className="font-normal text-muted-foreground">(optional)</span>
+                  <Label htmlFor="organiserFirstName" className="text-foreground/80 pl-1">
+                    Your first name
                   </Label>
                   <Input
-                    id="recipientContact"
-                    placeholder="Their mobile or email"
-                    value={recipientContact}
-                    onChange={(e) => setRecipientContact(e.target.value)}
-                    autoComplete="off"
+                    id="organiserFirstName"
+                    placeholder="e.g. Ellen"
+                    value={organiserFirstName}
+                    onChange={(e) => setOrganiserFirstName(e.target.value)}
+                    autoComplete="given-name"
+                    required
                   />
                   <p className="text-xs text-muted-foreground pl-1">
-                    So they can always get into their own page, if they want to. It's
-                    their page — this just makes sure they can find it.
+                    So {recipientName.trim() || "they"} and their helpers know who set this up.
                   </p>
-                  {recipientContact.trim() && (
-                    <label className="mt-2 flex items-start gap-2.5 pl-1 text-sm text-foreground/80">
-                      <input
-                        type="checkbox"
-                        checked={recipientReady}
-                        onChange={(e) => setRecipientReady(e.target.checked)}
-                        className="mt-0.5 accent-primary"
-                      />
-                      <span>
-                        {recipientName.trim() || "They"} {recipientName.trim() ? "is" : "are"} ready
-                        to know about this page now — send them their own link. Leave
-                        this unticked and we'll hold off until you say so.
-                      </span>
-                    </label>
-                  )}
                 </div>
-              </>
-            )}
+              )}
 
-            {/* MYSELF — your name is the page's name, so it is asked once and
-                read back below before anything is created. No "their contact"
-                row: you are them, and you are about to give your email. */}
-            {forSelf && (
               <div className="space-y-1.5">
-                <Label htmlFor="selfName" className="text-foreground/80 pl-1">
-                  Your name
+                <Label htmlFor="email" className="text-foreground/80 pl-1">
+                  Your email
                 </Label>
                 <Input
-                  id="selfName"
-                  placeholder="e.g. Val"
-                  value={selfName}
-                  onChange={(e) => {
-                    setSelfName(e.target.value);
-                    setConfirmingSelf(false);
-                  }}
+                  id="email"
+                  type="email"
+                  placeholder="you@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   required
                 />
                 <p className="text-xs text-muted-foreground pl-1">
-                  First name is plenty — it's what your helpers will see.
+                  So you can get back to the page. No password needed.
                 </p>
               </div>
-            )}
 
-            {!forSelf && (
-              <div className="space-y-1.5">
-                <Label htmlFor="organiserFirstName" className="text-foreground/80 pl-1">
-                  Your first name
-                </Label>
-                <Input
-                  id="organiserFirstName"
-                  placeholder="e.g. Ellen"
-                  value={organiserFirstName}
-                  onChange={(e) => setOrganiserFirstName(e.target.value)}
-                  autoComplete="given-name"
-                  required
-                />
-                <p className="text-xs text-muted-foreground pl-1">
-                  So {recipientName.trim() || "they"} and their helpers know who set this up.
-                </p>
-              </div>
-            )}
+              {/* The read-back, ported from BuyDetails: the guard against a stray
+                  or autofilled name sailing through unseen onto a live page. */}
+              {forSelf && confirmingSelf && selfName.trim() && (
+                <div className="rounded-2xl border-2 border-primary/30 bg-primary/5 p-4 space-y-2">
+                  <p className="text-sm text-foreground leading-relaxed">
+                    We'll set the page up for{" "}
+                    <strong className="font-semibold">{selfName.trim()}</strong> — that's
+                    the name your page and your helpers will use.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setConfirmingSelf(false);
+                      document.getElementById("selfName")?.focus();
+                    }}
+                    className="text-sm text-muted-foreground underline underline-offset-2 hover:text-foreground transition-colors"
+                  >
+                    Change the name
+                  </button>
+                </div>
+              )}
 
-            <div className="space-y-1.5">
-              <Label htmlFor="email" className="text-foreground/80 pl-1">
-                Your email
-              </Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="you@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
-              <p className="text-xs text-muted-foreground pl-1">
-                So you can get back to the page. No password needed.
-              </p>
-            </div>
+              {error && <p className="text-sm text-destructive pl-1">{error}</p>}
 
-            {/* The read-back, ported from BuyDetails: the guard against a stray
-                or autofilled name sailing through unseen onto a live page. */}
-            {forSelf && confirmingSelf && selfName.trim() && (
-              <div className="rounded-2xl border-2 border-primary/30 bg-primary/5 p-4 space-y-2">
-                <p className="text-sm text-foreground leading-relaxed">
-                  We'll set the page up for{" "}
-                  <strong className="font-semibold">{selfName.trim()}</strong> — that's
-                  the name your page and your helpers will use.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setConfirmingSelf(false);
-                    document.getElementById("selfName")?.focus();
-                  }}
-                  className="text-sm text-muted-foreground underline underline-offset-2 hover:text-foreground transition-colors"
-                >
-                  Change the name
-                </button>
-              </div>
-            )}
+              <Button
+                type="submit"
+                className="w-full font-serif text-base"
+                size="lg"
+                disabled={isLoading}
+              >
+                {isLoading
+                  ? "Setting things up…"
+                  : forSelf
+                    ? confirmingSelf
+                      ? "Yes, that's me →"
+                      : "Set up my page"
+                    : "Set up the page"}
+              </Button>
+            </form>
+          </div>
 
-            {error && <p className="text-sm text-destructive pl-1">{error}</p>}
-
-            <Button
-              type="submit"
-              className="w-full font-serif text-base"
-              size="lg"
-              disabled={isLoading}
-            >
-              {isLoading
-                ? "Setting things up…"
-                : forSelf
-                  ? confirmingSelf
-                    ? "Yes, that's me →"
-                    : "Set up my page"
-                  : "Set up the page"}
-            </Button>
-          </form>
+          {/* Bug #095 — the reason, once. The reader here may BE the person this
+              is about, so: one sentence, no emphasis, nothing else. The identical
+              line at :184 is deliberately LEFT ALONE — two explanations on one
+              page is a page protesting, which reads worse than one. And no ABN or
+              entity name on this page at all: that is footer material, not
+              something to put beside someone's diagnosis. */}
+          <p className="text-center text-xs text-muted-foreground mt-6 leading-relaxed">
+            This page is free — always. No card, no upsells, nothing to cancel.
+            Times like this are why Aunt Lucy exists. The paid version funds the
+            free one, and the free one is why I built it.
+          </p>
         </div>
-
-        {/* Bug #095 — the reason, once. The reader here may BE the person this
-            is about, so: one sentence, no emphasis, nothing else. The identical
-            line at :184 is deliberately LEFT ALONE — two explanations on one
-            page is a page protesting, which reads worse than one. And no ABN or
-            entity name on this page at all: that is footer material, not
-            something to put beside someone's diagnosis. */}
-        <p className="text-center text-xs text-muted-foreground mt-6 leading-relaxed">
-          This page is free — always. No card, no upsells, nothing to cancel.
-          Times like this are why Aunt Lucy exists. The paid version funds the
-          free one, and the free one is why I built it.
-        </p>
       </div>
+      <SiteFooter compact />
     </div>
   );
 }

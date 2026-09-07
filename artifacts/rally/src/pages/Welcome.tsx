@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useLocation, useParams } from "wouter";
 import { Button } from "@/components/ui/button";
 import { apiFetch } from "@/lib/api";
+import { SiteFooter } from "@/components/SiteFooter";
 
 /**
  * Bug #074 — the doorway in front of the management screen.
@@ -71,7 +72,7 @@ export default function Welcome() {
     : "Have a look when you're ready. You can change anything on it, or leave it running as it is.";
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background flex flex-col">
       <div className="max-w-lg mx-auto px-5 py-14">
         <div className="text-center mb-10">
           <img
@@ -107,6 +108,7 @@ export default function Welcome() {
           </div>
         </div>
       </div>
+      <SiteFooter compact />
     </div>
   );
 }
