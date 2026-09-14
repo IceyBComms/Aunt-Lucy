@@ -7,6 +7,8 @@
  * actually was requested. It also keeps the page's real state, so a test can
  * assert what the server now holds rather than what the screen says.
  */
+import { canPublish } from "../../../api-server/src/lib/pagePublish";
+
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -71,6 +73,10 @@ export const slotPosts = () =>
     (c) => c.method === "POST" && /^\/organiser\/pages\/[^/]+\/slots$/.test(c.path),
   );
 
+/** Every request that tried to make the page live. */
+export const publishPosts = () =>
+  server.calls.filter((c) => c.method === "POST" && c.path.endsWith("/publish"));
+
 export async function apiFetch<T>(
   path: string,
   options: RequestInit & { token?: string } = {},
@@ -97,6 +103,15 @@ export async function apiFetch<T>(
 
   if (method === "POST" && /^\/organiser\/pages\/[^/]+\/slots\/[^/]+\/invites$/.test(path)) {
     return {} as T;
+  }
+
+  if (method === "POST" && path === `/organiser/pages/${page.id}/publish`) {
+    // The REAL rule, imported from api-server — not a copy of it — so a render
+    // test that presses "go live" meets the same refusal production does.
+    const verdict = canPublish(page, page.slots);
+    if (!verdict.ok) throw new ApiError(verdict.status, verdict.error);
+    page.status = "active";
+    return { slug: page.slug, status: page.status } as T;
   }
 
   const del = path.match(/^\/organiser\/slots\/(.+)$/);

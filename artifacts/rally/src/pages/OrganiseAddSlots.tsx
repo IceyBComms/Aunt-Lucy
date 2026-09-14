@@ -26,8 +26,9 @@ import {
   type LiftWaitMode,
 } from "@/lib/liftWaitMode";
 import { SiteFooter } from "@/components/SiteFooter";
+import { SETUP_PUBLISH_COPY } from "@/lib/setupPublishCopy";
 
-const SLOT_TYPES = [
+export const SLOT_TYPES = [
   { value: "meal", icon: "🍲", label: "Meal", trusted: false },
   { value: "school_pickup", icon: "🚗", label: "School Pickup", trusted: true },
   { value: "child_care", icon: "👶", label: "Child Care", trusted: true },
@@ -1109,7 +1110,9 @@ export default function OrganiseAddSlots() {
               className="w-full font-serif text-base"
               disabled={isLoading || (cards.length === 0 && savedSlots.length === 0)}
             >
-              {isLoading ? "Saving & sending invites…" : "Continue — publish page →"}
+              {/* Step 3 no longer publishes on arrival, so this button no longer
+                  says it does. ⏸️ Proposed copy, see setupPublishCopy. */}
+              {isLoading ? "Saving & sending invites…" : SETUP_PUBLISH_COPY.step2Continue}
             </Button>
           </div>
         </form>
