@@ -162,8 +162,43 @@ function isDraftTouched(slot: SlotDraft): boolean {
   );
 }
 
-/** How long a draft must sit unchanged before it saves itself. */
-const AUTOSAVE_IDLE_MS = 1200;
+/**
+ * Where a card is: on screen only, being written, or on the server. ONE field,
+ * never two flags that could disagree about whether a task exists.
+ */
+type CardState = "draft" | "saving" | "saved";
+
+type Card =
+  | { id: string; state: "draft" | "saving"; draft: SlotDraft }
+  | { id: string; state: "saved"; draft: SlotDraft; rows: SavedSlot[] };
+
+function draftCard(draft: SlotDraft): Card {
+  return { id: draft.id, state: "draft", draft };
+}
+
+/**
+ * THE 00:30 GUARD (14 Sep 2026). Is any field in this card showing something
+ * the browser could not turn into a value?
+ *
+ * Kate's "Errand — Mon 14 Sep · 00:30" was not coerced by this code — nothing
+ * here or on the server rewrites a time. It was the browser, and it was
+ * reproduced in Chromium on Kate's own machine: a 12-hour <input type="time">
+ * reports NOTHING (value "", badInput true, no input event) while any segment
+ * is blank, but the instant every segment holds anything it reports a complete,
+ * valid "HH:MM" — with no way to tell a half-typed segment from a finished one.
+ * With AM/PM already set, typing the hour "12" then the minute "3" fires
+ * "00:03", and the "0" fires "00:30". The old autosave read "the value parses"
+ * as "they have finished", waited 1.2s, saved it and removed the card.
+ *
+ * Saving on LEAVE fixes the timing: by the time focus goes elsewhere, what the
+ * field shows is what they meant. This fixes the rest — a field left genuinely
+ * partial ("12:30 --") still reports badInput, and a card like that is not
+ * saved at all. The partial time is discarded, never guessed at: the card stays
+ * a draft, and Continue's native form validation stops on the same field.
+ */
+function hasPartialInput(card: HTMLElement): boolean {
+  return Array.from(card.querySelectorAll("input")).some((i) => i.validity?.badInput);
+}
 
 function TrustedHelperInput({
   onAdd,
@@ -212,13 +247,18 @@ function TrustedHelperInput({
 
 function SlotForm({
   slot,
+  status,
   onChange,
   onRemove,
+  onLeave,
   showRemove,
 }: {
   slot: SlotDraft;
+  status: CardState;
   onChange: (updated: SlotDraft) => void;
   onRemove: () => void;
+  /** Focus has left this card's subtree — see the onBlur below. */
+  onLeave: (card: HTMLElement) => void;
   showRemove: boolean;
 }) {
   const sel = SLOT_TYPES.find((t) => t.value === slot.slotType) ?? SLOT_TYPES[0];
@@ -244,7 +284,38 @@ function SlotForm({
 
   return (
     <div
-      className={`rounded-3xl border-2 shadow-sm p-5 space-y-4 ${
+      data-testid="slot-card"
+      data-card-state={status}
+      /*
+        14 Sep 2026 — THE CARD SAVES WHEN YOU LEAVE IT, NOT WHEN IT PARSES.
+
+        `relatedTarget` is where focus is going. If that is still inside this
+        card — Date to Time, a type button to the notes — the person has not
+        left, so nothing happens. Only focus leaving the subtree counts.
+
+        tabIndex -1 is what makes that reliable: Safari does not focus a button
+        on click, so without a focusable card a tap on "Meal" would report focus
+        going nowhere and read as leaving. With it, the tap lands on the card.
+
+        The final decision waits one tick, until focus has actually LANDED.
+        Mid-blur, the document is between elements and cannot say where focus
+        is going (jsdom even reports hasFocus() false there). After it lands:
+        focus back inside the card is not leaving, and a window that has lost
+        focus altogether — they switched apps to check a calendar — is not
+        leaving either, and must not commit a half-typed time. Focus returns to
+        the same field when they come back.
+      */
+      tabIndex={-1}
+      onBlur={(e) => {
+        const card = e.currentTarget;
+        if (card.contains(e.relatedTarget as Node | null)) return;
+        setTimeout(() => {
+          if (!document.hasFocus()) return;
+          if (card.contains(document.activeElement)) return;
+          onLeave(card);
+        }, 0);
+      }}
+      className={`rounded-3xl border-2 shadow-sm p-5 space-y-4 focus:outline-none ${
         isTrusted
           ? "border-amber-200 bg-amber-50/50"
           : "bg-card border-border/50"
@@ -257,6 +328,13 @@ function SlotForm({
             <span className="flex items-center gap-1 text-xs font-semibold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
               <ShieldCheck className="w-3 h-3" />
               Trusted helpers only
+            </span>
+          )}
+          {/* The quiet saved indicator. It stays for as long as the card does,
+              because it is also the reason the fields below are locked. */}
+          {status === "saved" && (
+            <span data-testid="card-saved" className="text-xs text-primary/80">
+              Saved
             </span>
           )}
         </div>
@@ -272,6 +350,13 @@ function SlotForm({
         )}
       </div>
 
+      {/*
+        Locked once saving starts. A saved card stays where it is, but editing
+        it would be editing a copy nobody writes back — #084's silent loss by a
+        new route — so its fields are disabled rather than quietly ignored. The
+        bin above still removes it from the page.
+      */}
+      <fieldset disabled={status !== "draft"} className="space-y-4 min-w-0 border-0 p-0 m-0">
       {/* Slot type */}
       <div className="space-y-1.5">
         <Label className="text-foreground/80 pl-1 text-sm">Type of help</Label>
@@ -556,6 +641,7 @@ function SlotForm({
           </span>
         </div>
       </div>
+      </fieldset>
     </div>
   );
 }
@@ -581,7 +667,7 @@ export default function OrganiseAddSlots() {
    */
   const [savedSlots, setSavedSlots] = useState<SavedSlot[]>([]);
   const [isLoadingPage, setIsLoadingPage] = useState(true);
-  const [slots, setSlots] = useState<SlotDraft[]>([]);
+  const [cards, setCards] = useState<Card[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -597,11 +683,11 @@ export default function OrganiseAddSlots() {
         // one opens on what is already there, with no blank task demanding to
         // be filled in — someone coming back to a half-finished page is being
         // shown their work, not handed a form.
-        setSlots(page.slots.length > 0 ? [] : [emptySlot()]);
+        setCards(page.slots.length > 0 ? [] : [draftCard(emptySlot())]);
       })
       .catch(() => {
         // Never strand them on a spinner: fall back to the original behaviour.
-        if (!cancelled) setSlots([emptySlot()]);
+        if (!cancelled) setCards([draftCard(emptySlot())]);
       })
       .finally(() => {
         if (!cancelled) setIsLoadingPage(false);
@@ -612,30 +698,39 @@ export default function OrganiseAddSlots() {
   }, [pageId, token]);
 
   /**
-   * Bug #084 — AUTOSAVE, AND HOW IT CANNOT DOUBLE-CREATE.
+   * Bug #084, REWORKED 14 Sep 2026 — AUTOSAVE, AND HOW IT CANNOT DOUBLE-CREATE.
    *
-   * The de-duplication is not a check, it is the shape of the data. There are
-   * two lists: `savedSlots` is what the server has, `slots` is what it does
-   * not. `handleSubmit` iterates ONLY `slots`. So when autosave persists a
-   * draft, that draft LEAVES `slots` and joins `savedSlots` — a move, never a
-   * copy and never a flag. A saved task is therefore not in the list Continue
-   * walks, by construction rather than by a guard somebody has to remember.
+   * #084 saved a draft ~1.2s after its fields parsed and then MOVED it out of
+   * the form. Kate reproduced what that does four times: a task committed while
+   * she was still typing it ("Errand — Mon 14 Sep · 00:30", see hasPartialInput)
+   * and the card she was typing into gone from under her. So:
    *
-   * Both paths also go through the SAME `persistDraft`, so there is one
-   * creation routine rather than two that could drift apart. That matters more
-   * than it looks: #071 existed because leaving and returning re-POSTed
-   * everything, and autosave is the most likely way to reintroduce exactly that.
+   *   1. A card saves when focus LEAVES it (SlotForm's onBlur), not on a timer.
+   *   2. A saved card STAYS WHERE IT IS, locked, with a quiet "Saved". It
+   *      collapses into "Already added" only when the person asks for another
+   *      task, or presses Continue.
    *
-   * `inFlight` holds the promise for each draft currently being written, so
-   * Continue can wait for them to settle before walking what is left. Without
-   * it, pressing Continue mid-autosave could write the same draft twice.
+   * De-duplication is still the shape of the data rather than a guard at
+   * submit. Each card has ONE `state` — draft, saving or saved — and a save
+   * changes it in place, so a card can never be both a draft and on the server.
+   * And there is ONE creation routine, `saveCard`, which autosave and Continue
+   * both go through: it hands back a write already in flight rather than
+   * starting another, and does nothing for a card the server already holds.
+   * #071 existed because leaving and returning re-POSTed everything; a second
+   * creation path is exactly how that comes back.
+   *
+   * `persisted` is written synchronously, at the moment a write succeeds.
+   * Continue checks it after awaiting in-flight saves, when React may not have
+   * re-rendered yet — reading `cards` at that point would be reading the past,
+   * and writing a task twice.
    */
   const inFlight = useRef<Map<string, Promise<void>>>(new Map());
-  /** Mirrors `slots` so async code reads the current list, not a stale closure. */
-  const slotsRef = useRef<SlotDraft[]>([]);
-  slotsRef.current = slots;
-  /** Quiet, temporary "Saved" marks — see the note where they render. */
-  const [justSaved, setJustSaved] = useState<string[]>([]);
+  const persisted = useRef<Set<string>>(new Set());
+  /** Mirrors `cards`, for the leave handler, which runs a tick after its render. */
+  const cardsRef = useRef<Card[]>([]);
+  cardsRef.current = cards;
+  /** Cards the person asked to collapse while their save was still in flight. */
+  const collapseWhenSaved = useRef<Set<string>>(new Set());
 
   const isResuming = savedSlots.length > 0;
 
@@ -651,27 +746,59 @@ export default function OrganiseAddSlots() {
   }
 
   function addSlot() {
-    setSlots((s) => [...s, emptySlot()]);
+    // Asking for another task is one of the two moments a saved card
+    // collapses. A card still mid-save collapses the moment its save lands.
+    const saved = cards.filter(
+      (c): c is Extract<Card, { state: "saved" }> => c.state === "saved",
+    );
+    const savedIds = new Set(saved.map((c) => c.id));
+    for (const c of cards) {
+      if (c.state === "saving") collapseWhenSaved.current.add(c.id);
+    }
+    setSavedSlots((cur) => [...cur, ...saved.flatMap((c) => c.rows)]);
+    setCards((cur) => [...cur.filter((c) => !savedIds.has(c.id)), draftCard(emptySlot())]);
   }
 
   function updateSlot(id: string, updated: SlotDraft) {
-    setSlots((s) => s.map((sl) => (sl.id === id ? updated : sl)));
+    setCards((cur) =>
+      cur.map((c) => (c.id === id && c.state === "draft" ? { ...c, draft: updated } : c)),
+    );
   }
 
   function removeSlot(id: string) {
-    setSlots((s) => s.filter((sl) => sl.id !== id));
+    setCards((cur) => cur.filter((c) => c.id !== id));
+  }
+
+  /** Take a saved card off the page: every row it became goes with it. */
+  async function removeSavedCard(id: string) {
+    const index = cards.findIndex((c) => c.id === id);
+    const card = cards[index];
+    if (!card || card.state !== "saved") return;
+    setCards((cur) => cur.filter((c) => c.id !== id));
+    const remaining = [...card.rows];
+    try {
+      while (remaining.length > 0) {
+        await apiFetch(`/organiser/slots/${remaining[0].id}`, { method: "DELETE", token: token! });
+        remaining.shift();
+      }
+      persisted.current.delete(id);
+    } catch {
+      // Put back whatever is still on the server, where it was.
+      setCards((cur) => {
+        const next = [...cur];
+        next.splice(Math.min(index, next.length), 0, { ...card, rows: remaining });
+        return next;
+      });
+      setError("That task couldn't be removed. Please try again.");
+    }
   }
 
   /**
    * Create ONE draft on the server and hand back the rows it became.
    *
-   * The only place tasks are created. Autosave calls it; Continue calls it for
-   * whatever autosave has not already taken. A draft with repeatDays > 1 becomes
-   * several rows, and all of them are returned, so the saved list reflects what
-   * the server actually holds rather than what the form looked like.
-   *
-   * Throws on failure, and deliberately does not remove the draft in that case:
-   * an unsaved draft must stay in `slots` so Continue still tries it.
+   * Only ever called by `saveCard`. A draft with repeatDays > 1 becomes several
+   * rows, and all of them are returned, so the saved list reflects what the
+   * server actually holds rather than what the form looked like.
    */
   async function persistDraft(slot: SlotDraft): Promise<SavedSlot[]> {
     const isTrusted = SENSITIVE_TYPES.has(slot.slotType) || slot.trustedHelpersOnly;
@@ -723,56 +850,75 @@ export default function OrganiseAddSlots() {
   }
 
   /**
-   * THE MOVE. This is the whole de-duplication: the draft is removed from
-   * `slots` in the same update that adds its rows to `savedSlots`, so it can
-   * never be in both lists and Continue can never see it again.
+   * THE ONE CREATION ROUTINE. Writes a card and marks it saved IN PLACE — the
+   * card is not removed, unmounted or moved (that was the #084 behaviour Kate
+   * lost a card to). Autosave and Continue both come through here.
+   *
+   * On failure the card goes back to being an editable draft, still in the
+   * list Continue walks, and the error is re-thrown for the caller to decide.
    */
-  function markPersisted(draftId: string, rows: SavedSlot[]) {
-    setSlots((cur) => cur.filter((d) => d.id !== draftId));
-    setSavedSlots((cur) => [...cur, ...rows]);
-    setJustSaved((cur) => [...cur, ...rows.map((r) => r.id)]);
+  function saveCard(id: string, draft: SlotDraft): Promise<void> {
+    if (persisted.current.has(id)) return Promise.resolve();
+    const pending = inFlight.current.get(id);
+    if (pending) return pending;
+
+    setCards((cur) =>
+      cur.map<Card>((c) => (c.id === id && c.state === "draft" ? { ...c, state: "saving" } : c)),
+    );
+
+    const job = persistDraft(draft)
+      .then(
+        (rows) => {
+          persisted.current.add(id);
+          if (collapseWhenSaved.current.delete(id)) {
+            setCards((cur) => cur.filter((c) => c.id !== id));
+            setSavedSlots((cur) => [...cur, ...rows]);
+            return;
+          }
+          setCards((cur) =>
+            cur.map<Card>((c) => (c.id === id ? { id, state: "saved", draft: c.draft, rows } : c)),
+          );
+        },
+        (err) => {
+          collapseWhenSaved.current.delete(id);
+          setCards((cur) =>
+            cur.map<Card>((c) =>
+              c.id === id && c.state === "saving" ? { ...c, state: "draft" } : c,
+            ),
+          );
+          throw err;
+        },
+      )
+      .finally(() => {
+        inFlight.current.delete(id);
+      });
+    inFlight.current.set(id, job);
+    return job;
   }
 
-  // Autosave: a completed, edited draft saves itself once it has sat still.
-  // Any keystroke restarts the clock, so nothing saves mid-sentence.
-  useEffect(() => {
-    if (isLoadingPage || isLoading) return;
-    const ready = slots.filter(
-      (d) => !inFlight.current.has(d.id) && isDraftTouched(d) && isDraftComplete(d),
-    );
-    if (ready.length === 0) return;
-    const timer = setTimeout(() => {
-      for (const draft of ready) {
-        if (inFlight.current.has(draft.id)) continue;
-        const job = persistDraft(draft)
-          .then((rows) => {
-            markPersisted(draft.id, rows);
-          })
-          .catch(() => {
-            // Silent on purpose: the draft stays put and Continue will try it
-            // again. A failed autosave must never look like a lost task, and
-            // must never interrupt someone mid-form with an error they cannot
-            // act on.
-          })
-          .finally(() => {
-            inFlight.current.delete(draft.id);
-          });
-        inFlight.current.set(draft.id, job);
-      }
-    }, AUTOSAVE_IDLE_MS);
-    return () => clearTimeout(timer);
-  }, [slots, isLoading, isLoadingPage]);
+  /**
+   * Focus has left a card. Save it if, and only if, it is a draft someone has
+   * actually touched, it is complete by the same rules Continue enforces, and
+   * nothing in it is half-typed.
+   *
+   * Silent on failure, on purpose: the card stays a draft and Continue tries
+   * again. A failed autosave must never look like a lost task, or interrupt
+   * someone mid-form with an error they cannot act on.
+   */
+  function handleCardLeave(id: string, el: HTMLElement) {
+    const card = cardsRef.current.find((c) => c.id === id);
+    if (!card || card.state !== "draft") return;
+    if (!isDraftTouched(card.draft) || !isDraftComplete(card.draft)) return;
+    if (hasPartialInput(el)) return;
+    saveCard(id, card.draft).catch(() => {});
+  }
 
-  // Clear the quiet "Saved" marks after a few seconds. They are an
-  // acknowledgement, not a permanent badge.
-  useEffect(() => {
-    if (justSaved.length === 0) return;
-    const t = setTimeout(() => setJustSaved([]), 4000);
-    return () => clearTimeout(t);
-  }, [justSaved]);
+  // Only drafts need checking — a saving or saved card already passed these
+  // rules to get there.
+  const drafts = cards.filter((c) => c.state === "draft").map((c) => c.draft);
 
   // Validate: trusted slots must have at least one helper
-  const hasTrustedWithNoHelpers = slots.some(
+  const hasTrustedWithNoHelpers = drafts.some(
     (s) =>
       (SENSITIVE_TYPES.has(s.slotType) || s.trustedHelpersOnly) &&
       s.trustedHelpers.length === 0,
@@ -781,10 +927,10 @@ export default function OrganiseAddSlots() {
   // Bug #033 — a lift needs both halves before it can go out on this path. The
   // server enforces the same two rules (400s without them); this is just the
   // kinder, earlier version of the same refusal.
-  const liftMissingWaitMode = slots.some(
+  const liftMissingWaitMode = drafts.some(
     (s) => isLiftCandidate(s.slotType, true) && !s.liftWaitMode,
   );
-  const liftMissingTime = slots.some(
+  const liftMissingTime = drafts.some(
     (s) => isLiftCandidate(s.slotType, true) && !s.slotTime,
   );
 
@@ -806,7 +952,7 @@ export default function OrganiseAddSlots() {
       setError("A lift needs a time so the helper knows when to be there.");
       return;
     }
-    if (slots.length === 0 && savedSlots.length === 0) {
+    if (cards.length === 0 && savedSlots.length === 0) {
       setError("Add at least one task before publishing the page.");
       return;
     }
@@ -814,20 +960,22 @@ export default function OrganiseAddSlots() {
     setIsLoading(true);
 
     try {
-      // Bug #084 — wait for any autosave already writing before deciding what
-      // is left. Without this, a draft mid-save would still be in `slots` here
-      // and would be written a SECOND time: the #071 duplicate, arriving by the
-      // new route. Settled, not resolved — a failed autosave leaves its draft
-      // in place, which is exactly what should then be retried below.
-      if (inFlight.current.size > 0) {
-        await Promise.allSettled([...inFlight.current.values()]);
-      }
-
-      // Whatever autosave did not already take. Read from the ref, because the
-      // awaits above mean the captured `slots` may be stale.
-      for (const slot of slotsRef.current) {
-        const rows = await persistDraft(slot);
-        markPersisted(slot.id, rows);
+      // Every card on screen, through the one creation routine. A card whose
+      // autosave is still writing is awaited, not written again (the #071
+      // duplicate by the autosave route); one whose autosave FAILED is tried
+      // again here; one already on the server is a no-op inside saveCard.
+      for (const card of cards) {
+        if (card.state === "saved") continue;
+        const pending = inFlight.current.get(card.id);
+        if (pending) {
+          try {
+            await pending;
+            continue;
+          } catch {
+            // Its autosave failed. Fall through and try it once more.
+          }
+        }
+        await saveCard(card.id, card.draft);
       }
 
       setLocation(`/organise/create/${pageId}/publish`);
@@ -901,20 +1049,6 @@ export default function OrganiseAddSlots() {
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium text-foreground truncate">
                       {slot.customLabel || meta.label}
-                      {/*
-                        Bug #084 — the quiet acknowledgement. No banner and no
-                        toast: the task VISIBLY MOVING out of the form and into
-                        "Already added" is most of the signal, and this word is
-                        the rest of it. It fades after a few seconds because it
-                        is an acknowledgement, not a badge — a permanent "Saved"
-                        on every row would say nothing, and a toast would steal
-                        attention from someone mid-form.
-                      */}
-                      {justSaved.includes(slot.id) && (
-                        <span className="ml-2 text-xs font-normal text-primary/80">
-                          Saved
-                        </span>
-                      )}
                     </p>
                     <p className="text-xs text-muted-foreground">
                       {slot.slotDate
@@ -939,13 +1073,21 @@ export default function OrganiseAddSlots() {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {slots.map((slot) => (
+          {cards.map((card) => (
             <SlotForm
-              key={slot.id}
-              slot={slot}
-              onChange={(updated) => updateSlot(slot.id, updated)}
-              onRemove={() => removeSlot(slot.id)}
-              showRemove={slots.length > 1}
+              key={card.id}
+              slot={card.draft}
+              status={card.state}
+              onChange={(updated) => updateSlot(card.id, updated)}
+              onRemove={() =>
+                card.state === "saved" ? removeSavedCard(card.id) : removeSlot(card.id)
+              }
+              onLeave={(el) => handleCardLeave(card.id, el)}
+              // A saved card can always be taken off the page; a draft only when
+              // it is not the last one; a card mid-save not at all.
+              showRemove={
+                card.state === "saved" || (card.state === "draft" && cards.length > 1)
+              }
             />
           ))}
 
@@ -955,7 +1097,7 @@ export default function OrganiseAddSlots() {
             className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl border-2 border-dashed border-border text-muted-foreground hover:border-primary/40 hover:text-primary transition-colors text-sm"
           >
             <Plus className="w-4 h-4" />
-            {isResuming && slots.length === 0 ? "Add another task" : "Add another slot"}
+            {isResuming && cards.length === 0 ? "Add another task" : "Add another slot"}
           </button>
 
           {error && <p className="text-sm text-destructive pl-1">{error}</p>}
@@ -965,7 +1107,7 @@ export default function OrganiseAddSlots() {
               type="submit"
               size="lg"
               className="w-full font-serif text-base"
-              disabled={isLoading || (slots.length === 0 && savedSlots.length === 0)}
+              disabled={isLoading || (cards.length === 0 && savedSlots.length === 0)}
             >
               {isLoading ? "Saving & sending invites…" : "Continue — publish page →"}
             </Button>
