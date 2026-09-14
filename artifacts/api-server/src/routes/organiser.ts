@@ -20,6 +20,7 @@ import { asLiftWaitMode, isLiftCandidate } from "../lib/liftWaitMode";
 import { grantRecipientAccess, grantSetupPersonAccess } from "../lib/accessGrants";
 import { logger } from "../lib/logger";
 import { canDeleteDraft } from "../lib/draftDeletion";
+import { canPublish, PUBLISH_REFUSALS } from "../lib/pagePublish";
 
 const router: IRouter = Router();
 
@@ -341,6 +342,12 @@ router.delete("/organiser/pages/:pageId", requireAuth as any, async (req, res) =
 });
 
 // POST /api/organiser/pages/:pageId/publish
+//
+// 14 Sep 2026 — GOING LIVE IS A DELIBERATE ACT, and this is the half that
+// actually guards it. The step-3 screen used to call this route on mount, and
+// the route accepted any page in any state, with or without a single task. The
+// decision is now canPublish (pure, unit-tested): a draft with at least one
+// task, or nothing happens.
 router.post("/organiser/pages/:pageId/publish", requireAuth as any, async (req, res) => {
   const authReq = req as unknown as AuthRequest;
   const { pageId } = req.params;
@@ -350,18 +357,29 @@ router.post("/organiser/pages/:pageId/publish", requireAuth as any, async (req, 
       eq(supportPagesTable.id, pageId),
       eq(supportPagesTable.organiserId, authReq.organiserId),
     ),
+    with: { slots: { columns: { id: true } } },
   });
 
-  if (!page) {
-    res.status(404).json({ error: "Page not found." });
+  const verdict = canPublish(page, page?.slots ?? []);
+  if (!verdict.ok) {
+    res.status(verdict.status).json({ error: verdict.error, reason: verdict.reason });
     return;
   }
 
+  // Conditional on STILL being a draft, so two presses, two tabs or a retry
+  // cannot both flip it — the second finds nothing to update and is refused
+  // exactly as a stale step-3 link would be.
   const [updated] = await db
     .update(supportPagesTable)
     .set({ status: "active" })
-    .where(eq(supportPagesTable.id, pageId))
+    .where(and(eq(supportPagesTable.id, page!.id), eq(supportPagesTable.status, "draft")))
     .returning();
+
+  if (!updated) {
+    const refusal = PUBLISH_REFUSALS.not_draft;
+    res.status(refusal.status).json({ error: refusal.error, reason: refusal.reason });
+    return;
+  }
 
   res.json({ slug: updated.slug, status: updated.status });
 });
