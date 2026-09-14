@@ -8,6 +8,7 @@ import {
   getGetSignCardQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { SiteFooter } from "@/components/SiteFooter";
 
 // A note, not an essay — the server enforces this too.
 const MAX = 500;
@@ -85,6 +86,7 @@ export default function GiftSigning() {
           </strong>
         </div>
         {children}
+        <SiteFooter compact />
       </div>
     </div>
   );

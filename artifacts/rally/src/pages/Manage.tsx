@@ -52,6 +52,7 @@ import {
   isLiftCandidate,
   type LiftWaitMode,
 } from "@/lib/liftWaitMode";
+import { SiteFooter } from "@/components/SiteFooter";
 
 /**
  * What each invite state is called on the recipient's own page.
@@ -325,6 +326,7 @@ export function Manage() {
         <p className="text-[1.05rem] text-[#52493f]">
           This management link isn't valid or has been turned off.
         </p>
+        <SiteFooter compact />
       </div>
     );
   }
@@ -1557,6 +1559,7 @@ export function Manage() {
           </>
         )}
       </Dialog>
+      <SiteFooter compact />
     </div>
   );
 }

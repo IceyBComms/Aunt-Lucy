@@ -3,6 +3,7 @@ import { ArrowLeft } from "lucide-react";
 import { useListGiftTiers } from "@workspace/api-client-react";
 import type { GiftTier } from "@workspace/api-client-react";
 import { formatPrice } from "@/lib/money";
+import { SiteFooter } from "@/components/SiteFooter";
 
 /**
  * Step 1 of the purchase flow — which gift.
@@ -20,7 +21,7 @@ export default function BuyChooseTier() {
   const comingSoon = (tiers ?? []).filter((t) => !t.sellable);
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background flex flex-col">
       <div className="max-w-lg mx-auto px-5 py-10">
         <button
           onClick={() => setLocation("/")}
@@ -108,6 +109,7 @@ export default function BuyChooseTier() {
           </div>
         )}
       </div>
+      <SiteFooter compact />
     </div>
   );
 }
