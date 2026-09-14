@@ -21,6 +21,8 @@ interface PublishPage {
   slug: string;
   recipientName: string;
   status: string;
+  /** "open" | "pin_protected" — decides which confirm body is true. */
+  privacy: string;
   slots: PublishSlot[];
 }
 
@@ -277,7 +279,11 @@ export default function OrganisePublish() {
             >
               {COPY.confirmTitle(page.recipientName)}
             </h2>
-            <p className="text-muted-foreground leading-relaxed mb-6">{COPY.confirmBody}</p>
+            <p className="text-muted-foreground leading-relaxed mb-6">
+              {page.privacy === "pin_protected"
+                ? COPY.confirmBody.pinProtected
+                : COPY.confirmBody.open}
+            </p>
             {publishError && <p className="text-sm text-destructive mb-4">{publishError}</p>}
             <div className="flex flex-col-reverse sm:flex-row gap-2">
               <Button

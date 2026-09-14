@@ -35,6 +35,7 @@ export interface FakePage {
   slug: string;
   recipientName: string;
   status: string;
+  privacy: string;
   slots: FakeSlot[];
 }
 
@@ -50,6 +51,7 @@ function freshPage(overrides: Partial<FakePage> = {}): FakePage {
     slug: "xK9mR2pQ4w",
     recipientName: "Nadia",
     status: "draft",
+    privacy: "open",
     slots: [],
     ...overrides,
   };

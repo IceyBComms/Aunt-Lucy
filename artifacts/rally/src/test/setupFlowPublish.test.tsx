@@ -125,6 +125,30 @@ describe("going live takes the button AND the confirm", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
+  it("the confirm says 'Anyone with the link' on a page with no PIN — and not the PIN variant", async () => {
+    resetServer({ privacy: "open", slots: [TASK] });
+    renderAt(STEP_3);
+    const step = await screen.findByTestId("publish-step");
+    fireEvent.click(within(step).getByRole("button", { name: COPY.step3Button }));
+    const dialog = await screen.findByRole("dialog");
+
+    expect(within(dialog).getByText(COPY.confirmBody.open)).toBeTruthy();
+    expect(within(dialog).queryByText(COPY.confirmBody.pinProtected)).toBeNull();
+  });
+
+  it("the confirm says 'Anyone with the link and your PIN' on a PIN page — and not the open variant", async () => {
+    // Kate's ruling, 14 Sep: keep "Anyone with the link" — a link can be
+    // forwarded — and close the PIN gap with a second, true variant.
+    resetServer({ privacy: "pin_protected", slots: [TASK] });
+    renderAt(STEP_3);
+    const step = await screen.findByTestId("publish-step");
+    fireEvent.click(within(step).getByRole("button", { name: COPY.step3Button }));
+    const dialog = await screen.findByRole("dialog");
+
+    expect(within(dialog).getByText(COPY.confirmBody.pinProtected)).toBeTruthy();
+    expect(within(dialog).queryByText(COPY.confirmBody.open)).toBeNull();
+  });
+
   it("'Not yet' closes the confirm and publishes nothing", async () => {
     renderAt(STEP_3);
     const step = await screen.findByTestId("publish-step");
