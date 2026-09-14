@@ -221,14 +221,18 @@ describe("every place an invite goes on the wire decides through the rule", () =
     // releaseHeldInvitesOnGoLive AFTER that write, in the same file. A new
     // go-live path that doesn't is this test failing, not eight days live.
     const goesLive = /\.set\(\{ status: "active" \}\)|\? "draft" : "active"/g;
-    const writers: string[] = [];
+    const writers = new Set<string>();
     for (const dir of ["routes", "lib"]) {
       const abs = path.resolve(__dirname, "..", dir);
       for (const f of fs.readdirSync(abs)) {
         if (!f.endsWith(".ts") || f.endsWith(".test.ts")) continue;
         const src = fs.readFileSync(path.join(abs, f), "utf8");
         for (const m of src.matchAll(goesLive)) {
-          writers.push(`${dir}/${f}`);
+          // Code only. The same text is QUOTED in comments (draftDeletion.ts,
+          // organiser.ts), and a quotation doesn't make a page live.
+          const line = src.slice(src.lastIndexOf("\n", m.index!) + 1, m.index!).trim();
+          if (line.startsWith("//") || line.startsWith("*")) continue;
+          writers.add(`${dir}/${f}`);
           const after = src.slice(m.index!);
           expect({ file: `${dir}/${f}`, releases: /releaseHeldInvitesOnGoLive\(/.test(after) }).toEqual({
             file: `${dir}/${f}`,
@@ -237,7 +241,7 @@ describe("every place an invite goes on the wire decides through the rule", () =
         }
       }
     }
-    expect(writers.sort()).toEqual(["routes/gifts.ts", "routes/internal.ts", "routes/organiser.ts"]);
+    expect([...writers].sort()).toEqual(["routes/gifts.ts", "routes/internal.ts", "routes/organiser.ts"]);
   });
 
   it("nothing else sends an invite at all (sweep over routes AND lib; update this list on purpose)", () => {
