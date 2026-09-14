@@ -231,3 +231,62 @@ describe("pages that must not go live", () => {
     expect(server.page.status).toBe("closed");
   });
 });
+
+/**
+ * #113 — invitations are held until publish, and publishing sends them straight
+ * away. So "Pressing this doesn't send anyone a message" is true only on a page
+ * with nothing waiting. Each variant is asserted beside the other, both ways: a
+ * screen that always showed one line would pass half of these and fail the rest.
+ */
+describe("step 3 says invitations will send — only when some are waiting", () => {
+  it("with invitations waiting: the body and the confirm both say making it live sends them", async () => {
+    resetServer({ privacy: "open", slots: [TASK], heldInviteCount: 2 });
+    renderAt(STEP_3);
+    const step = await screen.findByTestId("publish-step");
+    expect(within(step).getByText(COPY.step3BodyWithInvitations)).toBeTruthy();
+    expect(within(step).queryByText(COPY.step3Body)).toBeNull();
+
+    fireEvent.click(within(step).getByRole("button", { name: COPY.step3Button }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText(COPY.confirmBodyWithInvitations.open)).toBeTruthy();
+    expect(within(dialog).queryByText(COPY.confirmBody.open)).toBeNull();
+  });
+
+  it("a PIN page with invitations waiting gets the PIN variant of the sending line", async () => {
+    resetServer({ privacy: "pin_protected", slots: [TASK], heldInviteCount: 1 });
+    renderAt(STEP_3);
+    const step = await screen.findByTestId("publish-step");
+    fireEvent.click(within(step).getByRole("button", { name: COPY.step3Button }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText(COPY.confirmBodyWithInvitations.pinProtected)).toBeTruthy();
+    expect(within(dialog).queryByText(COPY.confirmBodyWithInvitations.open)).toBeNull();
+    expect(within(dialog).queryByText(COPY.confirmBody.pinProtected)).toBeNull();
+  });
+
+  it("with none waiting: the lines that say nothing is sent — true on this page", async () => {
+    resetServer({ privacy: "open", slots: [TASK], heldInviteCount: 0 });
+    renderAt(STEP_3);
+    const step = await screen.findByTestId("publish-step");
+    expect(within(step).getByText(COPY.step3Body)).toBeTruthy();
+    expect(within(step).queryByText(COPY.step3BodyWithInvitations)).toBeNull();
+
+    fireEvent.click(within(step).getByRole("button", { name: COPY.step3Button }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText(COPY.confirmBody.open)).toBeTruthy();
+    expect(within(dialog).queryByText(COPY.confirmBodyWithInvitations.open)).toBeNull();
+  });
+
+  it("the ruled words are the ones on screen", () => {
+    // Kate's ruling, 14 Sep, with both amendments. Pinned here so a copy edit
+    // is a deliberate act, not a drift.
+    expect(COPY.step3BodyWithInvitations).toBe(
+      "Nothing's live yet, and no one's been invited. Have a last look — when you make it live, Aunt Lucy will send the invitations you've added.",
+    );
+    expect(COPY.confirmBodyWithInvitations.open).toBe(
+      "Anyone with the link will be able to see the page and offer to help. Making it live sends the invitations you've added. Everyone else sees the page when you share the link.",
+    );
+    expect(COPY.confirmBodyWithInvitations.pinProtected).toBe(
+      "Anyone with the link and your PIN will be able to see the page and offer to help. Making it live sends the invitations you've added. Everyone else sees the page when you share the link.",
+    );
+  });
+});

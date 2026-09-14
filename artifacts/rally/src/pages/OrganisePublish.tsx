@@ -23,6 +23,13 @@ interface PublishPage {
   status: string;
   /** "open" | "pin_protected" — decides which confirm body is true. */
   privacy: string;
+  /**
+   * Invitations added while this page was a draft, waiting for it to go live
+   * (#113). Publishing sends them straight away, so when there are any the
+   * step-3 line and the confirm say so; when there are none they say nothing
+   * is sent, which is then true.
+   */
+  heldInviteCount?: number;
   slots: PublishSlot[];
 }
 
@@ -206,6 +213,8 @@ export default function OrganisePublish() {
   if (page.status !== "draft") return errorScreen(COPY.notDraft);
 
   const hasTasks = page.slots.length > 0;
+  const hasInvitations = (page.heldInviteCount ?? 0) > 0;
+  const confirmBody = hasInvitations ? COPY.confirmBodyWithInvitations : COPY.confirmBody;
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -214,7 +223,11 @@ export default function OrganisePublish() {
           <p className="text-sm font-semibold uppercase tracking-wide text-primary mb-2">Step 3 of 3</p>
           <h1 className="font-serif text-3xl font-bold text-foreground mb-2">{COPY.step3Heading}</h1>
           <p className="text-muted-foreground leading-relaxed">
-            {hasTasks ? COPY.step3Body : COPY.noTasks}
+            {hasTasks
+              ? hasInvitations
+                ? COPY.step3BodyWithInvitations
+                : COPY.step3Body
+              : COPY.noTasks}
           </p>
         </div>
 
@@ -293,9 +306,7 @@ export default function OrganisePublish() {
               {COPY.confirmTitle(page.recipientName)}
             </h2>
             <p className="text-muted-foreground leading-relaxed mb-6">
-              {page.privacy === "pin_protected"
-                ? COPY.confirmBody.pinProtected
-                : COPY.confirmBody.open}
+              {page.privacy === "pin_protected" ? confirmBody.pinProtected : confirmBody.open}
             </p>
             {publishError && <p className="text-sm text-destructive mb-4">{publishError}</p>}
             {publishError && refusedAsLive && pageUrl && (

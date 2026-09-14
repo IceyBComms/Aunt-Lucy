@@ -9,8 +9,10 @@ import {
   giftsTable,
   organisersTable,
   pilotApplicationsTable,
+  helperInvitesTable,
 } from "@workspace/db";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, count } from "drizzle-orm";
+import { sendQueuedInvites } from "../lib/queuedInviteSender";
 import { requireAuth, type AuthRequest } from "../middleware/requireAuth";
 import { hashPin } from "../lib/pin";
 import { isAdminEmail } from "../lib/admin";
@@ -382,6 +384,28 @@ router.post("/organiser/pages/:pageId/publish", requireAuth as any, async (req, 
   }
 
   res.json({ slug: updated.slug, status: updated.status });
+
+  // ✅ Kate's ruling, 14 Sep 2026: PUBLISHING SENDS THIS PAGE'S HELD
+  // INVITATIONS STRAIGHT AWAY. Invitations added while the page was a draft
+  // were held (bug #113 — nothing leaves a draft); this is the moment they go,
+  // instead of waiting up to fifteen minutes for the cron.
+  //
+  // AFTER the response, deliberately. The page IS live now, and a slow or
+  // failing send must never surface as "That didn't work, and nothing has gone
+  // live" on a page that has. Same claim as the cron (lib/inviteClaimQuery.ts),
+  // so if the two overlap nobody is invited twice. Anything this never gets to
+  // claim — a thrown error before the claim, a scheduled wave not yet due —
+  // stays queued, and /internal/dispatch-invites sends it on its next run.
+  void sendQueuedInvites({ pageId: updated.id })
+    .then((run) => {
+      if (run.claimed > 0) logger.info({ pageId: updated.id, ...run }, "Held invites released on publish");
+    })
+    .catch((err) =>
+      logger.error(
+        { err, pageId: updated.id },
+        "Releasing held invites on publish failed — anything still queued goes on the next dispatch-invites run",
+      ),
+    );
 });
 
 // GET /api/organiser/pages — list organiser's pages
@@ -427,6 +451,14 @@ router.get("/organiser/pages/:pageId", requireAuth as any, async (req, res) => {
     return;
   }
 
+  // Invitations waiting for this page to go live (bug #113). Step 3 says that
+  // making it live sends them — and only says so when there are some, because
+  // on a page with none the ruled "doesn't send anyone a message" is still true.
+  const [{ n: heldInviteCount }] = await db
+    .select({ n: count() })
+    .from(helperInvitesTable)
+    .where(and(eq(helperInvitesTable.pageId, page.id), eq(helperInvitesTable.status, "queued")));
+
   res.json({
     id: page.id,
     slug: page.slug,
@@ -435,6 +467,7 @@ router.get("/organiser/pages/:pageId", requireAuth as any, async (req, res) => {
     location: page.location,
     status: page.status,
     privacy: page.privacy,
+    heldInviteCount,
     createdAt: page.createdAt.toISOString(),
     slots: page.slots.map((s) => ({
       id: s.id,

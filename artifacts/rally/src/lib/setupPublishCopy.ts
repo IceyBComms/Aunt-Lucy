@@ -15,8 +15,19 @@
  * `noTasks` and `notDraft` are mirrored by the server's refusals in
  * api-server/src/lib/pagePublish.ts — change both together.
  *
- * Deliberately NOT here, because each is its own row: the child care wording,
- * the generic invite message, and whether invitations send from a draft page.
+ * ✅ RULED BY KATE, 14 Sep 2026 (third ruling, bug #113 / PR #124):
+ *    step3BodyWithInvitations and confirmBodyWithInvitations, with her two
+ *    amendments — "invited" not "messaged", and "Everyone else sees the page
+ *    when you share the link."
+ *
+ * Invitations are HELD until the page is published, and publishing sends them
+ * straight away. So on a page with invitations waiting (the page's
+ * `heldInviteCount` > 0) the WithInvitations lines replace step3Body and
+ * confirmBody; on a page with none, the original lines are still true and
+ * still shown.
+ *
+ * Deliberately NOT here, because each is its own row: the child care wording
+ * and the generic invite message.
  */
 export const SETUP_PUBLISH_COPY = {
   // ✅ Step 2's button. It said "Continue — publish page →", which stopped
@@ -28,17 +39,19 @@ export const SETUP_PUBLISH_COPY = {
   step3Heading: "Ready when you are.",
   step3Button: "Make it live",
   /**
-   * ✅ Ruled.
-   *
-   * ⚠️ WHEN INVITATIONS ARE HELD UNTIL PUBLISH (the next prompt after PR #122),
-   * THIS LINE MUST ALSO SAY THAT MAKING THE PAGE LIVE SENDS THEM. Today a
-   * trusted helper's invitation goes out when the task is SAVED, on a draft,
-   * so pressing "Make it live" sends nothing and this line is true as written.
-   * The moment sending moves to publish, "have a last look… make it live"
-   * describes a button that now messages people without saying so.
+   * ✅ Ruled. Shown only when NO invitations are waiting — then pressing
+   * "Make it live" sends nothing, and this is true as written.
    */
   step3Body:
     "Nothing's live yet. Have a last look at what's on the page — when you're happy, make it live.",
+  /**
+   * ✅ Kate's ruling, 14 Sep 2026 (#113). Shown INSTEAD of step3Body when the
+   * page has invitations waiting. "Invited", not "messaged": the product does
+   * send other messages from a draft (the crisis page-saved email among them),
+   * so "no one's been messaged" would overreach.
+   */
+  step3BodyWithInvitations:
+    "Nothing's live yet, and no one's been invited. Have a last look — when you make it live, Aunt Lucy will send the invitations you've added.",
   backToTasks: "Back to your tasks",
 
   // ✅ The confirm.
@@ -53,18 +66,27 @@ export const SETUP_PUBLISH_COPY = {
    * under which the public page demands a PIN (routes/pages.ts), and a page
    * can only be created pin_protected with a PIN (routes/organiser.ts).
    *
-   * Both describe what pressing the button does TODAY. Neither says "nothing
-   * has been sent": a trusted helper's invitation goes out when the task is
-   * SAVED, on a draft — the next row's question.
-   *
-   * ⚠️ Same trigger as step3Body: when invitations are held until publish,
-   * "Pressing this doesn't send anyone a message" becomes FALSE in both
-   * variants and must change with it.
+   * Shown only when NO invitations are waiting. "Pressing this doesn't send
+   * anyone a message" is true then and ONLY then — publishing sends a page's
+   * held invitations straight away (#113), so a page with some gets
+   * confirmBodyWithInvitations instead.
    */
   confirmBody: {
     open: "Anyone with the link will be able to see the page and offer to help. Pressing this doesn't send anyone a message — you share the link when you're ready.",
     pinProtected:
       "Anyone with the link and your PIN will be able to see the page and offer to help. Pressing this doesn't send anyone a message — you share the link when you're ready.",
+  },
+  /**
+   * ✅ Kate's ruling, 14 Sep 2026 (#113), for a page WITH invitations waiting.
+   * Keeps "Anyone with the link" / "…and your PIN" exactly as ruled above.
+   * "Everyone else sees the page when you share the link" is her amendment —
+   * it replaced "everyone else, you share the link with when you're ready",
+   * which is clumsy read aloud. Chosen by `privacy`, the same as confirmBody.
+   */
+  confirmBodyWithInvitations: {
+    open: "Anyone with the link will be able to see the page and offer to help. Making it live sends the invitations you've added. Everyone else sees the page when you share the link.",
+    pinProtected:
+      "Anyone with the link and your PIN will be able to see the page and offer to help. Making it live sends the invitations you've added. Everyone else sees the page when you share the link.",
   },
   confirmYes: "Make it live",
   confirmNo: "Not yet",

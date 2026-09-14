@@ -144,23 +144,56 @@ describe("every place an invite goes on the wire decides through the rule", () =
     expect(fn.indexOf("sendHelperInviteEmail(")).toBeGreaterThan(guardAt);
   });
 
-  it("the dispatcher claims only settled pages AND asks the rule before it sends", () => {
-    const route = slice(read("../routes/internal.ts"), '"/internal/dispatch-invites"', "\n});");
-    expect(route).toContain("inArray(supportPagesTable.status, [...SETTLED_PAGE_STATUSES])");
-    expect(route).toContain(".innerJoin(supportPagesTable, eq(helperInvitesTable.pageId, supportPagesTable.id))");
-    const guardAt = route.indexOf("canSendInvite(");
-    expect(guardAt).toBeGreaterThan(-1);
-    expect(route.indexOf("sendSms(")).toBeGreaterThan(guardAt);
-    expect(route.indexOf("sendHelperInviteEmail(")).toBeGreaterThan(guardAt);
+  it("the shared queued send claims only settled pages AND asks the rule before it sends", () => {
+    // The claim's SQL is read directly in inviteClaimQuery.test.ts; here, that
+    // the sender uses that claim, and decides before it renders or sends.
+    const fn = slice(read("./queuedInviteSender.ts"), "export async function sendQueuedInvites(", "\n}\n");
+    const claimAt = fn.indexOf("claimQueuedInvites(");
+    const guardAt = fn.indexOf("canSendInvite(");
+    expect(claimAt).toBeGreaterThan(-1);
+    expect(guardAt).toBeGreaterThan(claimAt);
+    expect(fn.indexOf("sendSms(")).toBeGreaterThan(guardAt);
+    expect(fn.indexOf("sendHelperInviteEmail(")).toBeGreaterThan(guardAt);
+    expect(read("./inviteClaimQuery.ts")).toContain("inArray(supportPagesTable.status, [...SETTLED_PAGE_STATUSES])");
   });
 
-  it("no other route sends an invite at all (sweep; update this list on purpose)", () => {
-    const routesDir = path.resolve(__dirname, "../routes");
-    const senders = fs
-      .readdirSync(routesDir)
-      .filter((f) => f.endsWith(".ts"))
-      .filter((f) => /sendHelperInviteEmail\(|trustedInviteSms\(|generalInviteSms\(|secondWaveSms\(/.test(read(`../routes/${f}`)))
-      .sort();
-    expect(senders).toEqual(["internal.ts", "invites.ts", "manage.ts"]);
+  it("the cron dispatcher sends through it, for every page", () => {
+    const route = slice(read("../routes/internal.ts"), '"/internal/dispatch-invites"', "\n});");
+    expect(route).toContain("cronAuthorised(req, res)");
+    expect(route).toContain("await sendQueuedInvites();");
+  });
+
+  it("publishing sends that page's held invitations — only AFTER it is really live, and never blocks the answer", () => {
+    // ✅ Kate's ruling, 14 Sep 2026: publishing sends that page's held
+    // invitations straight away.
+    const route = slice(
+      read("../routes/organiser.ts"),
+      'router.post("/organiser/pages/:pageId/publish"',
+      "\n});",
+    );
+    const releaseAt = route.indexOf("sendQueuedInvites({ pageId: updated.id })");
+    expect(releaseAt).toBeGreaterThan(-1);
+    // After the guard, after the conditional draft → active flip, after the
+    // refusal for a page that was not flipped, and after the response.
+    expect(releaseAt).toBeGreaterThan(route.indexOf("canPublish("));
+    expect(releaseAt).toBeGreaterThan(route.indexOf('.set({ status: "active" })'));
+    expect(releaseAt).toBeGreaterThan(route.indexOf("if (!updated)"));
+    expect(releaseAt).toBeGreaterThan(route.indexOf("res.json({ slug: updated.slug"));
+    // Not awaited into the response, and a failure is caught, not thrown.
+    expect(route).toContain("void sendQueuedInvites(");
+    expect(route.slice(releaseAt)).toContain(".catch(");
+  });
+
+  it("nothing else sends an invite at all (sweep over routes AND lib; update this list on purpose)", () => {
+    const sendsAnInvite = /(?<!function )\b(sendHelperInviteEmail|trustedInviteSms|generalInviteSms|secondWaveSms)\(/;
+    const senders: string[] = [];
+    for (const dir of ["routes", "lib"]) {
+      const abs = path.resolve(__dirname, "..", dir);
+      for (const f of fs.readdirSync(abs)) {
+        if (!f.endsWith(".ts") || f.endsWith(".test.ts")) continue;
+        if (sendsAnInvite.test(fs.readFileSync(path.join(abs, f), "utf8"))) senders.push(`${dir}/${f}`);
+      }
+    }
+    expect(senders.sort()).toEqual(["lib/queuedInviteSender.ts", "routes/invites.ts", "routes/manage.ts"]);
   });
 });

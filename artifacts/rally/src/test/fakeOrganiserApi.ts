@@ -38,6 +38,8 @@ export interface FakePage {
   status: string;
   privacy: string;
   slots: FakeSlot[];
+  /** Invitations waiting for the page to go live (#113). */
+  heldInviteCount: number;
 }
 
 export interface Call {
@@ -54,6 +56,7 @@ function freshPage(overrides: Partial<FakePage> = {}): FakePage {
     status: "draft",
     privacy: "open",
     slots: [],
+    heldInviteCount: 0,
     ...overrides,
   };
 }
@@ -105,6 +108,8 @@ export async function apiFetch<T>(
   }
 
   if (method === "POST" && /^\/organiser\/pages\/[^/]+\/slots\/[^/]+\/invites$/.test(path)) {
+    // Mirrors the real route: on a page that isn't live the invite is held.
+    if (page.status !== "active") page.heldInviteCount += 1;
     return {} as T;
   }
 
@@ -114,6 +119,8 @@ export async function apiFetch<T>(
     const verdict = canPublish(page, page.slots);
     if (!verdict.ok) throw new ApiError(verdict.status, verdict.error, verdict.reason);
     page.status = "active";
+    // The real route sends the held invitations straight away.
+    page.heldInviteCount = 0;
     return { slug: page.slug, status: page.status } as T;
   }
 
