@@ -36,6 +36,8 @@ export default function OrganisePublish() {
   const [confirming, setConfirming] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
   const [publishError, setPublishError] = useState<string | null>(null);
+  /** The refusal was "already live", so the link beneath it is true. */
+  const [refusedAsLive, setRefusedAsLive] = useState(false);
   const [copied, setCopied] = useState(false);
 
   /**
@@ -68,6 +70,7 @@ export default function OrganisePublish() {
   async function confirmPublish() {
     setIsPublishing(true);
     setPublishError(null);
+    setRefusedAsLive(false);
     try {
       const { slug, status } = await apiFetch<{ slug: string; status: string }>(
         `/organiser/pages/${pageId}/publish`,
@@ -77,6 +80,11 @@ export default function OrganisePublish() {
       setConfirming(false);
     } catch (err: any) {
       setPublishError(err.message ?? COPY.publishFailed);
+      // "This page is already live." — it went live after this screen loaded
+      // (another tab, a second press). The link is on this screen, so it goes
+      // beneath the refusal rather than leaving them to hunt for it. Keyed on
+      // the server's reason, never the message, so a copy change can't break it.
+      setRefusedAsLive(err?.reason === "not_draft");
     } finally {
       setIsPublishing(false);
     }
@@ -189,7 +197,12 @@ export default function OrganisePublish() {
     );
   }
 
-  // Closed, or anything else that is not a draft: nothing to make live here.
+  // Not a draft and not active. Today the only such status is `closed`, and
+  // NOTHING in the code writes `closed` yet (#090) — so this branch cannot be
+  // reached. When closure ships it will be, and notDraft ("This page is already
+  // live.") is WRONG here by construction: the page reaching this line is the
+  // one that is NOT live. No link is shown for the same reason. See the note on
+  // notDraft in setupPublishCopy.
   if (page.status !== "draft") return errorScreen(COPY.notDraft);
 
   const hasTasks = page.slots.length > 0;
@@ -285,6 +298,14 @@ export default function OrganisePublish() {
                 : COPY.confirmBody.open}
             </p>
             {publishError && <p className="text-sm text-destructive mb-4">{publishError}</p>}
+            {publishError && refusedAsLive && pageUrl && (
+              <p
+                data-testid="refusal-link"
+                className="-mt-2 mb-4 text-sm font-medium text-foreground break-all bg-secondary/40 rounded-xl px-3 py-2.5"
+              >
+                {pageUrl}
+              </p>
+            )}
             <div className="flex flex-col-reverse sm:flex-row gap-2">
               <Button
                 variant="secondary"

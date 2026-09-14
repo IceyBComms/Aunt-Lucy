@@ -19,9 +19,9 @@ export type PublishVerdict =
   | { ok: false; status: 404 | 409; reason: PublishRefusalReason; error: string };
 
 /**
- * ⏸️ The two 409 messages are PROPOSED COPY, not ruled — they mirror
- * `noTasks` and `notDraft` in rally's src/lib/setupPublishCopy.ts, and must be
- * changed together with those.
+ * The two 409 messages mirror `noTasks` and `notDraft` in rally's
+ * src/lib/setupPublishCopy.ts, and must be changed together with those.
+ * `not_draft` is Kate's ruled wording (14 Sep); `no_tasks` is not yet ruled.
  */
 export const PUBLISH_REFUSALS = {
   not_found: { ok: false, status: 404, reason: "not_found", error: "Page not found." },
@@ -29,7 +29,10 @@ export const PUBLISH_REFUSALS = {
     ok: false,
     status: 409,
     reason: "not_draft",
-    error: "This page isn't a draft any more, so there's nothing to make live.",
+    // ⚠️ "Already live" is true only because nothing writes `closed` yet. When
+    // page closure ships (#090) a closed page lands here too, and this
+    // wording becomes wrong — split this refusal by status then.
+    error: "This page is already live.",
   },
   no_tasks: {
     ok: false,

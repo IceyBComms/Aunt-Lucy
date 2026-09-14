@@ -13,6 +13,7 @@ export class ApiError extends Error {
   constructor(
     public status: number,
     message: string,
+    public reason?: string,
   ) {
     super(message);
     this.name = "ApiError";
@@ -111,7 +112,7 @@ export async function apiFetch<T>(
     // The REAL rule, imported from api-server — not a copy of it — so a render
     // test that presses "go live" meets the same refusal production does.
     const verdict = canPublish(page, page.slots);
-    if (!verdict.ok) throw new ApiError(verdict.status, verdict.error);
+    if (!verdict.ok) throw new ApiError(verdict.status, verdict.error, verdict.reason);
     page.status = "active";
     return { slug: page.slug, status: page.status } as T;
   }
