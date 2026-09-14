@@ -1,8 +1,9 @@
 import { Router, type IRouter } from "express";
 import crypto from "crypto";
 import { db, organisersTable, magicLinkTokensTable, sessionsTable } from "@workspace/db";
-import { eq, and, gt } from "drizzle-orm";
+import { eq, and, isNull } from "drizzle-orm";
 import { sendMagicLink } from "../lib/email";
+import { createMagicLinkVerifyRouter, type MagicLinkStore } from "../lib/magicLinkVerify";
 import { logger } from "../lib/logger";
 import { requireAuth, type AuthRequest } from "../middleware/requireAuth";
 import { getAppBaseUrl } from "../lib/appUrl";
@@ -64,49 +65,41 @@ router.post("/auth/magic-link", async (req, res) => {
   res.json({ ok: true });
 });
 
-// GET /api/auth/verify?token=xxx
-router.get("/auth/verify", async (req, res) => {
-  const { token } = req.query as { token?: string };
+// GET  /api/auth/verify?token=xxx — validates, never consumes
+// POST /api/auth/verify {token}    — the "Sign me in" button; consumes
+// See lib/magicLinkVerify.ts for why these are two requests, not one.
+const magicLinkStore: MagicLinkStore = {
+  async findByToken(token) {
+    const [row] = await db
+      .select()
+      .from(magicLinkTokensTable)
+      .where(eq(magicLinkTokensTable.token, token))
+      .limit(1);
+    return row ?? null;
+  },
 
-  if (!token) {
-    res.status(400).json({ error: "Token is required." });
-    return;
-  }
+  async markUsed(id, now) {
+    const stamped = await db
+      .update(magicLinkTokensTable)
+      .set({ usedAt: now })
+      .where(and(eq(magicLinkTokensTable.id, id), isNull(magicLinkTokensTable.usedAt)))
+      .returning({ id: magicLinkTokensTable.id });
+    return stamped.length === 1;
+  },
 
-  const [row] = await db
-    .select()
-    .from(magicLinkTokensTable)
-    .where(
-      and(
-        eq(magicLinkTokensTable.token, token),
-        gt(magicLinkTokensTable.expiresAt, new Date()),
-      ),
-    )
-    .limit(1);
+  async createSession(organiserId) {
+    // Session expires in 30 days
+    const sessionToken = generateToken();
+    await db.insert(sessionsTable).values({
+      organiserId,
+      token: sessionToken,
+      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+    });
+    return sessionToken;
+  },
+};
 
-  if (!row || row.usedAt) {
-    res.status(401).json({ error: "This link has expired or already been used. Please request a new one." });
-    return;
-  }
-
-  // Mark token as used
-  await db
-    .update(magicLinkTokensTable)
-    .set({ usedAt: new Date() })
-    .where(eq(magicLinkTokensTable.id, row.id));
-
-  // Create session (expires in 30 days)
-  const sessionToken = generateToken();
-  const sessionExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-
-  await db.insert(sessionsTable).values({
-    organiserId: row.organiserId,
-    token: sessionToken,
-    expiresAt: sessionExpiresAt,
-  });
-
-  res.json({ sessionToken });
-});
+router.use(createMagicLinkVerifyRouter(magicLinkStore, logger));
 
 // GET /api/auth/me
 router.get("/auth/me", requireAuth as any, (req, res) => {
