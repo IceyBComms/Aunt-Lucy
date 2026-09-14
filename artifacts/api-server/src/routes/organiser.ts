@@ -13,6 +13,7 @@ import {
 } from "@workspace/db";
 import { eq, and, desc, count } from "drizzle-orm";
 import { sendQueuedInvites } from "../lib/queuedInviteSender";
+import { releaseHeldInvitesOnGoLive } from "../lib/goLiveInvites";
 import { requireAuth, type AuthRequest } from "../middleware/requireAuth";
 import { hashPin } from "../lib/pin";
 import { isAdminEmail } from "../lib/admin";
@@ -396,16 +397,10 @@ router.post("/organiser/pages/:pageId/publish", requireAuth as any, async (req, 
   // so if the two overlap nobody is invited twice. Anything this never gets to
   // claim — a thrown error before the claim, a scheduled wave not yet due —
   // stays queued, and /internal/dispatch-invites sends it on its next run.
-  void sendQueuedInvites({ pageId: updated.id })
-    .then((run) => {
-      if (run.claimed > 0) logger.info({ pageId: updated.id, ...run }, "Held invites released on publish");
-    })
-    .catch((err) =>
-      logger.error(
-        { err, pageId: updated.id },
-        "Releasing held invites on publish failed — anything still queued goes on the next dispatch-invites run",
-      ),
-    );
+  //
+  // The SAME helper scheduled activation calls (routes/internal.ts): when a
+  // page goes live its invitations go, whatever made it live (lib/goLiveInvites.ts).
+  void releaseHeldInvitesOnGoLive(updated.id, "publish", sendQueuedInvites);
 });
 
 // GET /api/organiser/pages — list organiser's pages

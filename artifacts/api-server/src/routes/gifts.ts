@@ -15,6 +15,8 @@ import { uniqueToken } from "../lib/token";
 import { defaultFlexibility } from "../lib/slotFlexibility";
 import { asLiftWaitMode, isLiftCandidate } from "../lib/liftWaitMode";
 import { logger } from "../lib/logger";
+import { sendQueuedInvites } from "../lib/queuedInviteSender";
+import { releaseHeldInvitesOnGoLive } from "../lib/goLiveInvites";
 
 const router: IRouter = Router();
 
@@ -625,6 +627,18 @@ router.post("/gifts/:redemptionToken/activate", async (req, res) => {
     scheduledActivateAt: page.scheduledActivateAt?.toISOString() ?? null,
     manageToken,
   });
+
+  // When a page goes live, its invitations go — whatever made it live (#113,
+  // lib/goLiveInvites.ts). A gift activated for right now CREATES the page
+  // already live, so this is a go-live path like "Make it live" and scheduled
+  // activation. Today it can hold nothing — the transaction above writes no
+  // invite rows — so this pickup finds nothing; it is here so the guarantee
+  // does not depend on that staying true (bug #025's shape: a path to the same
+  // event left unwidened). After the response, as on the other two paths. A
+  // scheduled gift page is a draft here and goes live in activate-scheduled-pages.
+  if (page.status === "active") {
+    void releaseHeldInvitesOnGoLive(page.id, "gift_activation", sendQueuedInvites);
+  }
 });
 
 export default router;

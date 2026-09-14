@@ -26,6 +26,7 @@ import { computeFounderStats } from "../lib/founderStats";
 import { sendSms } from "../lib/sms";
 import { getAppBaseUrl } from "../lib/appUrl";
 import { sendQueuedInvites } from "../lib/queuedInviteSender";
+import { releaseHeldInvitesOnGoLive } from "../lib/goLiveInvites";
 
 const router: IRouter = Router();
 
@@ -267,6 +268,7 @@ router.post("/internal/activate-scheduled-pages", async (req, res) => {
     .limit(BATCH_LIMIT);
 
   let activated = 0;
+  const wentLive: string[] = [];
   for (const page of due) {
     // Re-check the status inside the update so two overlapping cron runs cannot
     // both claim the same page.
@@ -280,11 +282,30 @@ router.post("/internal/activate-scheduled-pages", async (req, res) => {
 
     if (flipped.length > 0) {
       activated++;
+      wentLive.push(page.id);
       logger.info({ pageId: page.id, slug: page.slug }, "Scheduled page went live");
     }
   }
 
   res.json({ considered: due.length, activated });
+
+  // ✅ Kate, 14 Sep 2026: WHEN A PAGE GOES LIVE, ITS INVITATIONS GO —
+  // independent of what made it live. A scheduled gift page's invitations were
+  // held while it was a draft (#113); this sends them now, exactly as "Make it
+  // live" does (routes/organiser.ts), through the same helper, sender and
+  // atomic pickup. Without it they waited up to ~30 minutes for the cron — two
+  // paths to the same event with only one widened, bug #025's shape.
+  //
+  // AFTER the response, as the publish route does, and for a second reason
+  // here: this is a cron request on cron-job.org's ~30-second ceiling (#026),
+  // so sending inside it risks exactly that timeout. Only pages THIS run
+  // flipped, one after another; the helper contains each page's failure, so
+  // one bad page never stops the next.
+  void (async () => {
+    for (const pageId of wentLive) {
+      await releaseHeldInvitesOnGoLive(pageId, "scheduled_activation", sendQueuedInvites);
+    }
+  })();
 });
 
 /**

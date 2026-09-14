@@ -171,7 +171,7 @@ describe("every place an invite goes on the wire decides through the rule", () =
       'router.post("/organiser/pages/:pageId/publish"',
       "\n});",
     );
-    const releaseAt = route.indexOf("sendQueuedInvites({ pageId: updated.id })");
+    const releaseAt = route.indexOf('releaseHeldInvitesOnGoLive(updated.id, "publish", sendQueuedInvites)');
     expect(releaseAt).toBeGreaterThan(-1);
     // After the guard, after the conditional draft → active flip, after the
     // refusal for a page that was not flipped, and after the response.
@@ -179,9 +179,65 @@ describe("every place an invite goes on the wire decides through the rule", () =
     expect(releaseAt).toBeGreaterThan(route.indexOf('.set({ status: "active" })'));
     expect(releaseAt).toBeGreaterThan(route.indexOf("if (!updated)"));
     expect(releaseAt).toBeGreaterThan(route.indexOf("res.json({ slug: updated.slug"));
-    // Not awaited into the response, and a failure is caught, not thrown.
-    expect(route).toContain("void sendQueuedInvites(");
-    expect(route.slice(releaseAt)).toContain(".catch(");
+    // Not awaited into the response. (The helper never throws — goLiveInvites.test.ts.)
+    expect(route).toContain("void releaseHeldInvitesOnGoLive(updated.id");
+  });
+
+  it("SCHEDULED activation sends each page's held invitations too — after the response, only for pages this run flipped", () => {
+    // ✅ Kate, 14 Sep 2026: when a page goes live its invitations go,
+    // independent of what made it live. Bug #025's shape was two paths to the
+    // same event with only one widened; this is the second path.
+    const route = slice(
+      read("../routes/internal.ts"),
+      'router.post("/internal/activate-scheduled-pages"',
+      "\n});",
+    );
+    const flipAt = route.indexOf('.set({ status: "active" })');
+    const recordAt = route.indexOf("wentLive.push(page.id)");
+    const replyAt = route.indexOf("res.json({ considered: due.length, activated })");
+    const releaseAt = route.indexOf('releaseHeldInvitesOnGoLive(pageId, "scheduled_activation", sendQueuedInvites)');
+    expect(flipAt).toBeGreaterThan(-1);
+    // A page is recorded only when THIS run's conditional flip returned it.
+    expect(route).toMatch(/if \(flipped\.length > 0\) \{[^}]*wentLive\.push\(page\.id\)/);
+    expect(recordAt).toBeGreaterThan(flipAt);
+    // Every recorded page is released, after the reply, not awaited into it.
+    expect(releaseAt).toBeGreaterThan(replyAt);
+    expect(route).toMatch(/void \(async \(\) => \{\s*for \(const pageId of wentLive\) \{\s*await releaseHeldInvitesOnGoLive\(pageId/);
+  });
+
+  it("a gift activated for right now — created already live — goes through the same helper", () => {
+    const src = read("../routes/gifts.ts");
+    const createAt = src.indexOf('status: scheduledActivateAt ? "draft" : "active"');
+    const replyAt = src.indexOf("res.status(201).json({", createAt);
+    const releaseAt = src.indexOf('releaseHeldInvitesOnGoLive(page.id, "gift_activation", sendQueuedInvites)', createAt);
+    expect(createAt).toBeGreaterThan(-1);
+    expect(releaseAt).toBeGreaterThan(replyAt);
+    expect(replyAt).toBeGreaterThan(createAt);
+  });
+
+  it("EVERY write that makes a page live is followed by the release (sweep; update this list on purpose)", () => {
+    // The class, not the instance. Any code in routes/ or lib/ that writes a
+    // page `active` — an update or a page created live — must call
+    // releaseHeldInvitesOnGoLive AFTER that write, in the same file. A new
+    // go-live path that doesn't is this test failing, not eight days live.
+    const goesLive = /\.set\(\{ status: "active" \}\)|\? "draft" : "active"/g;
+    const writers: string[] = [];
+    for (const dir of ["routes", "lib"]) {
+      const abs = path.resolve(__dirname, "..", dir);
+      for (const f of fs.readdirSync(abs)) {
+        if (!f.endsWith(".ts") || f.endsWith(".test.ts")) continue;
+        const src = fs.readFileSync(path.join(abs, f), "utf8");
+        for (const m of src.matchAll(goesLive)) {
+          writers.push(`${dir}/${f}`);
+          const after = src.slice(m.index!);
+          expect({ file: `${dir}/${f}`, releases: /releaseHeldInvitesOnGoLive\(/.test(after) }).toEqual({
+            file: `${dir}/${f}`,
+            releases: true,
+          });
+        }
+      }
+    }
+    expect(writers.sort()).toEqual(["routes/gifts.ts", "routes/internal.ts", "routes/organiser.ts"]);
   });
 
   it("nothing else sends an invite at all (sweep over routes AND lib; update this list on purpose)", () => {
