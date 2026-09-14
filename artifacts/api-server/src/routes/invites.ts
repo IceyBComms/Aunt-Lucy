@@ -12,6 +12,7 @@ import { getAppBaseUrl } from "../lib/appUrl";
 import { firstName } from "../lib/giftFulfilment";
 import { calendarFeedUrl } from "../lib/calendarFeed";
 import { inviteShape } from "../lib/inviteShape";
+import { placeInvite } from "../lib/inviteDispatch";
 import {
   resolvePronouns,
   applyPronounTokens,
@@ -100,81 +101,110 @@ router.post(
     const pronounsEnum = page.recipientPronouns as RecipientPronouns;
     const pronouns = resolvePronouns(pronounsEnum);
 
-    const [invite] = await db
-      .insert(helperInvitesTable)
-      .values({
-        pageId,
-        contactId: null,
-        slotId,
-        kind,
-        channel,
-        name: nameTrimmed,
-        mobile: contactIsEmail ? null : contactTrimmed,
-        email: contactIsEmail ? contactTrimmed : null,
-        inviteToken,
-        status: "queued",
-        scheduledFor: new Date(),
-      })
-      .returning();
+    // ✅ Kate's ruling, 14 Sep 2026: invitations are HELD until the page is
+    // published. Step 2 of setup calls this route for every trusted helper on a
+    // saved task — on a page that is, by definition, still a draft — and it used
+    // to send right here regardless, while the screen said "Nothing has been
+    // sent yet." The row is always written; placeInvite sends inline only when
+    // canSendInvite says the page is live, and otherwise leaves it queued for
+    // /internal/dispatch-invites to send on its first run after publish.
+    const now = new Date();
+    const { row: invite, status } = await placeInvite(
+      page,
+      // A typed name and number, not a contact row, so there is no opt-out to read.
+      { scheduledFor: now, contactOptedOut: false },
+      {
+        async insertQueued() {
+          const [row] = await db
+            .insert(helperInvitesTable)
+            .values({
+              pageId,
+              contactId: null,
+              slotId,
+              kind,
+              channel,
+              name: nameTrimmed,
+              mobile: contactIsEmail ? null : contactTrimmed,
+              email: contactIsEmail ? contactTrimmed : null,
+              inviteToken,
+              status: "queued",
+              scheduledFor: now,
+            })
+            .returning();
+          return row;
+        },
 
-    let ok: boolean;
-    if (channel === "email") {
-      // A slot is always chosen on this route, so this is always a trusted ask.
-      // PR #62 had to send the general 9c body here because the trusted copy was
-      // SMS-only and there was nothing else to send; the link carried the
-      // specificity and the wording didn't. There is an approved trusted email
-      // now (bug #032), so the words match the ask as well as the link does.
-      ok = await sendHelperInviteEmail({
-        to: contactTrimmed,
-        subject: trustedInviteEmailSubject(recipientFirstName),
-        text: trustedInviteEmailText({
-          helperFirstName,
-          recipientFirstName,
-          trustedLine: applyPronounTokens(
-            page.trustedLine ?? defaultTrustedLine(page.occasion ?? null, page.babyStage),
-            pronounsEnum,
-          ),
-          taskLabel: taskLabel(slot.slotType, slot.customLabel),
-          when: whenLabel(slot.slotDate, slot.slotTime),
-          // Bug #033 — null on anything that isn't an answered lift, and null
-          // renders no line at all.
-          liftNote: slot.liftWaitMode
-            ? LIFT_WAIT_MODE_HELPER_LINES[slot.liftWaitMode]
-            : null,
-          link,
-          // Unchanged from what this path has always sent (see the footer note
-          // in the PR): the public page, not a real unsubscribe route. Passed
-          // through, deliberately not rewired here.
-          unsubscribeUrl: `${base}/s/${page.slug}`,
-        }),
-        link,
-        ctaLabel: TRUSTED_INVITE_EMAIL_CTA,
-        unsubscribeUrl: `${base}/s/${page.slug}`,
-      });
-    } else {
-      ok = await sendSms({
-        label: "trustedInviteSms",
-        to: contactTrimmed,
-        body: trustedInviteSms({
-          helperFirstName,
-          recipientFirstName,
-          trustedLine: applyPronounTokens(
-            page.trustedLine ?? defaultTrustedLine(page.occasion ?? null, page.babyStage),
-            pronounsEnum,
-          ),
-          pronounPoss: pronouns.poss,
-          link,
-        }),
-      });
-    }
+        async send() {
+          if (channel === "email") {
+            // A slot is always chosen on this route, so this is always a trusted
+            // ask. PR #62 had to send the general 9c body here because the
+            // trusted copy was SMS-only and there was nothing else to send; the
+            // link carried the specificity and the wording didn't. There is an
+            // approved trusted email now (bug #032), so the words match the ask
+            // as well as the link does.
+            return sendHelperInviteEmail({
+              to: contactTrimmed,
+              subject: trustedInviteEmailSubject(recipientFirstName),
+              text: trustedInviteEmailText({
+                helperFirstName,
+                recipientFirstName,
+                trustedLine: applyPronounTokens(
+                  page.trustedLine ?? defaultTrustedLine(page.occasion ?? null, page.babyStage),
+                  pronounsEnum,
+                ),
+                taskLabel: taskLabel(slot.slotType, slot.customLabel),
+                when: whenLabel(slot.slotDate, slot.slotTime),
+                // Bug #033 — null on anything that isn't an answered lift, and
+                // null renders no line at all.
+                liftNote: slot.liftWaitMode
+                  ? LIFT_WAIT_MODE_HELPER_LINES[slot.liftWaitMode]
+                  : null,
+                link,
+                // Unchanged from what this path has always sent (see the footer
+                // note in the PR): the public page, not a real unsubscribe
+                // route. Passed through, deliberately not rewired here.
+                unsubscribeUrl: `${base}/s/${page.slug}`,
+              }),
+              link,
+              ctaLabel: TRUSTED_INVITE_EMAIL_CTA,
+              unsubscribeUrl: `${base}/s/${page.slug}`,
+            });
+          }
+          return sendSms({
+            label: "trustedInviteSms",
+            to: contactTrimmed,
+            body: trustedInviteSms({
+              helperFirstName,
+              recipientFirstName,
+              trustedLine: applyPronounTokens(
+                page.trustedLine ?? defaultTrustedLine(page.occasion ?? null, page.babyStage),
+                pronounsEnum,
+              ),
+              pronounPoss: pronouns.poss,
+              link,
+            }),
+          });
+        },
 
-    await db
-      .update(helperInvitesTable)
-      .set(ok ? { status: "sent", sentAt: new Date() } : { status: "failed", failedAt: new Date() })
-      .where(eq(helperInvitesTable.id, invite.id));
+        async markSent(row) {
+          await db
+            .update(helperInvitesTable)
+            .set({ status: "sent", sentAt: new Date() })
+            .where(eq(helperInvitesTable.id, row.id));
+        },
+
+        async markFailed(row) {
+          await db
+            .update(helperInvitesTable)
+            .set({ status: "failed", failedAt: new Date() })
+            .where(eq(helperInvitesTable.id, row.id));
+        },
+      },
+      now,
+    );
 
     logger.info(
-      { slotId, name: nameTrimmed, kind, via: channel, ok },
+      { slotId, name: nameTrimmed, kind, via: channel, status, pageStatus: page.status },
       "Helper invite created (organiser)",
     );
 

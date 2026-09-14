@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { runInviteBatch, type InviteDelivery } from "./inviteDispatch";
+import { runInviteBatch, placeInvite, type InviteDelivery } from "./inviteDispatch";
 
 /**
  * Bug #048 — one bad invite must lose ONE invite, visibly, never the remainder
@@ -75,6 +75,9 @@ function handlersFor(
     async markCancelled(invite: Row) {
       outbox.status.set(invite.id, "cancelled");
     },
+    async markHeld(invite: Row) {
+      outbox.status.set(invite.id, "queued");
+    },
     onError(_err: unknown, invite: Row, stage: string) {
       outbox.errors.push({ id: invite.id, stage });
     },
@@ -122,7 +125,7 @@ describe("runInviteBatch — a failure at invite 3 of 5", () => {
     );
 
     expectOnlyInviteThreeLost(outbox, claimed);
-    expect(tally).toEqual({ sent: 4, failed: 1, cancelled: 0, stuck: 0 });
+    expect(tally).toEqual({ sent: 4, failed: 1, cancelled: 0, held: 0, stuck: 0 });
     expect(outbox.errors).toEqual([{ id: "invite-3", stage: "deliver" }]);
   });
 
@@ -142,7 +145,7 @@ describe("runInviteBatch — a failure at invite 3 of 5", () => {
     );
 
     expectOnlyInviteThreeLost(outbox, claimed);
-    expect(tally).toEqual({ sent: 4, failed: 1, cancelled: 0, stuck: 0 });
+    expect(tally).toEqual({ sent: 4, failed: 1, cancelled: 0, held: 0, stuck: 0 });
     expect(outbox.errors).toEqual([{ id: "invite-3", stage: "deliver" }]);
   });
 
@@ -169,7 +172,7 @@ describe("runInviteBatch — a failure at invite 3 of 5", () => {
     );
 
     expectOnlyInviteThreeLost(outbox, claimed);
-    expect(tally).toEqual({ sent: 4, failed: 1, cancelled: 0, stuck: 0 });
+    expect(tally).toEqual({ sent: 4, failed: 1, cancelled: 0, held: 0, stuck: 0 });
   });
 });
 
@@ -192,7 +195,7 @@ describe("runInviteBatch — when the outcome itself cannot be written", () => {
 
     // Stuck in `sending`: no status written at all, and counted as such.
     expect(outbox.stuckIn(claimed)).toEqual(["invite-3"]);
-    expect(tally).toEqual({ sent: 4, failed: 0, cancelled: 0, stuck: 1 });
+    expect(tally).toEqual({ sent: 4, failed: 0, cancelled: 0, held: 0, stuck: 1 });
     expect(outbox.errors).toEqual([{ id: "invite-3", stage: "record" }]);
   });
 });
@@ -218,12 +221,125 @@ describe("runInviteBatch — the ordinary outcomes still work", () => {
       async markCancelled(i: Row) {
         outbox.status.set(i.id, "cancelled");
       },
+      async markHeld(i: Row) {
+        outbox.status.set(i.id, "queued");
+      },
       onError() {},
     });
 
     expect(outbox.status.get("invite-1")).toBe("sent");
     expect(outbox.status.get("invite-2")).toBe("cancelled");
     expect(outbox.status.get("invite-3")).toBe("failed");
-    expect(tally).toEqual({ sent: 1, failed: 1, cancelled: 1, stuck: 0 });
+    expect(tally).toEqual({ sent: 1, failed: 1, cancelled: 1, held: 0, stuck: 0 });
+  });
+});
+
+describe("runInviteBatch — a held invite (the page isn't live)", () => {
+  it("hands the claim back to queued, sends nothing, and counts it held", async () => {
+    const outbox = new FakeOutbox();
+    const claimed = batchOf(3);
+
+    const tally = await runInviteBatch(claimed, {
+      ...handlersFor(outbox),
+      async deliver(invite: Row): Promise<InviteDelivery> {
+        if (invite.id === "invite-2") return "held";
+        outbox.delivered.push(invite.id);
+        return "sent";
+      },
+    });
+
+    expect(outbox.delivered).toEqual(["invite-1", "invite-3"]);
+    expect(outbox.status.get("invite-2")).toBe("queued");
+    expect(outbox.sentAt.has("invite-2")).toBe(false);
+    expect(outbox.failedAt.has("invite-2")).toBe(false);
+    expect(outbox.stuckIn(claimed)).toEqual([]);
+    expect(tally).toEqual({ sent: 2, failed: 0, cancelled: 0, held: 1, stuck: 0 });
+  });
+});
+
+/**
+ * Nothing leaves a draft (Kate's ruling, 14 Sep 2026) — the inline send paths.
+ *
+ * P2 amendment. "No SMS was sent" is an ABSENCE, and it is satisfied for free
+ * by a path that never ran. So every hold test here proves two things at once:
+ *   (a) the path RAN — the invite row exists, and it is queued;
+ *   (b) it CHOSE to hold — the sender was never called.
+ * And the live-page test beside it proves the guard discriminates: a guard that
+ * blocks everything passes (a) and (b) perfectly and breaks the product.
+ */
+describe("placeInvite — step 2 and Send now", () => {
+  type InviteRow = { id: string; status: string; sentAt?: Date; failedAt?: Date };
+
+  function fakeInviteTable(opts: { sendOk?: boolean } = {}) {
+    const rows = new Map<string, InviteRow>();
+    const sendCalls: string[] = [];
+    let n = 0;
+    return {
+      rows,
+      sendCalls,
+      handlers: {
+        async insertQueued() {
+          const row = { id: `invite-${++n}`, status: "queued" };
+          rows.set(row.id, row);
+          return row;
+        },
+        async send(row: InviteRow) {
+          sendCalls.push(row.id);
+          return opts.sendOk ?? true;
+        },
+        async markSent(row: InviteRow) {
+          rows.set(row.id, { ...row, status: "sent", sentAt: new Date() });
+        },
+        async markFailed(row: InviteRow) {
+          rows.set(row.id, { ...row, status: "failed", failedAt: new Date() });
+        },
+      },
+    };
+  }
+
+  const now = new Date("2026-09-14T09:00:00Z");
+  const invite = { scheduledFor: now, contactOptedOut: false };
+
+  it("DRAFT page: the invite row EXISTS and is queued, AND the sender was NOT called", async () => {
+    const table = fakeInviteTable();
+
+    const placed = await placeInvite({ status: "draft" }, invite, table.handlers, now);
+
+    // (a) The path ran: a real row, written, and still queued for the dispatcher.
+    expect(table.rows.size).toBe(1);
+    expect(table.rows.get(placed.row.id)).toEqual({ id: "invite-1", status: "queued" });
+    expect(placed.status).toBe("queued");
+    // (b) It chose to hold: nothing went on the wire.
+    expect(table.sendCalls).toEqual([]);
+  });
+
+  it("LIVE page: the same call DOES send, and the row is stamped sent", async () => {
+    const table = fakeInviteTable();
+
+    const placed = await placeInvite({ status: "active" }, invite, table.handlers, now);
+
+    expect(table.sendCalls).toEqual(["invite-1"]);
+    expect(placed.status).toBe("sent");
+    expect(table.rows.get("invite-1")).toMatchObject({ status: "sent" });
+    expect(table.rows.get("invite-1")?.sentAt).toBeInstanceOf(Date);
+  });
+
+  it("LIVE page, sender refuses: stamped failed, exactly as before", async () => {
+    const table = fakeInviteTable({ sendOk: false });
+
+    const placed = await placeInvite({ status: "active" }, invite, table.handlers, now);
+
+    expect(table.sendCalls).toEqual(["invite-1"]);
+    expect(placed.status).toBe("failed");
+    expect(table.rows.get("invite-1")).toMatchObject({ status: "failed" });
+  });
+
+  it("pending_approval page: row queued, sender not called", async () => {
+    const table = fakeInviteTable();
+
+    const placed = await placeInvite({ status: "pending_approval" }, invite, table.handlers, now);
+
+    expect(table.rows.get(placed.row.id)?.status).toBe("queued");
+    expect(table.sendCalls).toEqual([]);
   });
 });

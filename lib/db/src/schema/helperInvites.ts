@@ -21,8 +21,10 @@ export const helperInviteChannelEnum = pgEnum("helper_invite_channel", [
 ]);
 
 // The outbox lifecycle. "queued" is claimed by the dispatcher when scheduled_for
-// passes; "send now" inserts already past-due and is sent inline. Kept separate
-// from gift_messages on purpose — that queue is email-only and gift-scoped.
+// passes; "send now" inserts already past-due and is sent inline — but only on a
+// LIVE page (14 Sep 2026: nothing leaves a draft; a draft's invite stays queued
+// until the page is published). Kept separate from gift_messages on purpose —
+// that queue is email-only and gift-scoped.
 //
 // "sending" is the claim state (bug #048). The dispatcher flips queued →
 // sending to take ownership of a batch, then moves each row individually to

@@ -8,20 +8,16 @@ import {
   supportPagesTable,
   slotsTable,
   pageGrantsTable,
-  helperInvitesTable,
-  contactsTable,
 } from "@workspace/db";
 import { and, eq, inArray, isNull, isNotNull, lte, ne, sql } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import { isContactSuppressed, resolvePageNotifyTargets } from "../lib/notifyTargetsDb";
 import { notifyPageOfClaims } from "../lib/claimNotifyDispatch";
 import { buildRecipientClaimSms } from "../lib/claimNotifyCopy";
-import { LIFT_WAIT_MODE_HELPER_LINES } from "../lib/liftWaitMode";
 import { firstName, giftLinkFor, sealCard } from "../lib/giftFulfilment";
 import {
   sendActivationReminder,
   sendGiftDelivery,
-  sendHelperInviteEmail,
   sendRecipientClaimNotification,
   sendFounderDigest,
   type RecipientClaimItem,
@@ -29,23 +25,8 @@ import {
 import { computeFounderStats } from "../lib/founderStats";
 import { sendSms } from "../lib/sms";
 import { getAppBaseUrl } from "../lib/appUrl";
-import {
-  resolvePronouns,
-  applyPronounTokens,
-  defaultSituationLine,
-  defaultTrustedLine,
-  generalInviteSms,
-  trustedInviteSms,
-  secondWaveSms,
-  generalInviteEmailSubject,
-  generalInviteEmailText,
-  trustedInviteEmailSubject,
-  trustedInviteEmailText,
-  TRUSTED_INVITE_EMAIL_CTA,
-  type RecipientPronouns,
-} from "../lib/inviteCopy";
-import { taskLabel, whenLabel } from "../lib/item17Copy";
-import { runInviteBatch, type InviteDelivery } from "../lib/inviteDispatch";
+import { sendQueuedInvites } from "../lib/queuedInviteSender";
+import { releaseHeldInvitesOnGoLive } from "../lib/goLiveInvites";
 
 const router: IRouter = Router();
 
@@ -287,6 +268,7 @@ router.post("/internal/activate-scheduled-pages", async (req, res) => {
     .limit(BATCH_LIMIT);
 
   let activated = 0;
+  const wentLive: string[] = [];
   for (const page of due) {
     // Re-check the status inside the update so two overlapping cron runs cannot
     // both claim the same page.
@@ -300,11 +282,30 @@ router.post("/internal/activate-scheduled-pages", async (req, res) => {
 
     if (flipped.length > 0) {
       activated++;
+      wentLive.push(page.id);
       logger.info({ pageId: page.id, slug: page.slug }, "Scheduled page went live");
     }
   }
 
   res.json({ considered: due.length, activated });
+
+  // ✅ Kate, 14 Sep 2026: WHEN A PAGE GOES LIVE, ITS INVITATIONS GO —
+  // independent of what made it live. A scheduled gift page's invitations were
+  // held while it was a draft (#113); this sends them now, exactly as "Make it
+  // live" does (routes/organiser.ts), through the same helper, sender and
+  // atomic pickup. Without it they waited up to ~30 minutes for the cron — two
+  // paths to the same event with only one widened, bug #025's shape.
+  //
+  // AFTER the response, as the publish route does, and for a second reason
+  // here: this is a cron request on cron-job.org's ~30-second ceiling (#026),
+  // so sending inside it risks exactly that timeout. Only pages THIS run
+  // flipped, one after another; the helper contains each page's failure, so
+  // one bad page never stops the next.
+  void (async () => {
+    for (const pageId of wentLive) {
+      await releaseHeldInvitesOnGoLive(pageId, "scheduled_activation", sendQueuedInvites);
+    }
+  })();
 });
 
 /**
@@ -313,7 +314,10 @@ router.post("/internal/activate-scheduled-pages", async (req, res) => {
  * Shares the cron and the claim-before-send discipline of the gift dispatcher,
  * but is a SEPARATE queue: helper_invites carries SMS as well as email and is
  * page-scoped, so it never touches gift_messages. "Send now" is handled inline
- * in the manage routes; this endpoint is only for scheduled waves.
+ * in the manage and organiser routes — but only on a LIVE page. Since 14 Sep
+ * 2026 (invitations are held until publish) the publish route sends a page's
+ * held invites the moment it goes live, through the same code; this run is the
+ * safety net for anything that arrives late or was never attempted.
  *
  * Wording is re-rendered from the row + page via the shared inviteCopy
  * templates, so a copy fix reaches invites still sitting in the queue.
@@ -325,211 +329,14 @@ router.post("/internal/dispatch-invites", async (req, res) => {
   // a cold-start hiccup becomes a short retry rather than a failed cron run.
   await ensureDbAwake();
 
-  const now = new Date();
+  // Every page. The claim-then-send loop — its PATTERN note (claim-then-send,
+  // per-invite outcome, NO automatic retry, bug #048), its outcomes and the
+  // nothing-leaves-a-draft guard — lives in lib/queuedInviteSender.ts, because
+  // the publish route now runs the same send for the one page it just made live.
+  const run = await sendQueuedInvites();
 
-  // PATTERN: claim-then-send, per-invite outcome, NO automatic retry (bug #048).
-  // Compare /internal/dispatch-claim-notifications below, which claims then
-  // REVERTS on failure so the next run retries — a deliberately different
-  // choice, noted there. If you are changing one, read both.
-  //
-  // Claim the batch by flipping queued → SENDING. This is the concurrency lock:
-  // one atomic update, so two overlapping cron runs can never grab the same
-  // row. It is NOT a claim that anything was delivered — each invite writes its
-  // own outcome below, and sent_at is stamped at the moment the message
-  // actually goes, not here.
-  //
-  // Claiming into "sending" rather than "sent" is the whole of bug #048. The
-  // old code marked the entire batch sent before a single message left the
-  // building, so a hard crash mid-batch left the remainder permanently marked
-  // delivered, having never been sent: nothing to retry from, nothing to alert
-  // on, and helpers who were never asked. A row left in "sending" is a visible
-  // question instead. Nothing re-queues one automatically — see bug #009.
-  const claimed = await db
-    .update(helperInvitesTable)
-    .set({ status: "sending" })
-    .where(
-      inArray(
-        helperInvitesTable.id,
-        db
-          .select({ id: helperInvitesTable.id })
-          .from(helperInvitesTable)
-          .where(
-            and(
-              eq(helperInvitesTable.status, "queued"),
-              lte(helperInvitesTable.scheduledFor, now),
-            ),
-          )
-          .limit(BATCH_LIMIT),
-      ),
-    )
-    .returning();
-
-  const base = getAppBaseUrl();
-
-  // One try/catch per invite, INSIDE the loop (bug #048). Whatever goes wrong
-  // with this invite — a renderer that throws, a rejected Resend or Twilio
-  // call, a DB error on the page lookup — costs this invite and only this
-  // invite, visibly. Invites behind it still go. The loop itself lives in
-  // lib/inviteDispatch.ts so that guarantee can actually be tested.
-  const { sent, failed, cancelled, stuck } = await runInviteBatch(claimed, {
-    async deliver(invite): Promise<InviteDelivery> {
-      const page = await db.query.supportPagesTable.findFirst({
-        where: eq(supportPagesTable.id, invite.pageId),
-      });
-      // The contact may have opted out since the wave was scheduled.
-      const contact = invite.contactId
-        ? await db.query.contactsTable.findFirst({ where: eq(contactsTable.id, invite.contactId) })
-        : null;
-
-      if (!page || page.status === "closed" || (contact && contact.optedOutAt)) {
-        // Decide only; the row is stamped by markCancelled below, so every exit
-        // from this function writes its outcome in exactly one place.
-        return "cancelled";
-      }
-
-      const helperFirstName = firstName(invite.name);
-      const recipientFirstName = firstName(page.recipientName);
-      const pronounsEnum = page.recipientPronouns as RecipientPronouns;
-      const situationLine = applyPronounTokens(
-        page.situationLine ?? defaultSituationLine(page.occasion ?? null, page.babyStage),
-        pronounsEnum,
-      );
-      const pronouns = resolvePronouns(pronounsEnum);
-      const openingLine = invite.personalOpeningLine;
-
-      let ok = false;
-      if (invite.channel === "email" && invite.email) {
-        // An emailed invite that carries its own grant token is slot-scoped, so it
-        // must point at the grant page — the public page hides trusted tasks and
-        // refuses to claim them (bug #031).
-        const emailLink = invite.inviteToken
-          ? `${base}/invite/${invite.inviteToken}`
-          : `${base}/s/${page.slug}`;
-        // A queued trusted invite gets the trusted body, exactly as it would have
-        // done had the organiser pressed send instead of scheduling it (bug #032).
-        // Without this the same choice produced two different emails depending on
-        // when it went out, and the scheduled one never named the task.
-        const trustedSlot =
-          invite.kind === "trusted" && invite.slotId
-            ? await db.query.slotsTable.findFirst({
-                where: eq(slotsTable.id, invite.slotId),
-              })
-            : undefined;
-        const unsubscribeUrl = `${base}/unsubscribe/${invite.contactId}`;
-        ok = trustedSlot
-          ? await sendHelperInviteEmail({
-              to: invite.email,
-              subject: trustedInviteEmailSubject(recipientFirstName),
-              text: trustedInviteEmailText({
-                helperFirstName,
-                recipientFirstName,
-                trustedLine: applyPronounTokens(
-                  page.trustedLine ?? defaultTrustedLine(page.occasion ?? null, page.babyStage),
-                  pronounsEnum,
-                ),
-                taskLabel: taskLabel(trustedSlot.slotType, trustedSlot.customLabel),
-                when: whenLabel(trustedSlot.slotDate, trustedSlot.slotTime),
-                // Bug #033 — null on anything that isn't an answered lift, and
-                // null renders no line at all.
-                liftNote: trustedSlot.liftWaitMode
-                  ? LIFT_WAIT_MODE_HELPER_LINES[trustedSlot.liftWaitMode]
-                  : null,
-                link: emailLink,
-                unsubscribeUrl,
-                openingLine,
-              }),
-              link: emailLink,
-              ctaLabel: TRUSTED_INVITE_EMAIL_CTA,
-              unsubscribeUrl,
-              openingLine,
-            })
-          : await sendHelperInviteEmail({
-              to: invite.email,
-              subject: generalInviteEmailSubject(recipientFirstName),
-              text: generalInviteEmailText({
-                helperFirstName,
-                recipientFirstName,
-                situationLine,
-                pronounObj: pronouns.obj,
-                link: emailLink,
-                unsubscribeUrl,
-                openingLine,
-              }),
-              link: emailLink,
-              unsubscribeUrl,
-              openingLine,
-            });
-      } else if (invite.mobile) {
-        let body: string;
-        if (invite.kind === "trusted" && invite.inviteToken) {
-          body = trustedInviteSms({
-            helperFirstName,
-            recipientFirstName,
-            trustedLine: applyPronounTokens(
-              page.trustedLine ?? defaultTrustedLine(page.occasion ?? null, page.babyStage),
-              pronounsEnum,
-            ),
-            pronounPoss: pronouns.poss,
-            link: `${base}/invite/${invite.inviteToken}`,
-            openingLine,
-          });
-        } else if (invite.kind === "second_wave") {
-          body = secondWaveSms({ helperFirstName, recipientFirstName, link: `${base}/s/${page.slug}`, openingLine });
-        } else {
-          body = generalInviteSms({ helperFirstName, recipientFirstName, situationLine, link: `${base}/s/${page.slug}`, openingLine });
-        }
-        ok = await sendSms({ to: invite.mobile, body, label: `inviteSms:${invite.kind}` });
-      }
-
-      // false from a sender is a failure, not a shrug: sendHelperInviteEmail
-      // returns it for a refused render (#046) or a Resend error, and sendSms for
-      // a Twilio error. Both mean this helper was not reached.
-      return ok ? "sent" : "not_sent";
-    },
-
-    // sent_at is stamped HERE, at the moment the message actually went, rather
-    // than when the batch was claimed. The old code stamped it up front, which
-    // is how a never-sent invite could carry a confident delivery time.
-    async markSent(invite) {
-      await db
-        .update(helperInvitesTable)
-        .set({ status: "sent", sentAt: new Date() })
-        .where(eq(helperInvitesTable.id, invite.id));
-    },
-
-    async markFailed(invite) {
-      await db
-        .update(helperInvitesTable)
-        .set({ status: "failed", sentAt: null, failedAt: new Date() })
-        .where(eq(helperInvitesTable.id, invite.id));
-    },
-
-    async markCancelled(invite) {
-      await db
-        .update(helperInvitesTable)
-        .set({ status: "cancelled", sentAt: null })
-        .where(eq(helperInvitesTable.id, invite.id));
-    },
-
-    onError(err, invite, stage) {
-      logger.error(
-        { err, inviteId: invite.id, pageId: invite.pageId, channel: invite.channel, stage },
-        stage === "deliver"
-          ? "Invite send failed — marking this invite failed and continuing the batch"
-          : "Could not record an invite outcome — row left in sending",
-      );
-    },
-  });
-
-  if (stuck > 0) {
-    // Not a tally line to skim past. These rows were claimed, an attempt was
-    // made, and we could not write down what happened — so they are sitting in
-    // "sending" and only a human can settle them (bug #009).
-    logger.error({ stuck }, "Invite rows left stuck in sending");
-  }
-
-  logger.info({ claimed: claimed.length, sent, failed, cancelled, stuck }, "Invite dispatch run complete");
-  res.json({ claimed: claimed.length, sent, failed, cancelled, stuck });
+  logger.info(run, "Invite dispatch run complete");
+  res.json(run);
 });
 
 /**

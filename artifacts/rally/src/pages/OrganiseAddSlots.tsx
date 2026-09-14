@@ -574,7 +574,7 @@ function SlotForm({
             <AlertTriangle className="w-4 h-4 text-amber-700 mt-0.5 flex-shrink-0" />
             <p className="text-xs text-amber-800 leading-relaxed">
               This slot requires a personal invitation. Add each helper's name and
-              mobile number or email — they'll receive a direct invite when you save.
+              mobile number or email — they'll get a personal invitation once the page is live.
             </p>
           </div>
 
@@ -1111,8 +1111,10 @@ export default function OrganiseAddSlots() {
               disabled={isLoading || (cards.length === 0 && savedSlots.length === 0)}
             >
               {/* Step 3 no longer publishes on arrival, so this button no longer
-                  says it does. ⏸️ Proposed copy, see setupPublishCopy. */}
-              {isLoading ? "Saving & sending invites…" : SETUP_PUBLISH_COPY.step2Continue}
+                  says it does. And nothing is sent from step 2 any more —
+                  invitations are held until publish (#113) — so the busy
+                  state just says "Saving…" (Kate, 14 Sep). */}
+              {isLoading ? "Saving…" : SETUP_PUBLISH_COPY.step2Continue}
             </Button>
           </div>
         </form>
