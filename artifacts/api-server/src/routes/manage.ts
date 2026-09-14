@@ -29,6 +29,7 @@ import { logger } from "../lib/logger";
 import { asLiftWaitMode, LIFT_WAIT_MODE_SMS_CLAUSES } from "../lib/liftWaitMode";
 import { sendSms } from "../lib/sms";
 import { sendHelperInviteEmail, sendPageFeedbackNotification } from "../lib/email";
+import { placeInvite } from "../lib/inviteDispatch";
 import {
   notifyHelperOfTaskEvent,
   shareLinkFor,
@@ -900,53 +901,76 @@ async function dispatchOrQueue(
       continue;
     }
 
-    const [invite] = await db
-      .insert(helperInvitesTable)
-      .values({
-        pageId,
-        contactId: prepared.contact.id,
-        slotId: prepared.slotId,
-        kind: prepared.kind,
-        channel: prepared.channel,
-        name: prepared.name,
-        mobile: prepared.mobile,
-        email: prepared.email,
-        personalOpeningLine: prepared.openingLine,
-        inviteToken: prepared.inviteToken,
-        status: mode === "schedule" ? "queued" : "queued",
-        scheduledFor,
-      })
-      .returning();
+    const insertQueued = async () => {
+      const [row] = await db
+        .insert(helperInvitesTable)
+        .values({
+          pageId,
+          contactId: prepared.contact.id,
+          slotId: prepared.slotId,
+          kind: prepared.kind,
+          channel: prepared.channel,
+          name: prepared.name,
+          mobile: prepared.mobile,
+          email: prepared.email,
+          personalOpeningLine: prepared.openingLine,
+          inviteToken: prepared.inviteToken,
+          status: "queued",
+          scheduledFor,
+        })
+        .returning();
+      return row;
+    };
 
     if (mode === "schedule") {
+      await insertQueued();
       results.push({ contactId: prepared.contact.id, status: "queued" });
       continue;
     }
 
-    // Send now, inline, and record the outcome on the row.
-    const ok =
-      prepared.channel === "sms"
-        ? await sendSms({
-            to: prepared.mobile!,
-            body: prepared.body,
-            label: `inviteSms:${prepared.kind}`,
-          })
-        : await sendHelperInviteEmail({
-            to: prepared.email!,
-            subject: prepared.subject!,
-            text: prepared.body,
-            link: prepared.link,
-            ctaLabel: prepared.ctaLabel ?? undefined,
-            unsubscribeUrl: prepared.unsubscribeUrl!,
-            openingLine: prepared.openingLine,
-          });
+    // Send now — inline ONLY if the page is live (Kate's ruling, 14 Sep 2026:
+    // nothing leaves a draft). /manage opens on any page that isn't closed, so
+    // this is reachable on a draft: a crisis page before it is published, or a
+    // gift page scheduled to activate later. There the row is left queued and
+    // goes on the dispatcher's first run after the page is live. An opted-out
+    // contact was already refused by prepareInvite, so it is false here.
+    const { status } = await placeInvite(
+      page,
+      { scheduledFor, contactOptedOut: false },
+      {
+        insertQueued,
+        send: () =>
+          prepared.channel === "sms"
+            ? sendSms({
+                to: prepared.mobile!,
+                body: prepared.body,
+                label: `inviteSms:${prepared.kind}`,
+              })
+            : sendHelperInviteEmail({
+                to: prepared.email!,
+                subject: prepared.subject!,
+                text: prepared.body,
+                link: prepared.link,
+                ctaLabel: prepared.ctaLabel ?? undefined,
+                unsubscribeUrl: prepared.unsubscribeUrl!,
+                openingLine: prepared.openingLine,
+              }),
+        async markSent(row) {
+          await db
+            .update(helperInvitesTable)
+            .set({ status: "sent", sentAt: new Date() })
+            .where(eq(helperInvitesTable.id, row.id));
+        },
+        async markFailed(row) {
+          await db
+            .update(helperInvitesTable)
+            .set({ status: "failed", failedAt: new Date() })
+            .where(eq(helperInvitesTable.id, row.id));
+        },
+      },
+    );
 
-    await db
-      .update(helperInvitesTable)
-      .set(ok ? { status: "sent", sentAt: new Date() } : { status: "failed", failedAt: new Date() })
-      .where(eq(helperInvitesTable.id, invite.id));
-
-    results.push({ contactId: prepared.contact.id, status: ok ? "sent" : "failed" });
+    results.push({ contactId: prepared.contact.id, status });
   }
 
   logger.info({ pageId, mode, count: results.length }, "Helper invites processed");

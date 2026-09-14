@@ -46,6 +46,7 @@ import {
 } from "../lib/inviteCopy";
 import { taskLabel, whenLabel } from "../lib/item17Copy";
 import { runInviteBatch, type InviteDelivery } from "../lib/inviteDispatch";
+import { canSendInvite, SETTLED_PAGE_STATUSES } from "../lib/inviteSendRule";
 
 const router: IRouter = Router();
 
@@ -313,7 +314,9 @@ router.post("/internal/activate-scheduled-pages", async (req, res) => {
  * Shares the cron and the claim-before-send discipline of the gift dispatcher,
  * but is a SEPARATE queue: helper_invites carries SMS as well as email and is
  * page-scoped, so it never touches gift_messages. "Send now" is handled inline
- * in the manage routes; this endpoint is only for scheduled waves.
+ * in the manage and organiser routes — but only on a LIVE page. Since 14 Sep
+ * 2026 (invitations are held until publish) this endpoint also sends every
+ * invite made while its page was a draft, on the first run after it goes live.
  *
  * Wording is re-rendered from the row + page via the shared inviteCopy
  * templates, so a copy fix reaches invites still sitting in the queue.
@@ -353,10 +356,18 @@ router.post("/internal/dispatch-invites", async (req, res) => {
         db
           .select({ id: helperInvitesTable.id })
           .from(helperInvitesTable)
+          .innerJoin(supportPagesTable, eq(helperInvitesTable.pageId, supportPagesTable.id))
           .where(
             and(
               eq(helperInvitesTable.status, "queued"),
               lte(helperInvitesTable.scheduledFor, now),
+              // Kate's ruling, 14 Sep 2026 — nothing leaves a draft. Only claim
+              // invites whose page has a FINAL answer (live → send, closed →
+              // cancel). A draft's invites stay queued, untouched, and are
+              // picked up on the first run after the page goes live. Filtering
+              // here, not only in deliver(), stops a draft's held invites
+              // filling the batch and starving live pages behind them.
+              inArray(supportPagesTable.status, [...SETTLED_PAGE_STATUSES]),
             ),
           )
           .limit(BATCH_LIMIT),
@@ -371,7 +382,7 @@ router.post("/internal/dispatch-invites", async (req, res) => {
   // call, a DB error on the page lookup — costs this invite and only this
   // invite, visibly. Invites behind it still go. The loop itself lives in
   // lib/inviteDispatch.ts so that guarantee can actually be tested.
-  const { sent, failed, cancelled, stuck } = await runInviteBatch(claimed, {
+  const { sent, failed, cancelled, held, stuck } = await runInviteBatch(claimed, {
     async deliver(invite): Promise<InviteDelivery> {
       const page = await db.query.supportPagesTable.findFirst({
         where: eq(supportPagesTable.id, invite.pageId),
@@ -381,11 +392,19 @@ router.post("/internal/dispatch-invites", async (req, res) => {
         ? await db.query.contactsTable.findFirst({ where: eq(contactsTable.id, invite.contactId) })
         : null;
 
-      if (!page || page.status === "closed" || (contact && contact.optedOutAt)) {
-        // Decide only; the row is stamped by markCancelled below, so every exit
-        // from this function writes its outcome in exactly one place.
-        return "cancelled";
-      }
+      // Decide only; the row is stamped by markCancelled / markHeld below, so
+      // every exit from this function writes its outcome in exactly one place.
+      // The SAME rule the inline send paths use (lib/inviteSendRule.ts): the
+      // claim query above already skips drafts, and this is the second guard,
+      // so a page that isn't live can never be sent from even if the two drift.
+      const verdict = canSendInvite(
+        page,
+        { scheduledFor: invite.scheduledFor, contactOptedOut: !!contact?.optedOutAt },
+        now,
+      );
+      if (!verdict.send) return verdict.outcome === "hold" ? "held" : "cancelled";
+      // Unreachable — canSendInvite cancels a missing page. Here for the type.
+      if (!page) return "cancelled";
 
       const helperFirstName = firstName(invite.name);
       const recipientFirstName = firstName(page.recipientName);
@@ -511,6 +530,15 @@ router.post("/internal/dispatch-invites", async (req, res) => {
         .where(eq(helperInvitesTable.id, invite.id));
     },
 
+    // Hand the claim back. Nothing was sent and nothing is stamped; the row
+    // is exactly as it was before this run touched it.
+    async markHeld(invite) {
+      await db
+        .update(helperInvitesTable)
+        .set({ status: "queued" })
+        .where(eq(helperInvitesTable.id, invite.id));
+    },
+
     onError(err, invite, stage) {
       logger.error(
         { err, inviteId: invite.id, pageId: invite.pageId, channel: invite.channel, stage },
@@ -528,8 +556,8 @@ router.post("/internal/dispatch-invites", async (req, res) => {
     logger.error({ stuck }, "Invite rows left stuck in sending");
   }
 
-  logger.info({ claimed: claimed.length, sent, failed, cancelled, stuck }, "Invite dispatch run complete");
-  res.json({ claimed: claimed.length, sent, failed, cancelled, stuck });
+  logger.info({ claimed: claimed.length, sent, failed, cancelled, held, stuck }, "Invite dispatch run complete");
+  res.json({ claimed: claimed.length, sent, failed, cancelled, held, stuck });
 });
 
 /**

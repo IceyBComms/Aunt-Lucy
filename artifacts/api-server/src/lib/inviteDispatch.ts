@@ -26,12 +26,19 @@
  * batch, and never silently.
  */
 
+import { canSendInvite, type InviteablePage, type InviteToSend } from "./inviteSendRule";
+
 /** What actually happened when we tried to put one invite on the wire. */
 export type InviteDelivery =
   /** It went. */
   | "sent"
   /** It should not go at all now — page closed, or the contact opted out. */
   | "cancelled"
+  /** Not yet — the page is not live (Kate's ruling, 14 Sep 2026). Nothing was
+   *  sent; the claim is handed back so a later run can ask again. The claim
+   *  query already skips pages that aren't settled, so reaching this means the
+   *  query and the rule disagreed — it is the second guard, not the first. */
+  | "held"
   /** We tried and it did not go. A sender returning false lands here, and so
    *  does any throw: an invite that might not have sent is treated as one that
    *  did not, because "failed" is recoverable by a human and "sent" is not. */
@@ -41,6 +48,8 @@ export interface InviteBatchTally {
   sent: number;
   failed: number;
   cancelled: number;
+  /** Handed back to `queued` because the page isn't live. Nothing was sent. */
+  held: number;
   /**
    * Rows whose OUTCOME could not be written down — the send was attempted, but
    * the database write that records what happened threw. These are left in
@@ -61,6 +70,8 @@ export interface InviteBatchHandlers<TInvite> {
   markSent(invite: TInvite): Promise<void>;
   markFailed(invite: TInvite): Promise<void>;
   markCancelled(invite: TInvite): Promise<void>;
+  /** Give the claim back: `sending` → `queued`, with nothing stamped. */
+  markHeld(invite: TInvite): Promise<void>;
   onError(err: unknown, invite: TInvite, stage: InviteFailureStage): void;
 }
 
@@ -78,7 +89,7 @@ export async function runInviteBatch<TInvite>(
   invites: readonly TInvite[],
   handlers: InviteBatchHandlers<TInvite>,
 ): Promise<InviteBatchTally> {
-  const tally: InviteBatchTally = { sent: 0, failed: 0, cancelled: 0, stuck: 0 };
+  const tally: InviteBatchTally = { sent: 0, failed: 0, cancelled: 0, held: 0, stuck: 0 };
 
   for (const invite of invites) {
     // 1. Try to send. A returned false and a thrown error mean the same thing
@@ -102,6 +113,9 @@ export async function runInviteBatch<TInvite>(
       } else if (delivery === "cancelled") {
         await handlers.markCancelled(invite);
         tally.cancelled += 1;
+      } else if (delivery === "held") {
+        await handlers.markHeld(invite);
+        tally.held += 1;
       } else {
         await handlers.markFailed(invite);
         tally.failed += 1;
@@ -113,4 +127,52 @@ export async function runInviteBatch<TInvite>(
   }
 
   return tally;
+}
+
+/** Where a freshly made invite ended up. */
+export type PlacedInviteStatus = "queued" | "sent" | "failed";
+
+export interface PlaceInviteHandlers<TRow> {
+  /** Write the row as `queued`. Always happens, whatever the verdict. */
+  insertQueued(): Promise<TRow>;
+  /** Render and send it. Only called when the rule says so. */
+  send(row: TRow): Promise<boolean>;
+  markSent(row: TRow): Promise<void>;
+  markFailed(row: TRow): Promise<void>;
+}
+
+/**
+ * Make one invite, and send it inline only if the page is live.
+ *
+ * The inline "send now" paths — step 2's trusted helpers (routes/invites.ts)
+ * and /manage's Send now (routes/manage.ts) — both come through here. Until
+ * 14 Sep 2026 each inserted the row and sent it unconditionally, which is how a
+ * draft page texted a child care helper before it was ever published.
+ *
+ * The row is ALWAYS written. When the page isn't live it is left `queued`, and
+ * the dispatcher sends it on its first run after the page goes live — so
+ * publishing needs to do nothing at all. Every other non-send verdict (a
+ * closed page, an opted-out contact) is also left queued for the dispatcher,
+ * which settles it through the same rule: one place stamps `cancelled`, not
+ * three.
+ */
+export async function placeInvite<TRow>(
+  page: InviteablePage,
+  invite: InviteToSend,
+  handlers: PlaceInviteHandlers<TRow>,
+  now: Date = new Date(),
+): Promise<{ row: TRow; status: PlacedInviteStatus }> {
+  const row = await handlers.insertQueued();
+
+  if (!canSendInvite(page, invite, now).send) {
+    return { row, status: "queued" };
+  }
+
+  const ok = await handlers.send(row);
+  if (ok) {
+    await handlers.markSent(row);
+    return { row, status: "sent" };
+  }
+  await handlers.markFailed(row);
+  return { row, status: "failed" };
 }
