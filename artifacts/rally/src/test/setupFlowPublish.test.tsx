@@ -172,17 +172,30 @@ describe("going live takes the button AND the confirm", () => {
     expect(screen.queryByTestId("publish-step")).toBeNull();
   });
 
-  it("if the server refuses at the confirm, the refusal is shown and nothing goes live", async () => {
+  it("if the page went live after this screen loaded, the confirm says it is already live — with the link beneath", async () => {
     renderAt(STEP_3);
     const step = await screen.findByTestId("publish-step");
     fireEvent.click(within(step).getByRole("button", { name: COPY.step3Button }));
     const dialog = await screen.findByRole("dialog");
 
-    server.page.status = "closed"; // closed in another tab after this screen loaded
+    server.page.status = "active"; // made live in another tab after this screen loaded
     fireEvent.click(within(dialog).getByRole("button", { name: COPY.confirmYes }));
     expect(await within(dialog).findByText(COPY.notDraft)).toBeTruthy();
-    expect(publishPosts()).toHaveLength(1);
-    expect(server.page.status).toBe("closed");
+    expect(within(dialog).getByTestId("refusal-link").textContent).toMatch(/\/s\/xK9mR2pQ4w$/);
+    expect(publishPosts()).toHaveLength(1); // one attempt, refused — not a second publish
+  });
+
+  it("a refusal for any other reason shows no link beneath — there is no live page to point at", async () => {
+    renderAt(STEP_3);
+    const step = await screen.findByTestId("publish-step");
+    fireEvent.click(within(step).getByRole("button", { name: COPY.step3Button }));
+    const dialog = await screen.findByRole("dialog");
+
+    server.page.slots = []; // every task removed in another tab after this screen loaded
+    fireEvent.click(within(dialog).getByRole("button", { name: COPY.confirmYes }));
+    expect(await within(dialog).findByText(COPY.noTasks)).toBeTruthy();
+    expect(within(dialog).queryByTestId("refusal-link")).toBeNull();
+    expect(server.page.status).toBe("draft");
     expect(screen.queryByTestId("publish-live")).toBeNull();
   });
 });
@@ -206,7 +219,12 @@ describe("pages that must not go live", () => {
   it("a closed page is not reopened by a stale step-3 link", async () => {
     resetServer({ status: "closed", slots: [TASK] });
     renderAt(STEP_3);
-    expect(await screen.findByText(COPY.notDraft)).toBeTruthy();
+    // Not reopened. The WORDING is deliberately not asserted: this screen shows
+    // notDraft ("This page is already live."), which is wrong for a closed page.
+    // Unreachable today because nothing writes `closed`; the thing to fix when
+    // page closure ships (#090). A test must not lock in a sentence known false.
+    expect(await screen.findByRole("button", { name: "Go to dashboard" })).toBeTruthy();
+    expect(screen.queryByTestId("publish-live")).toBeNull();
     expect(screen.queryByTestId("publish-step")).toBeNull();
     await sleep(50);
     expect(publishPosts()).toHaveLength(0);

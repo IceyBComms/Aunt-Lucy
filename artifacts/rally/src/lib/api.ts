@@ -4,6 +4,8 @@ export class ApiError extends Error {
   constructor(
     public status: number,
     message: string,
+    /** The server's machine-readable refusal, when it sends one (e.g. "not_draft"). */
+    public reason?: string,
   ) {
     super(message);
     this.name = "ApiError";
@@ -31,7 +33,11 @@ export async function apiFetch<T>(
   const data = await res.json().catch(() => ({}));
 
   if (!res.ok) {
-    throw new ApiError(res.status, data?.error ?? `Request failed (${res.status})`);
+    throw new ApiError(
+      res.status,
+      data?.error ?? `Request failed (${res.status})`,
+      typeof data?.reason === "string" ? data.reason : undefined,
+    );
   }
 
   return data as T;
