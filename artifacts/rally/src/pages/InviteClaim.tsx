@@ -25,11 +25,15 @@ interface InviteNotLive {
 }
 
 /**
- * ⏸️ PLACEHOLDER COPY — NOT APPROVED. Kate approves the wording; the proposal is
- * in the PR. Kept together so the approved lines replace exactly these.
+ * ✅ Approved copy, Kate, 16 Sep 2026 (bug #115) — word-for-word. Mirrors the
+ * "Not live yet" state on /s/:slug (bug #028). The server's claim refusal in
+ * api-server lib/inviteClaim.ts carries the same body.
  */
-const NOT_OPEN_YET_TITLE = "[PLACEHOLDER] Not open yet";
-const NOT_OPEN_YET_BODY = "[PLACEHOLDER] This page isn't open yet. Keep this link.";
+const NOT_LIVE_YET_TITLE = "Not live yet";
+function notLiveYetBody(recipientName: string): string {
+  const recipientFirstName = recipientName.trim().split(/\s+/)[0] || recipientName.trim();
+  return `${recipientFirstName}'s page is still being set up. Hang on to this message — this link will work as soon as it's switched on.`;
+}
 
 interface InviteDetails {
   pageLive: true;
@@ -158,9 +162,9 @@ export default function InviteClaim() {
               <Clock className="w-8 h-8 text-primary" />
             </div>
             <h1 className="font-serif text-2xl font-bold text-foreground mb-3">
-              {NOT_OPEN_YET_TITLE}
+              {NOT_LIVE_YET_TITLE}
             </h1>
-            <p className="text-muted-foreground leading-relaxed">{NOT_OPEN_YET_BODY}</p>
+            <p className="text-muted-foreground leading-relaxed">{notLiveYetBody(details.page.recipientName)}</p>
           </div>
         </div>
         <SiteFooter compact />

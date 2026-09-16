@@ -191,7 +191,13 @@ describe("a page that isn't live cannot be claimed", () => {
       };
 
       // Proof the request reached the route: only the not-live branch says this.
-      expect(err).toMatchObject({ status: 409, reason: "page_not_live" });
+      expect(err).toMatchObject({
+        status: 409,
+        reason: "page_not_live",
+        // Kate's approved copy, 16 Sep 2026 — word-for-word, first name only.
+        message:
+          "Sam's page is still being set up. Hang on to this message — this link will work as soon as it's switched on.",
+      });
       expect(slot.isClaimed).toBe(false);
       expect(slot.claimedByName).toBeNull();
       expect(invite.claimedAt).toBeNull();
@@ -262,7 +268,7 @@ describe("looking at the invite", () => {
     expect(body.slot).toMatchObject({ id: "slot-1", notes: "Gate B" });
   });
 
-  it("a draft shows 'not open yet' and gives away nothing about the task", async () => {
+  it("a draft shows 'Not live yet' and gives away nothing about the task", async () => {
     page.status = "draft";
     const { status, body } = await look();
     expect(status).toBe(200);

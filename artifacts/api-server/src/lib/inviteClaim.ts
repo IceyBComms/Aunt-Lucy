@@ -17,7 +17,7 @@
  *      were held) could claim a task on a page nobody had published — and a claim
  *      messages people. With the crash gone that would have opened the same day.
  *      The claim now refuses unless the page is live, writes nothing and sends
- *      nothing; the look shows a calm "not open yet" state instead of a button.
+ *      nothing; the look shows a calm "Not live yet" state instead of a button.
  *
  * "Live" is LIVE_PAGE_STATUS from inviteSendRule.ts — one allow-listed status,
  * the same one that decides whether an invite may be SENT, so "may this go out"
@@ -31,6 +31,7 @@ import crypto from "crypto";
 import { Router, type IRouter } from "express";
 import { LIVE_PAGE_STATUS } from "./inviteSendRule";
 import { calendarFeedUrl } from "./calendarFeed";
+import { firstName } from "./names";
 
 export interface InviteClaimPage {
   id: string;
@@ -115,12 +116,14 @@ export function isPageLive(page: Pick<InviteClaimPage, "status"> | null | undefi
 const INVALID_LINK = "This invitation link is invalid or has expired.";
 
 /**
- * ⏸️ PLACEHOLDER — NOT APPROVED COPY. Kate approves the wording (proposed in the
- * PR). Shown only if the page's own "not open yet" state fails to render, since
- * the invite page checks `pageLive` on load and never offers the button.
+ * ✅ Approved copy, Kate, 16 Sep 2026 (bug #115) — word-for-word, the same body
+ * as the invite page's "Not live yet" state (rally InviteClaim.tsx). Shown only
+ * if that state fails to render, since the invite page checks `pageLive` on load
+ * and never offers the button.
  */
-export const INVITE_PAGE_NOT_LIVE =
-  "[PLACEHOLDER] This page isn't open yet.";
+export function invitePageNotLive(recipientName: string): string {
+  return `${firstName(recipientName)}'s page is still being set up. Hang on to this message — this link will work as soon as it's switched on.`;
+}
 
 export function createInviteClaimRouter(deps: InviteClaimDeps): IRouter {
   const { store, onClaimed, log } = deps;
@@ -202,7 +205,12 @@ export function createInviteClaimRouter(deps: InviteClaimDeps): IRouter {
         },
         "Invite claim refused — page not live",
       );
-      res.status(409).json({ error: INVITE_PAGE_NOT_LIVE, reason: "page_not_live" });
+      res.status(409).json({
+        error: invite.page
+          ? invitePageNotLive(invite.page.recipientName)
+          : "This invitation link is invalid.",
+        reason: "page_not_live",
+      });
       return;
     }
     const page = invite.page!;
