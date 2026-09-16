@@ -10,9 +10,33 @@ import {
 import { CarFront, CheckCircle2, Clock, Loader2, XCircle, MapPin, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { apiFetch } from "@/lib/api";
+import { claimInvite } from "@/lib/inviteClaimRequest";
 import { SiteFooter } from "@/components/SiteFooter";
 
+/**
+ * The page isn't live yet (a draft, or waiting to be switched on). The server
+ * sends nothing about the task until it is — only the two names the invitation
+ * message already carried.
+ */
+interface InviteNotLive {
+  pageLive: false;
+  helperName: string;
+  page: { recipientName: string };
+}
+
+/**
+ * ✅ Approved copy, Kate, 16 Sep 2026 (bug #115) — word-for-word. Mirrors the
+ * "Not live yet" state on /s/:slug (bug #028). The server's claim refusal in
+ * api-server lib/inviteClaim.ts carries the same body.
+ */
+const NOT_LIVE_YET_TITLE = "Not live yet";
+function notLiveYetBody(recipientName: string): string {
+  const recipientFirstName = recipientName.trim().split(/\s+/)[0] || recipientName.trim();
+  return `${recipientFirstName}'s page is still being set up. Hang on to this message — this link will work as soon as it's switched on.`;
+}
+
 interface InviteDetails {
+  pageLive: true;
   inviteId: string;
   helperName: string;
   alreadyClaimed: boolean;
@@ -55,7 +79,7 @@ function formatTime(timeStr: string): string {
 
 export default function InviteClaim() {
   const { token } = useParams<{ token: string }>();
-  const [details, setDetails] = useState<InviteDetails | null>(null);
+  const [details, setDetails] = useState<InviteDetails | InviteNotLive | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isClaiming, setIsClaiming] = useState(false);
   const [claimed, setClaimed] = useState(false);
@@ -73,10 +97,10 @@ export default function InviteClaim() {
   const [calendarUrl, setCalendarUrl] = useState<string | null>(null);
 
   useEffect(() => {
-    apiFetch<InviteDetails>(`/invite/${token}`)
+    apiFetch<InviteDetails | InviteNotLive>(`/invite/${token}`)
       .then((data) => {
         setDetails(data);
-        if (data.claimedByYou) setClaimed(true);
+        if (data.pageLive !== false && data.claimedByYou) setClaimed(true);
       })
       .catch((err: any) => setError(err.message ?? "This invitation is invalid."))
       .finally(() => setIsLoading(false));
@@ -86,10 +110,9 @@ export default function InviteClaim() {
     setIsClaiming(true);
     setClaimError(null);
     try {
-      const res = await apiFetch<{ cancelToken?: string; calendarUrl?: string | null }>(
-        `/invite/${token}/claim`,
-        { method: "POST" },
-      );
+      // The request itself lives in lib/inviteClaimRequest.ts so the server's
+      // test sends exactly what this button sends (no body).
+      const res = await claimInvite(token);
       if (res?.cancelToken) setCancelToken(res.cancelToken);
       if (res?.calendarUrl) setCalendarUrl(res.calendarUrl);
       setClaimed(true);
@@ -128,6 +151,26 @@ export default function InviteClaim() {
   }
 
   if (!details) return null;
+
+  // Checked before anything reads the task: a not-live answer carries none.
+  if (details.pageLive === false) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        <div className="flex-1 flex flex-col items-center justify-center p-6">
+          <div className="w-full max-w-sm text-center">
+            <div className="w-16 h-16 bg-secondary rounded-2xl flex items-center justify-center mx-auto mb-5">
+              <Clock className="w-8 h-8 text-primary" />
+            </div>
+            <h1 className="font-serif text-2xl font-bold text-foreground mb-3">
+              {NOT_LIVE_YET_TITLE}
+            </h1>
+            <p className="text-muted-foreground leading-relaxed">{notLiveYetBody(details.page.recipientName)}</p>
+          </div>
+        </div>
+        <SiteFooter compact />
+      </div>
+    );
+  }
 
   const { slot, page } = details;
   const slotMeta =

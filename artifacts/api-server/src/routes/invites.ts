@@ -10,7 +10,7 @@ import { logger } from "../lib/logger";
 import { LIFT_WAIT_MODE_HELPER_LINES } from "../lib/liftWaitMode";
 import { getAppBaseUrl } from "../lib/appUrl";
 import { firstName } from "../lib/giftFulfilment";
-import { calendarFeedUrl } from "../lib/calendarFeed";
+import { createInviteClaimRouter, type InviteClaimStore } from "../lib/inviteClaim";
 import { inviteShape } from "../lib/inviteShape";
 import { placeInvite } from "../lib/inviteDispatch";
 import {
@@ -242,174 +242,70 @@ router.delete(
 );
 
 // ─── Public invite endpoints (trusted-slot claim via token) ──────────────────
+// The routes themselves live in lib/inviteClaim.ts, against a store, so they can
+// be tested over HTTP with no database. This is the real store.
 
-// GET /api/invite/:token — get invite details
-router.get("/invite/:token", async (req, res) => {
-  const { token } = req.params;
+const inviteClaimStore: InviteClaimStore = {
+  async findByToken(token) {
+    const invite = await db.query.helperInvitesTable.findFirst({
+      where: eq(helperInvitesTable.inviteToken, token),
+      with: { slot: { with: { page: true } } },
+    });
+    if (!invite) return null;
+    const { slot, ...rest } = invite;
+    if (!slot) return { ...rest, slot: null, page: null };
+    const { page, ...slotRow } = slot;
+    return { ...rest, slot: slotRow, page: page ?? null };
+  },
 
-  const invite = await db.query.helperInvitesTable.findFirst({
-    where: eq(helperInvitesTable.inviteToken, token),
-    with: { slot: { with: { page: true } } },
-  });
+  async claimSlot(slotId, fields) {
+    const [row] = await db
+      .update(slotsTable)
+      .set({ isClaimed: true, ...fields })
+      .where(and(eq(slotsTable.id, slotId), eq(slotsTable.isClaimed, false)))
+      .returning();
+    return row ?? null;
+  },
 
-  if (!invite || !invite.slot) {
-    res.status(404).json({ error: "This invitation link is invalid or has expired." });
-    return;
-  }
+  async markInviteClaimed(inviteId, now) {
+    await db
+      .update(helperInvitesTable)
+      .set({ claimedAt: now })
+      .where(eq(helperInvitesTable.id, inviteId));
+  },
+};
 
-  const { slot } = invite;
-
-  res.json({
-    inviteId: invite.id,
-    helperName: invite.name,
-    alreadyClaimed: !!invite.claimedAt || slot.isClaimed,
-    claimedByYou: !!invite.claimedAt,
-    slot: {
-      id: slot.id,
-      slotType: slot.slotType,
-      customLabel: slot.customLabel,
-      slotDate: slot.slotDate,
-      slotTime: slot.slotTime,
-      liftWaitMode: slot.liftWaitMode,
-      notes: slot.notes,
+router.use(
+  createInviteClaimRouter({
+    store: inviteClaimStore,
+    onClaimed({ invite, page, slot, cancelToken, calendarToken }) {
+      // Confirm the claim on the helper's own channel, exactly as the public path
+      // does (bug #013). The invite's own name field — the trusted helper never
+      // types one. The contact mirrors the claimed_by_contact fallback the claim
+      // wrote, so the channel is worked out from the same value that was stored.
+      // When the invite carried neither mobile nor email that value is the
+      // helper's NAME, and the dispatcher answers "unknown" and warns rather than
+      // texting a name.
+      void sendClaimConfirmationToHelper({
+        slotId: slot.id,
+        helperFirstName: invite.name,
+        helperContact: invite.mobile ?? invite.email ?? invite.name,
+        recipientName: page.recipientName,
+        slotType: slot.slotType,
+        customLabel: slot.customLabel,
+        slotDate: slot.slotDate,
+        slotTime: slot.slotTime,
+        liftWaitMode: slot.liftWaitMode,
+        notes: slot.notes,
+        dietaryNotes: slot.dietaryNotes,
+        headcount: slot.headcount,
+        location: page.location,
+        cancelToken,
+        calendarToken,
+      } as Parameters<typeof sendClaimConfirmationToHelper>[0]);
     },
-    page: {
-      recipientName: slot.page.recipientName,
-      location: slot.page.location,
-      situationDescription: slot.page.situationDescription,
-      slug: slot.page.slug,
-    },
-  });
-});
-
-// POST /api/invite/:token/claim — claim via invite
-router.post("/invite/:token/claim", async (req, res) => {
-  const { token } = req.params;
-  const { showName } = req.body as { showName?: boolean };
-
-  const invite = await db.query.helperInvitesTable.findFirst({
-    where: eq(helperInvitesTable.inviteToken, token),
-    with: { slot: true },
-  });
-
-  if (!invite || !invite.slot) {
-    res.status(404).json({ error: "This invitation link is invalid." });
-    return;
-  }
-
-  if (invite.claimedAt) {
-    res.status(409).json({ error: "You've already confirmed this slot." });
-    return;
-  }
-
-  if (invite.slot.isClaimed) {
-    res.status(409).json({
-      error: "Sorry — this slot has already been claimed by someone else.",
-    });
-    return;
-  }
-
-  const now = new Date();
-
-  // Atomic conditional update: only claim if the slot is still unclaimed, exactly
-  // like the public claim path. The isClaimed read above can go stale between two
-  // near-simultaneous claims (two invites to the same slot, or an invite racing a
-  // public claim); without this guard the second write would silently overwrite
-  // the first helper's name/note. If we lose the race, RETURNING is empty and we
-  // report the 409 rather than stamping the invite as claimed.
-  // A fresh release handle, exactly as the public claim path mints one — a
-  // trusted helper releases their slot the same way anyone else does (the
-  // release endpoint only ever touches the slot, never this invite row).
-  const cancelToken = crypto.randomBytes(24).toString("hex");
-  // Sibling calendar-feed handle, minted on the same claim as the public path
-  // (see slots.ts). Survives release so the feed can render STATUS:CANCELLED.
-  const calendarToken = crypto.randomBytes(24).toString("hex");
-
-  const claimed = await db
-    .update(slotsTable)
-    .set({
-      isClaimed: true,
-      claimedByName: invite.name,
-      claimedByContact: invite.mobile ?? invite.email ?? invite.name,
-      claimedAt: now,
-      // Same opt-in default as the public claim path. A trusted, named helper
-      // still chooses whether other helpers see their name; the recipient always
-      // does.
-      claimedNameVisible: showName === true,
-      cancelToken,
-      calendarToken,
-    })
-    .where(and(eq(slotsTable.id, invite.slotId!), eq(slotsTable.isClaimed, false)))
-    .returning();
-
-  if (claimed.length === 0) {
-    res.status(409).json({
-      error: "Sorry — this slot has already been claimed by someone else.",
-    });
-    return;
-  }
-
-  await db
-    .update(helperInvitesTable)
-    .set({ claimedAt: now })
-    .where(eq(helperInvitesTable.id, invite.id));
-
-  logger.info({ inviteId: invite.id, name: invite.name }, "Trusted helper claimed slot");
-
-  // Confirm the claim on the helper's own channel, exactly as the public path
-  // does. This path previously sent NOTHING — it handed the release and calendar
-  // links to the confirmation SCREEN only, which is React state and is gone on
-  // reload. That left the worst-affected cohort with no durable record at all:
-  // a trusted invite is SMS-delivered by design, so these helpers are almost
-  // always phone-only (bug #013).
-  //
-  // The page is loaded for its recipient name and location, which the public
-  // claim path already has in hand and this one does not.
-  const claimPage = await db.query.supportPagesTable.findFirst({
-    where: eq(supportPagesTable.id, invite.pageId),
-  });
-  if (claimPage) {
-    void sendClaimConfirmationToHelper({
-      slotId: claimed[0].id,
-      // The invite's own name field — the trusted helper never types one.
-      helperFirstName: invite.name,
-      // Mirrors the claimed_by_contact fallback written above, so the channel is
-      // worked out from the same value that was stored. When the invite carried
-      // neither mobile nor email that value is the helper's NAME, and the
-      // dispatcher answers "unknown" and warns rather than texting a name.
-      helperContact: invite.mobile ?? invite.email ?? invite.name,
-      recipientName: claimPage.recipientName,
-      slotType: claimed[0].slotType,
-      customLabel: claimed[0].customLabel,
-      slotDate: claimed[0].slotDate,
-      slotTime: claimed[0].slotTime,
-      liftWaitMode: claimed[0].liftWaitMode,
-      notes: claimed[0].notes,
-      dietaryNotes: claimed[0].dietaryNotes,
-      headcount: claimed[0].headcount,
-      location: claimPage.location,
-      cancelToken,
-      calendarToken,
-    });
-  } else {
-    logger.warn(
-      { slotId: claimed[0].id },
-      "Claim confirmation not sent — page missing for a trusted-invite claim",
-    );
-  }
-
-  // Hand back the release token so the confirmed screen can offer a "Can't make
-  // it?" link, matching the public path. It's the helper's own handle to the
-  // claim they just made. calendarUrl is the https .ics as a one-tap download
-  // (bug #037 — it was webcal:// until 6 September 2026), given only for a dated
-  // task (an undated offer isn't an appointment); the confirmed screen shows an
-  // "Add to your calendar" link when present.
-  res.json({
-    ok: true,
-    claimedByName: invite.name,
-    cancelToken,
-    calendarUrl: claimed[0].slotDate ? calendarFeedUrl(calendarToken) : null,
-  });
-});
+    log: logger,
+  }),
+);
 
 export default router;
