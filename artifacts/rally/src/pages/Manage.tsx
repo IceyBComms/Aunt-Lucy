@@ -454,7 +454,7 @@ export function Manage() {
           Support is on the way 💛
         </h2>
         <p className="mb-3 text-[0.9rem] text-[#8b7e74]">
-          The people who've said yes. Nothing for you to do — just lovely to see.
+          {copy.supportSubtitle(claimedTasks.some((t) => !!t.claimedNote))}
         </p>
         {claimedTasks.length === 0 ? (
           <p className="rounded-[1rem] border border-dashed border-[#e7ddd0] bg-white px-4 py-4 text-[0.9rem] text-[#8b7e74]">

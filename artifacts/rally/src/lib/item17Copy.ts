@@ -41,6 +41,16 @@ export const family = {
 
   /** Toast/confirmation after an edit or cancel. */
   done: "Done — Aunt Lucy's on it.",
+
+  /**
+   * Subtitle under "Support is on the way 💛". ✅ Kate's ruling, 16 Sep 2026
+   * (bug #117): once any helper note is showing — which might say "I'll be
+   * late" — the page can't promise there's nothing for the family to do.
+   */
+  supportSubtitle: (anyNoteShowing: boolean) =>
+    anyNoteShowing
+      ? "The people who've said yes."
+      : "The people who've said yes. Nothing for you to do — just lovely to see.",
 } as const;
 
 // ─── Helper side (/release — the claim link) ─────────────────────────────────
@@ -73,7 +83,23 @@ export const helper = {
     /** Shown near the cancel control on a fixed task — the time is sensitive. */
     cancelBlurb: (task: string, recipientFirstName: string) =>
       `Plans changed and you can't do ${task}? This one's time sensitive so the sooner you cancel the better — Aunt Lucy will text ${recipientFirstName} straight away, so they've got time to make another plan.`,
-    button: "Pass it on",
+    /**
+     * ✅ Kate's ruling, 16 Sep 2026 (bug #119). "Pass it on" could read as "your
+     * task has been handed to someone else", right above a cancel line.
+     */
+    button: (recipientFirstName: string) => `Send my note to ${recipientFirstName}`,
+    buttonBusy: "Sending…",
+    /**
+     * After the note goes. ✅ Kate's ruling, 16 Sep 2026. {task} is the task's
+     * DISPLAY name, never a raw key like school_pickup.
+     */
+    sent: (recipientFirstName: string, task: string) =>
+      `Sent — ${recipientFirstName} has your note. You're still down for ${task}.`,
+    /**
+     * ✅ Kate's ruling, 16 Sep 2026. Heads the cancel section, which now sits
+     * below a divider so it can't be read as being about the note.
+     */
+    cancelHeading: "Can't do it at all?",
   },
 
   /** Shown if a helper tries to move a flexible task to a different day. */

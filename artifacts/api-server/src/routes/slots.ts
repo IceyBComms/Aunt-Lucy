@@ -14,8 +14,9 @@ import {
   recipientFixedLostHelper,
   recipientFlexibleCancelled,
   recipientFlexibleRescheduled,
-  recipientNotePassedOn,
+  helperNoteNotice,
 } from "../lib/item17Copy";
+import { soonDay } from "../lib/australianDay";
 
 const router: IRouter = Router();
 
@@ -330,7 +331,12 @@ router.post("/slots/release/:token", async (req, res) => {
             when: whenLabel(row.slotDate, row.slotTime),
             shareLink,
           })
-        : recipientFlexibleCancelled({ helperName, task: label, shareLink });
+        : recipientFlexibleCancelled({
+            helperName,
+            task: label,
+            shareLink,
+            isToday: soonDay(row.slotDate) === "today",
+          });
 
     void notifyRecipientOfTaskEvent(page, {
       flexibility: row.flexibility,
@@ -417,6 +423,8 @@ router.post("/slots/reschedule/:token", async (req, res) => {
       helperName: updated.claimedByName ?? "Someone",
       task: taskLabel(updated.slotType, updated.customLabel),
       newTime: timeLabel(time),
+      // Bug #120 — the note was saved above and never sent.
+      note: noteTrimmed || null,
     }),
   });
 
@@ -463,17 +471,18 @@ router.post("/slots/note/:token", async (req, res) => {
     .returning();
 
   // Pass the note on to the recipient on the flexibility channel — a note on a
-  // fixed same-day task (a school pickup) is worth an SMS just like a change to
-  // it would be.
-  void notifyRecipientOfTaskEvent(page, {
-    flexibility: slot.flexibility,
-    slotDate: updated.slotDate,
-    message: recipientNotePassedOn({
-      helperName: updated.claimedByName ?? "Someone",
-      task: taskLabel(updated.slotType, updated.customLabel),
+  // fixed task (a school pickup) goes by SMS when there's a mobile on file. The
+  // words are decided in helperNoteNotice: a fixed task today or tomorrow gets
+  // the time-sensitive wording, and no note ever says "Nothing needed from you"
+  // (bug #117).
+  void notifyRecipientOfTaskEvent(
+    page,
+    helperNoteNotice({
+      slot: { ...updated, flexibility: slot.flexibility },
       note: noteTrimmed,
+      now: new Date(),
     }),
-  });
+  );
 
   logger.info({ slotId: updated.id, pageId: updated.pageId }, "Item 17: helper left a note");
   res.json({ ok: true });
