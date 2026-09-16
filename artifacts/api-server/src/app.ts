@@ -1,13 +1,9 @@
-import express, {
-  type Express,
-  type Request,
-  type Response,
-  type NextFunction,
-} from "express";
+import express, { type Express } from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
+import { applyBodyParsers, createErrorHandler, logSafePath } from "./lib/requestHygiene";
 
 const app: Express = express();
 
@@ -19,7 +15,9 @@ app.use(
         return {
           id: req.id,
           method: req.method,
-          url: req.url?.split("?")[0],
+          // Query string dropped AND credential path segments redacted — see
+          // logSafePath in lib/requestHygiene.ts.
+          url: logSafePath(req.originalUrl ?? req.url),
         };
       },
       res(res) {
@@ -38,33 +36,12 @@ app.use(cors());
 // route is unaffected.
 app.use("/api/stripe/webhook", express.raw({ type: "application/json" }));
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// JSON + urlencoded, then an empty request becomes `{}` rather than undefined
+// (Express 5). See lib/requestHygiene.ts for the invite-claim crash this fixes.
+applyBodyParsers(app);
 
 app.use("/api", router);
 
-// Centralised error handler. Without this, unhandled errors thrown in any
-// route or middleware are logged only minimally, making production 500s hard to
-// diagnose. Log the full error (message + stack) and return a generic 500.
-// Must be registered last and keep all four parameters so Express treats it as
-// error-handling middleware.
-app.use((err: unknown, req: Request, res: Response, _next: NextFunction) => {
-  logger.error(
-    {
-      err:
-        err instanceof Error
-          ? { name: err.name, message: err.message, stack: err.stack }
-          : err,
-      method: req.method,
-      url: req.url?.split("?")[0],
-    },
-    "Unhandled request error",
-  );
-
-  if (res.headersSent) {
-    return;
-  }
-  res.status(500).json({ error: "Something went wrong." });
-});
+app.use(createErrorHandler(logger));
 
 export default app;

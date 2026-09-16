@@ -69,6 +69,7 @@ const releaseResponse = {
 };
 
 const inviteDetails = {
+  pageLive: true,
   helperName: "Jane",
   alreadyClaimed: false,
   claimedByYou: false,
