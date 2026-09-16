@@ -31,22 +31,37 @@ import { getAppBaseUrl } from "./appUrl";
 import { logger } from "./logger";
 import type { SlotFlexibility } from "./slotFlexibility";
 import type { RecipientMessage } from "./item17Copy";
+import { soonDay } from "./australianDay";
+import type { NotifyTarget } from "./notifyTargets";
 
 /**
  * Is the task today or tomorrow in Australia/Sydney? Undated (flexible) offers
  * are never "soon", so a flexible task with no date always stays on email.
  */
-export function isTodayOrTomorrowSydney(slotDate: string | null): boolean {
-  if (!slotDate) return false;
-  // "now" and "now + 1 day" as YYYY-MM-DD in Sydney, compared to the slot's date
-  // string. en-CA gives an ISO-shaped date; the timeZone does the DST-safe work.
-  const fmt = (d: Date) =>
-    d.toLocaleDateString("en-CA", { timeZone: "Australia/Sydney" });
-  const now = new Date();
-  const today = fmt(now);
-  const tomorrow = fmt(new Date(now.getTime() + 24 * 60 * 60 * 1000));
-  return slotDate === today || slotDate === tomorrow;
+export function isTodayOrTomorrowSydney(slotDate: string | null, now: Date = new Date()): boolean {
+  // Calendar arithmetic in lib/australianDay.ts — the old now+24h version called
+  // today "tomorrow" for the first hour of the 25-hour day daylight saving ends.
+  return soonDay(slotDate, now) !== null;
 }
+
+/**
+ * The I/O a task-event notification needs, injectable so the whole decision —
+ * who, which channel, which words — can be exercised with no database, Twilio
+ * or Resend. Production passes nothing and gets the real ones.
+ */
+export interface TaskEventSenders {
+  resolveTargets: (page: SupportPage) => Promise<NotifyTarget[]>;
+  isSuppressed: (contact: string) => Promise<boolean>;
+  sendSms: typeof sendSms;
+  sendEmail: typeof sendItem17Email;
+}
+
+const realSenders: TaskEventSenders = {
+  resolveTargets: resolvePageNotifyTargets,
+  isSuppressed,
+  sendSms,
+  sendEmail: sendItem17Email,
+};
 
 /**
  * Notify the recipient (and, once distinct, the runner) that a booked task has
@@ -63,6 +78,7 @@ export async function notifyRecipientOfTaskEvent(
     /** A URL embedded in the message body, made tappable in the email. */
     link?: string | null;
   },
+  senders: TaskEventSenders = realSenders,
 ): Promise<void> {
   // Never notify about a page that's been closed.
   if (page.status === "closed") return;
@@ -74,7 +90,7 @@ export async function notifyRecipientOfTaskEvent(
   // That resolution now lives in lib/notifyTargets so the claim dispatcher
   // answers "who hears about this page?" identically (bug #025). Behaviour here
   // is unchanged - this call returns exactly what the inline block used to.
-  const targets = await resolvePageNotifyTargets(page);
+  const targets = await senders.resolveTargets(page);
 
   if (targets.length === 0) {
     logger.info(
@@ -97,10 +113,12 @@ export async function notifyRecipientOfTaskEvent(
     for (const channel of order) {
       if (channel === "sms") {
         if (!target.mobile) continue;
-        if (await isSuppressed(target.mobile)) continue;
-        const ok = await sendSms({
+        if (await senders.isSuppressed(target.mobile)) continue;
+        const ok = await senders.sendSms({
           to: target.mobile,
-          body: opts.message.body,
+          // The time-sensitive note carries its own GSM-7 SMS text; every other
+          // message sends its body unchanged.
+          body: opts.message.smsBody ?? opts.message.body,
           label: "recipientTaskEvent",
         });
         if (ok) {
@@ -109,8 +127,8 @@ export async function notifyRecipientOfTaskEvent(
         }
       } else {
         if (!target.email) continue;
-        if (await isSuppressed(target.email)) continue;
-        const ok = await sendItem17Email({
+        if (await senders.isSuppressed(target.email)) continue;
+        const ok = await senders.sendEmail({
           to: target.email,
           subject: opts.message.subject,
           body: opts.message.body,

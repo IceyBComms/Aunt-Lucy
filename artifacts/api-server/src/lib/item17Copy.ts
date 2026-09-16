@@ -16,6 +16,7 @@
  * Australian English throughout. 💛 in warm microcopy is intentional.
  */
 import { TIME_TBC_CLAUSE } from "./timeTbc";
+import { soonDay, type SoonDay } from "./australianDay";
 
 
 // Short, mid-sentence noun phrases for a task with no custom label. The
@@ -31,6 +32,31 @@ const TASK_NOUNS: Record<string, string> = {
   visit: "a visit",
   other: "the task",
 };
+
+/**
+ * The same tasks as bare display names, for where an article can't go — "A note
+ * about tomorrow's school pickup", not "tomorrow's the school pickup". These are
+ * the names the helper's own screen already shows (rally ReleaseSlot.tsx
+ * SLOT_TYPE_LABELS), lower-cased mid-sentence. Never a raw key like
+ * school_pickup.
+ */
+const TASK_NAMES: Record<string, string> = {
+  meal: "meal",
+  school_pickup: "school pickup",
+  child_care: "child care",
+  errand: "errand",
+  dog_walking: "dog walking",
+  shopping: "shopping",
+  visit: "visit",
+  // Not "help": "A note about tomorrow's help" reads wrong (Kate, 16 Sep 2026).
+  other: "task",
+};
+
+/** A task's bare display name: the recipient's wording, else a default. */
+export function taskName(slotType: string, customLabel: string | null): string {
+  const label = customLabel?.trim();
+  return label || TASK_NAMES[slotType] || "task";
+}
 
 /** How a task is named in a message: the recipient's wording, else a default. */
 export function taskLabel(slotType: string, customLabel: string | null): string {
@@ -199,6 +225,28 @@ export function helperEmailSubject(recipientFirstName: string): string {
 export interface RecipientMessage {
   subject: string;
   body: string;
+  /**
+   * The SMS text, when it differs from the email body. Absent on every message
+   * except the time-sensitive note, whose SMS drops the 💛 to stay GSM-7.
+   */
+  smsBody?: string;
+}
+
+/**
+ * Kate's ruling, 16 Sep 2026 — for the time-sensitive note SMS ONLY (the note,
+ * and the helper's name and task name, e.g. "O’Brien"): the
+ * punctuation phones substitute as people type is folded back to GSM-7, so a
+ * note typed "I’ll" doesn't by itself turn a 2-segment text into a 5-segment
+ * one. Curly quotes and apostrophes → straight, en/em dashes → "-", "…" → "...".
+ * Everything else stays as typed — an emoji the helper chose still forces
+ * unicode, and that's accepted.
+ */
+export function normaliseNoteForSms(note: string): string {
+  return note
+    .replace(/[‘’‚‛]/g, "'")
+    .replace(/[“”„‟]/g, '"')
+    .replace(/[–—]/g, "-")
+    .replace(/…/g, "...");
 }
 
 /**
@@ -220,42 +268,124 @@ export function recipientFixedLostHelper(params: {
   };
 }
 
-/** A FLEXIBLE task lost its helper: back on the list. Email (SMS if soon). */
+/**
+ * A FLEXIBLE task lost its helper: back on the list. Email (SMS if soon).
+ *
+ * Kate's ruling, 16 Sep 2026: "Nothing else needed from you." is dropped when
+ * the task is TODAY — an open task on the day may well need something. Kept for
+ * any other day.
+ */
 export function recipientFlexibleCancelled(params: {
   helperName: string;
   task: string;
   shareLink: string;
+  isToday: boolean;
 }): RecipientMessage {
+  const tail = params.isToday ? "" : " Nothing else needed from you.";
   return {
     subject: "A small change on your page",
     body:
       `${params.helperName} can't manage ${params.task} after all. ` +
-      `It's back on the list for your people: ${params.shareLink}. Nothing else needed from you.`,
+      `It's back on the list for your people: ${params.shareLink}.${tail}`,
   };
 }
 
-/** A FLEXIBLE task was rescheduled by its helper. Email (SMS if soon). */
+/**
+ * A FLEXIBLE task was rescheduled by its helper. Email (SMS if soon).
+ *
+ * Kate's ruling, 16 Sep 2026: "— nothing needed from you" removed (a time can
+ * move LATER on the day). The helper's note, when they left one, is now carried
+ * — it used to be saved to the page and left out of this message entirely.
+ * ⏸️ The "Their note:" line is flagged for Kate's confirmation.
+ */
 export function recipientFlexibleRescheduled(params: {
   helperName: string;
   task: string;
   newTime: string;
+  note?: string | null;
 }): RecipientMessage {
+  const note = params.note?.trim();
   return {
     subject: "A small change on your page",
-    body: `${params.helperName} will bring ${params.task} closer to ${params.newTime} now — nothing needed from you.`,
+    body:
+      `${params.helperName} will bring ${params.task} closer to ${params.newTime} now.` +
+      (note ? `\n\nTheir note: "${note}"` : ""),
   };
 }
 
-/** A helper left a note. One-way; visible only to the recipient + runner. */
+/**
+ * A helper left a note. One-way; visible only to the recipient + runner.
+ *
+ * Kate's ruling, 16 Sep 2026: a note can say "I'll be 25 min late", so the
+ * product never tells the family "Nothing needed from you" about one.
+ *
+ *   • FIXED task, TODAY or TOMORROW (Australia/Sydney — lib/australianDay.ts):
+ *     the approved time-sensitive wording. The EMAIL keeps "Aunt Lucy here 💛".
+ *     The SMS (Kate's ruling, 16 Sep 2026) is "Aunt Lucy here:" with every fixed
+ *     character plain GSM-7 — straight quotes, no dash, no emoji — and the note
+ *     run through normaliseNoteForSms. Do not "tidy" its punctuation: one
+ *     non-GSM-7 character makes the whole text unicode (3 segments, not 2, for
+ *     a 40-character note).
+ *   • Every other note: the ordinary line, without "Nothing needed from you".
+ *
+ * `soon` is null for anything that isn't a fixed task on one of those two days.
+ * helperNoteNotice below decides it, so the rule lives in one place.
+ */
 export function recipientNotePassedOn(params: {
   helperName: string;
+  /** "the school pickup" — taskLabel(). */
   task: string;
+  /** "school pickup" — taskName(), for the subject. */
+  taskName: string;
   note: string;
+  soon: SoonDay | null;
 }): RecipientMessage {
+  if (params.soon) {
+    return {
+      subject: `A note about ${params.soon}'s ${params.taskName}`,
+      body:
+        `Aunt Lucy here 💛 ${params.helperName} left a note about ${params.task} ${params.soon}: ` +
+        `"${params.note}". They're still doing it. If the timing matters, you may want a backup plan.`,
+      smsBody:
+        `Aunt Lucy here: ${normaliseNoteForSms(params.helperName)} left a note about ${normaliseNoteForSms(params.task)} ${params.soon}: ` +
+        `"${normaliseNoteForSms(params.note)}". They're still doing it. If the timing matters, you may want a backup plan.`,
+    };
+  }
   return {
     subject: "A small note on your page",
     body:
       `${params.helperName} left a note on ${params.task}: "${params.note}"\n\n` +
-      `Nothing needed from you — just keeping you in the loop.`,
+      `Just keeping you in the loop.`,
+  };
+}
+
+/**
+ * Everything the note route needs to tell the family, decided in one pure
+ * place: the channel rule's inputs and the words. `now` is passed so the
+ * midnight edge is testable.
+ */
+export function helperNoteNotice(params: {
+  slot: {
+    slotType: string;
+    customLabel: string | null;
+    slotDate: string | null;
+    flexibility: "fixed" | "flexible";
+    claimedByName: string | null;
+  };
+  note: string;
+  now: Date;
+}): { flexibility: "fixed" | "flexible"; slotDate: string | null; message: RecipientMessage } {
+  const { slot } = params;
+  const soon = slot.flexibility === "fixed" ? soonDay(slot.slotDate, params.now) : null;
+  return {
+    flexibility: slot.flexibility,
+    slotDate: slot.slotDate,
+    message: recipientNotePassedOn({
+      helperName: slot.claimedByName ?? "Someone",
+      task: taskLabel(slot.slotType, slot.customLabel),
+      taskName: taskName(slot.slotType, slot.customLabel),
+      note: params.note,
+      soon,
+    }),
   };
 }

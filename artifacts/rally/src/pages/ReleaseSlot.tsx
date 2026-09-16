@@ -171,6 +171,15 @@ export default function ReleaseSlot() {
   const { slot, page } = details;
   const slotMeta = SLOT_TYPE_LABELS[slot.slotType] ?? SLOT_TYPE_LABELS.other;
   const slotLabel = slot.customLabel || slotMeta.label;
+  // The same name mid-sentence ("You're still down for school pickup."): the
+  // family's own wording as written, a default lower-cased. Never the raw key.
+  // A task with no set type reads "this task" (Kate's ruling, 16 Sep 2026) —
+  // "You're still down for help." didn't make sense.
+  const slotLabelInline =
+    slot.customLabel ||
+    (slot.slotType in SLOT_TYPE_LABELS && slot.slotType !== "other"
+      ? slotMeta.label.toLowerCase()
+      : "this task");
   const recipientFirstName = page.recipientName.split(/\s+/)[0] || page.recipientName;
   // Undated slots are flexible offers — show words, not a fabricated date.
   // Australian format: "Saturday 15 August" (day before month), not US month-first.
@@ -303,7 +312,9 @@ export default function ReleaseSlot() {
               <CheckCircle2 className="w-7 h-7 text-primary" />
             </div>
             <p className="font-serif text-lg font-semibold text-foreground">
-              {copy.confirmation}
+              {slot.flexibility === "fixed"
+                ? copy.fixedNote.sent(recipientFirstName, slotLabelInline)
+                : copy.confirmation}
             </p>
           </div>
         ) : slot.flexibility === "flexible" ? (
@@ -371,7 +382,9 @@ export default function ReleaseSlot() {
               onClick={handleNote}
               disabled={submitting === "note" || !note.trim()}
             >
-              {submitting === "note" ? "Passing on…" : copy.fixedNote.button}
+              {submitting === "note"
+                ? copy.fixedNote.buttonBusy
+                : copy.fixedNote.button(recipientFirstName)}
             </Button>
           </div>
         )}
@@ -382,10 +395,19 @@ export default function ReleaseSlot() {
 
         {!passedOn && (
           <>
+            {/* Bug #119 — on a fixed task the cancel section sits BELOW a
+                divider under its own heading, so the "time sensitive… cancel"
+                line can't be read as being about the note above it. */}
             {slot.flexibility === "fixed" && (
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                {copy.fixedNote.cancelBlurb(slotLabel, recipientFirstName)}
-              </p>
+              <>
+                <hr className="border-border" data-testid="cancel-divider" />
+                <h3 className="font-serif font-semibold text-foreground text-lg">
+                  {copy.fixedNote.cancelHeading}
+                </h3>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  {copy.fixedNote.cancelBlurb(slotLabel, recipientFirstName)}
+                </p>
+              </>
             )}
             <Button
               size="lg"
