@@ -48,7 +48,8 @@ const TASK_NAMES: Record<string, string> = {
   dog_walking: "dog walking",
   shopping: "shopping",
   visit: "visit",
-  other: "help",
+  // Not "help": "A note about tomorrow's help" reads wrong (Kate, 16 Sep 2026).
+  other: "task",
 };
 
 /** A task's bare display name: the recipient's wording, else a default. */
@@ -232,7 +233,8 @@ export interface RecipientMessage {
 }
 
 /**
- * Kate's ruling, 16 Sep 2026 — for the time-sensitive note SMS ONLY: the
+ * Kate's ruling, 16 Sep 2026 — for the time-sensitive note SMS ONLY (the note,
+ * and the helper's name and task name, e.g. "O’Brien"): the
  * punctuation phones substitute as people type is folded back to GSM-7, so a
  * note typed "I’ll" doesn't by itself turn a 2-segment text into a 5-segment
  * one. Curly quotes and apostrophes → straight, en/em dashes → "-", "…" → "...".
@@ -345,7 +347,7 @@ export function recipientNotePassedOn(params: {
         `Aunt Lucy here 💛 ${params.helperName} left a note about ${params.task} ${params.soon}: ` +
         `"${params.note}". They're still doing it. If the timing matters, you may want a backup plan.`,
       smsBody:
-        `Aunt Lucy here: ${params.helperName} left a note about ${params.task} ${params.soon}: ` +
+        `Aunt Lucy here: ${normaliseNoteForSms(params.helperName)} left a note about ${normaliseNoteForSms(params.task)} ${params.soon}: ` +
         `"${normaliseNoteForSms(params.note)}". They're still doing it. If the timing matters, you may want a backup plan.`,
     };
   }

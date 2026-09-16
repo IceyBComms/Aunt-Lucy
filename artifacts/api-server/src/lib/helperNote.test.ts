@@ -276,6 +276,48 @@ describe("the time-sensitive note SMS stays GSM-7 (Kate's ruling, 16 Sep 2026; s
     expect(msg.body.startsWith("Aunt Lucy here 💛 Jo can't do")).toBe(true);
     expect(msg.smsBody).toBeUndefined();
   });
+
+  it("a helper called O’Brien: straightened in the SMS, which stays in 2 segments", async () => {
+    const { texts, emails } = await send(
+      helperNoteNotice({
+        slot: { ...pickup("2026-09-17"), claimedByName: "Sam O’Brien" },
+        note: "Running 10 min late",
+        now: WED_9AM,
+      }),
+    );
+    expect(texts[0].body.startsWith("Aunt Lucy here: Sam O'Brien left a note about")).toBe(true);
+    expect(measureSms(texts[0].body)).toMatchObject({ encoding: "GSM-7", segments: 2 });
+    // The email is left as typed.
+    expect(emails[0].body).toContain("Sam O’Brien");
+  });
+
+  it("a task name the family typed with curly punctuation is straightened too", () => {
+    const { message } = helperNoteNotice({
+      slot: { ...pickup("2026-09-17"), customLabel: "Mia’s swim – Tuesday…" },
+      note: "late",
+      now: WED_9AM,
+    });
+    expect(message.smsBody).toContain("left a note about Mia's swim - Tuesday... tomorrow:");
+    expect(measureSms(message.smsBody!).encoding).toBe("GSM-7");
+  });
+});
+
+describe("the email subject for a task with no set type (Kate, 16 Sep 2026)", () => {
+  const untyped = (slotDate: string) => ({
+    ...pickup(slotDate),
+    slotType: "other",
+  });
+
+  it("tomorrow: 'A note about tomorrow's task'", () => {
+    const { message } = helperNoteNotice({ slot: untyped("2026-09-17"), note: "late", now: WED_9AM });
+    expect(message.subject).toBe("A note about tomorrow's task");
+  });
+
+  it("today: 'A note about today's task'", () => {
+    const { message } = helperNoteNotice({ slot: untyped("2026-09-16"), note: "late", now: WED_9AM });
+    expect(message.subject).toBe("A note about today's task");
+    expect(message.subject).not.toContain("help");
+  });
 });
 
 describe("the routes use these (read from source)", () => {
