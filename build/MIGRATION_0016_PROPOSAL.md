@@ -45,12 +45,10 @@ ALTER TABLE slots ADD COLUMN IF NOT EXISTS helper_note_at timestamp;
 ## What the code would do once applied (follow-up PR, not built)
 
 1. **Crisis form** (`rally/src/pages/HardestTimes.tsx`, `routes/crisis.ts`): required field
-   "Your mobile" / "So urgent updates about your tasks reach you by text." (⏸️ Cowork's
-   wording, not yet explicitly approved). Validated with the existing
-   `isPhoneNumber` (`lib/contactChannel.ts`) — note that is the product's ONLY phone check
-   and it is deliberately loose (8–15 digits), **not Australian-specific**. There is no
-   existing Australian mobile validator to reuse. Stored on the setup grant's
-   `person_mobile` via `grantSetupPersonAccess`.
+   "Your mobile" / "So urgent updates about your tasks reach you by text."
+   (✅ **approved by Kate, 16 Sep 2026**). Stored on the setup grant's `person_mobile` via
+   `grantSetupPersonAccess`. Validation: see "To decide / build with 0016" below — the
+   existing `isPhoneNumber` is NOT good enough for this field.
 2. **`buildNotifyTargets`**: a grant's `person_mobile` joins the SAME target as its
    `person_contact` email (one person → one target → SMS preferred, email fallback),
    de-duplicated against the page-level contact like every other contact point.
@@ -60,6 +58,33 @@ ALTER TABLE slots ADD COLUMN IF NOT EXISTS helper_note_at timestamp;
    "Note · Wed 4:12pm" from `helper_note_at` (Australia/Sydney).
 5. **Release** (`routes/slots.ts`): clear `helper_note`/`helper_note_at` alongside the
    other claim columns so a re-claimed slot doesn't show the last helper's note.
+
+## Already approved (Kate, 16 Sep 2026)
+
+- ✅ The crisis mobile field: "Your mobile" / "So urgent updates about your tasks reach you
+  by text."
+- ✅ The flexible-task time-change line `Their note: "{note}"` — shipped in PR #126, listed
+  here only so the rulings sit together.
+
+## To decide / build with 0016 (Kate, 16 Sep 2026 — noted, NOT built)
+
+1. **A proper Australian mobile check for the required crisis field.** Accept `04xx xxx xxx`
+   and `+614…` (with the spacing and punctuation people type). The only phone check in the
+   codebase today, `isPhoneNumber` in `artifacts/api-server/src/lib/contactChannel.ts`, is
+   deliberately loose — any 8–15 digits — so a typo'd or landline number would be accepted
+   and urgent texts would silently go nowhere. This field is REQUIRED and exists only to
+   carry urgent texts, so it needs the strict check, in both the form and `routes/crisis.ts`.
+2. **Kate to decide: should pages get their own time zone?** "Today" / "tomorrow"
+   (`lib/australianDay.ts`) uses Sydney's calendar for every page. At 10:30pm in Perth it is
+   already 12:30am the next day in Sydney (1:30am in daylight saving), so a Perth helper's
+   note about **tomorrow's** task would tell the family "today". Brisbane and Adelaide are
+   affected in a narrower window. Fixing it needs a per-page time zone (another column, and
+   a question for whoever sets the page up).
+3. **Privacy Policy wording — Kate to approve before 0016 ships.** The policy
+   (`artifacts/rally/src/pages/PrivacyPolicy.tsx`) lists "the recipient's first name, email
+   and/or mobile" under "From the person being supported (and whoever sets up for them)". It
+   does not explicitly name the **setup person's own mobile**, which 0016 would start
+   collecting as a required field.
 
 ## Existing rows
 

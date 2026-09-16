@@ -224,6 +224,27 @@ export function helperEmailSubject(recipientFirstName: string): string {
 export interface RecipientMessage {
   subject: string;
   body: string;
+  /**
+   * The SMS text, when it differs from the email body. Absent on every message
+   * except the time-sensitive note, whose SMS drops the 💛 to stay GSM-7.
+   */
+  smsBody?: string;
+}
+
+/**
+ * Kate's ruling, 16 Sep 2026 — for the time-sensitive note SMS ONLY: the
+ * punctuation phones substitute as people type is folded back to GSM-7, so a
+ * note typed "I’ll" doesn't by itself turn a 2-segment text into a 5-segment
+ * one. Curly quotes and apostrophes → straight, en/em dashes → "-", "…" → "...".
+ * Everything else stays as typed — an emoji the helper chose still forces
+ * unicode, and that's accepted.
+ */
+export function normaliseNoteForSms(note: string): string {
+  return note
+    .replace(/[‘’‚‛]/g, "'")
+    .replace(/[“”„‟]/g, '"')
+    .replace(/[–—]/g, "-")
+    .replace(/…/g, "...");
 }
 
 /**
@@ -297,7 +318,12 @@ export function recipientFlexibleRescheduled(params: {
  * product never tells the family "Nothing needed from you" about one.
  *
  *   • FIXED task, TODAY or TOMORROW (Australia/Sydney — lib/australianDay.ts):
- *     the approved time-sensitive wording, the same body by SMS and email.
+ *     the approved time-sensitive wording. The EMAIL keeps "Aunt Lucy here 💛".
+ *     The SMS (Kate's ruling, 16 Sep 2026) is "Aunt Lucy here:" with every fixed
+ *     character plain GSM-7 — straight quotes, no dash, no emoji — and the note
+ *     run through normaliseNoteForSms. Do not "tidy" its punctuation: one
+ *     non-GSM-7 character makes the whole text unicode (3 segments, not 2, for
+ *     a 40-character note).
  *   • Every other note: the ordinary line, without "Nothing needed from you".
  *
  * `soon` is null for anything that isn't a fixed task on one of those two days.
@@ -318,6 +344,9 @@ export function recipientNotePassedOn(params: {
       body:
         `Aunt Lucy here 💛 ${params.helperName} left a note about ${params.task} ${params.soon}: ` +
         `"${params.note}". They're still doing it. If the timing matters, you may want a backup plan.`,
+      smsBody:
+        `Aunt Lucy here: ${params.helperName} left a note about ${params.task} ${params.soon}: ` +
+        `"${normaliseNoteForSms(params.note)}". They're still doing it. If the timing matters, you may want a backup plan.`,
     };
   }
   return {

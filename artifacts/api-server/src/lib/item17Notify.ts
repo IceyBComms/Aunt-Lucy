@@ -116,7 +116,9 @@ export async function notifyRecipientOfTaskEvent(
         if (await senders.isSuppressed(target.mobile)) continue;
         const ok = await senders.sendSms({
           to: target.mobile,
-          body: opts.message.body,
+          // The time-sensitive note carries its own GSM-7 SMS text; every other
+          // message sends its body unchanged.
+          body: opts.message.smsBody ?? opts.message.body,
           label: "recipientTaskEvent",
         });
         if (ok) {

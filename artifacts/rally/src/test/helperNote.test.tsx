@@ -20,7 +20,7 @@ import { family, helper as copy } from "@/lib/item17Copy";
 
 const server = vi.hoisted(() => ({
   calls: [] as { path: string; method: string; body: unknown }[],
-  slot: { isClaimed: true, claimedNote: null as string | null },
+  slot: { isClaimed: true, claimedNote: null as string | null, slotType: "school_pickup" },
 }));
 
 vi.mock("@/lib/api", () => ({
@@ -32,7 +32,7 @@ vi.mock("@/lib/api", () => ({
       return {
         slot: {
           id: "slot-1",
-          slotType: "school_pickup",
+          slotType: server.slot.slotType,
           customLabel: null,
           slotDate: "2026-09-17",
           slotTime: "15:15",
@@ -68,7 +68,7 @@ function renderRelease() {
 
 beforeEach(() => {
   server.calls = [];
-  server.slot = { isClaimed: true, claimedNote: null };
+  server.slot = { isClaimed: true, claimedNote: null, slotType: "school_pickup" };
 });
 afterEach(cleanup);
 
@@ -96,6 +96,21 @@ describe("leaving a note on a fixed task", () => {
     expect(server.slot.isClaimed).toBe(true);
     // Never the raw key.
     expect(document.body.textContent).not.toContain("school_pickup");
+  });
+});
+
+describe("a task with no set type (Kate's ruling, 16 Sep 2026)", () => {
+  it("reads 'You're still down for this task.', not 'for help.'", async () => {
+    server.slot.slotType = "other";
+    renderRelease();
+    fireEvent.change(await screen.findByRole("textbox"), { target: { value: "Running late" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send my note to Kate" }));
+
+    expect(
+      await screen.findByText("Sent — Kate has your note. You're still down for this task."),
+    ).toBeTruthy();
+    expect(document.body.textContent).not.toContain("still down for help");
+    expect(server.slot.isClaimed).toBe(true);
   });
 });
 

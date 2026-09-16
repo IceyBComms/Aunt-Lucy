@@ -90,8 +90,14 @@ async function send(notice: ReturnType<typeof helperNoteNotice>) {
   return { texts, emails };
 }
 
+/** The EMAIL body — keeps the 💛. */
 const APPROVED_TOMORROW =
   `Aunt Lucy here 💛 kate R left a note about the school pickup tomorrow: "${NOTE}". ` +
+  `They're still doing it. If the timing matters, you may want a backup plan.`;
+
+/** The SMS — Kate's ruling, 16 Sep 2026: no 💛, every fixed character GSM-7. */
+const APPROVED_TOMORROW_SMS =
+  `Aunt Lucy here: kate R left a note about the school pickup tomorrow: "${NOTE}". ` +
   `They're still doing it. If the timing matters, you may want a backup plan.`;
 
 describe("soonDay — Australia/Sydney, by the calendar", () => {
@@ -127,7 +133,7 @@ describe("a note on a fixed task tomorrow, on a crisis page with a mobile", () =
     const { texts } = await send(
       helperNoteNotice({ slot: pickup("2026-09-17"), note: NOTE, now: WED_9AM }),
     );
-    expect(texts).toEqual([{ to: "+61400000001", body: APPROVED_TOMORROW }]);
+    expect(texts).toEqual([{ to: "+61400000001", body: APPROVED_TOMORROW_SMS }]);
   });
 
   it("says nothing is needed nowhere — not in the SMS, not in any email", async () => {
@@ -151,7 +157,7 @@ describe("a note on a fixed task tomorrow, on a crisis page with a mobile", () =
     const { texts } = await send(
       helperNoteNotice({ slot: pickup("2026-09-17"), note: NOTE, now: WED_1130PM }),
     );
-    expect(texts[0].body).toBe(APPROVED_TOMORROW);
+    expect(texts[0].body).toBe(APPROVED_TOMORROW_SMS);
   });
 
   it("on the day, it says today", () => {
@@ -210,16 +216,65 @@ describe("flexible task messages (Kate's ruling applied)", () => {
   });
 });
 
-describe("SMS size of the time-sensitive note (see #059)", () => {
-  it("records the segment counts reported in the PR", () => {
-    const note40 = "x".repeat(40);
-    const note160 = "x".repeat(160);
-    const at = (note: string) =>
-      measureSms(
-        helperNoteNotice({ slot: pickup("2026-09-17"), note, now: WED_9AM }).message.body,
-      );
-    expect(at(note40)).toMatchObject({ encoding: "UCS-2", segments: 3 });
-    expect(at(note160)).toMatchObject({ encoding: "UCS-2", segments: 5 });
+describe("the time-sensitive note SMS stays GSM-7 (Kate's ruling, 16 Sep 2026; see #059)", () => {
+  const smsFor = async (note: string) => {
+    const { texts } = await send(
+      helperNoteNotice({ slot: pickup("2026-09-17"), note, now: WED_9AM }),
+    );
+    return texts[0].body;
+  };
+
+  it("a 40-character plain note fits in 2 segments", async () => {
+    expect(measureSms(await smsFor("x".repeat(40)))).toMatchObject({ encoding: "GSM-7", segments: 2 });
+  });
+
+  it("a 160-character plain note — recorded: 307 characters, 3 segments", async () => {
+    // One character over two segments (2 × 153 = 306). Was 5 with the 💛.
+    expect(measureSms(await smsFor("x".repeat(160)))).toMatchObject({
+      encoding: "GSM-7",
+      chars: 307,
+      segments: 3,
+    });
+  });
+
+  it("a note typed with I’ll is texted as I'll, and the text stays GSM-7", async () => {
+    const body = await smsFor("I’ll be 25 min late");
+    expect(body).toContain(`"I'll be 25 min late"`);
+    expect(body).not.toContain("’");
+    expect(measureSms(body).encoding).toBe("GSM-7");
+  });
+
+  it("curly double quotes, en and em dashes, and … are folded too", async () => {
+    const body = await smsFor("“Traffic” – stuck — sorry…");
+    expect(body).toContain(`""Traffic" - stuck - sorry..."`);
+    expect(measureSms(body).encoding).toBe("GSM-7");
+  });
+
+  it("an emoji the helper typed is left as typed (and makes it unicode)", async () => {
+    const body = await smsFor("late 😬");
+    expect(body).toContain("late 😬");
+    expect(measureSms(body).encoding).toBe("UCS-2");
+  });
+
+  it("the email keeps its 💛 and the note exactly as typed", async () => {
+    const note = "I’ll be late";
+    const { emails } = await send(
+      helperNoteNotice({ slot: pickup("2026-09-17"), note, now: WED_9AM }),
+    );
+    expect(emails[0].body).toContain("Aunt Lucy here 💛");
+    expect(emails[0].body).toContain(`"I’ll be late"`);
+  });
+
+  it("other Aunt Lucy SMS are untouched — 'can't do it after all' keeps its 💛", async () => {
+    const { recipientFixedLostHelper } = await import("./item17Copy");
+    const msg = recipientFixedLostHelper({
+      helperName: "Jo",
+      task: "the school pickup",
+      when: "Thursday 17 September at 3:15pm",
+      shareLink: "https://x/s/y",
+    });
+    expect(msg.body.startsWith("Aunt Lucy here 💛 Jo can't do")).toBe(true);
+    expect(msg.smsBody).toBeUndefined();
   });
 });
 

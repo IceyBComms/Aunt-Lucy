@@ -173,7 +173,13 @@ export default function ReleaseSlot() {
   const slotLabel = slot.customLabel || slotMeta.label;
   // The same name mid-sentence ("You're still down for school pickup."): the
   // family's own wording as written, a default lower-cased. Never the raw key.
-  const slotLabelInline = slot.customLabel || slotMeta.label.toLowerCase();
+  // A task with no set type reads "this task" (Kate's ruling, 16 Sep 2026) —
+  // "You're still down for help." didn't make sense.
+  const slotLabelInline =
+    slot.customLabel ||
+    (slot.slotType in SLOT_TYPE_LABELS && slot.slotType !== "other"
+      ? slotMeta.label.toLowerCase()
+      : "this task");
   const recipientFirstName = page.recipientName.split(/\s+/)[0] || page.recipientName;
   // Undated slots are flexible offers — show words, not a fabricated date.
   // Australian format: "Saturday 15 August" (day before month), not US month-first.
