@@ -168,7 +168,17 @@ export async function placeInvite<TRow>(
     return { row, status: "queued" };
   }
 
-  const ok = await handlers.send(row);
+  // The row is already written, so a throw here would leave it `queued` with
+  // the throw escaping to the route — a 500 on an action that half-succeeded,
+  // and no record that the send was the part that broke. Treated as a failed
+  // send instead: stamped `failed`, logged by the sender, reported as such, and
+  // the same one-invite-lost guarantee runInviteBatch gives the cron (#123).
+  let ok = false;
+  try {
+    ok = await handlers.send(row);
+  } catch {
+    ok = false;
+  }
   if (ok) {
     await handlers.markSent(row);
     return { row, status: "sent" };

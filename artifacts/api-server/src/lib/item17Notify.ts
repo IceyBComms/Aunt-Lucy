@@ -29,6 +29,7 @@ import { sendSms } from "./sms";
 import { sendItem17Email } from "./email";
 import { getAppBaseUrl } from "./appUrl";
 import { logger } from "./logger";
+import { notifyFailed, notifySkipped } from "./notifyOutcome";
 import type { SlotFlexibility } from "./slotFlexibility";
 import type { RecipientMessage } from "./item17Copy";
 import { soonDay } from "./australianDay";
@@ -114,13 +115,27 @@ export async function notifyRecipientOfTaskEvent(
       if (channel === "sms") {
         if (!target.mobile) continue;
         if (await senders.isSuppressed(target.mobile)) continue;
-        const ok = await senders.sendSms({
-          to: target.mobile,
-          // The time-sensitive note carries its own GSM-7 SMS text; every other
-          // message sends its body unchanged.
-          body: opts.message.smsBody ?? opts.message.body,
-          label: "recipientTaskEvent",
-        });
+        // A sender that THROWS costs this channel, not this target and not the
+        // targets behind them (bug #123). Before this, a network-level rejection
+        // from Resend or Twilio escaped the whole loop — and because every call
+        // site is `void notifyRecipientOfTaskEvent(...)`, it escaped into
+        // nothing at all: no log, no error, and the release or reschedule that
+        // triggered it still reported success.
+        let ok = false;
+        try {
+          ok = await senders.sendSms({
+            to: target.mobile,
+            // The time-sensitive note carries its own GSM-7 SMS text; every other
+            // message sends its body unchanged.
+            body: opts.message.smsBody ?? opts.message.body,
+            label: "recipientTaskEvent",
+          });
+        } catch (err) {
+          notifyFailed(
+            { label: "recipientTaskEvent", channel: "sms", to: target.mobile, pageId: page.id },
+            err,
+          );
+        }
         if (ok) {
           delivered = true;
           break;
@@ -128,12 +143,20 @@ export async function notifyRecipientOfTaskEvent(
       } else {
         if (!target.email) continue;
         if (await senders.isSuppressed(target.email)) continue;
-        const ok = await senders.sendEmail({
-          to: target.email,
-          subject: opts.message.subject,
-          body: opts.message.body,
-          link: opts.link ?? null,
-        });
+        let ok = false;
+        try {
+          ok = await senders.sendEmail({
+            to: target.email,
+            subject: opts.message.subject,
+            body: opts.message.body,
+            link: opts.link ?? null,
+          });
+        } catch (err) {
+          notifyFailed(
+            { label: "recipientTaskEvent", channel: "email", to: target.email, pageId: page.id },
+            err,
+          );
+        }
         if (ok) {
           delivered = true;
           break;
@@ -170,24 +193,42 @@ export async function notifyHelperOfTaskEvent(opts: {
   ctaVariant?: "primary" | "quiet";
 }): Promise<void> {
   const contact = opts.helperContact?.trim();
-  if (!contact) return;
-
-  if (await isSuppressed(contact)) {
-    logger.info({}, "Item 17: helper opted out — task-event notification skipped");
+  if (!contact) {
+    // Was a bare `return`. A helper who cannot be told their task changed is
+    // not a non-event, and "nothing on file" used to look exactly like "the
+    // send blew up" — both were silence (bug #123).
+    notifySkipped(
+      { label: "helperTaskEvent", channel: "email", to: null },
+      "no contact on file for this helper",
+    );
     return;
   }
 
-  if (isEmailAddress(contact)) {
-    await sendItem17Email({
-      to: contact,
-      subject: opts.emailSubject,
-      body: opts.body,
-      link: opts.link ?? null,
-      ctaLabel: opts.ctaLabel ?? null,
-      ctaVariant: opts.ctaVariant,
-    });
-  } else {
-    await sendSms({ to: contact, body: opts.body, label: "helperTaskEvent" });
+  const channel = isEmailAddress(contact) ? "email" : "sms";
+  const meta = { label: "helperTaskEvent", channel, to: contact } as const;
+
+  if (await isSuppressed(contact)) {
+    notifySkipped(meta, "helper opted out");
+    return;
+  }
+
+  // Both call sites are `void notifyHelperOfTaskEvent(...)` (routes/manage.ts),
+  // so anything thrown from here lands nowhere. Caught, logged, swallowed.
+  try {
+    if (channel === "email") {
+      await sendItem17Email({
+        to: contact,
+        subject: opts.emailSubject,
+        body: opts.body,
+        link: opts.link ?? null,
+        ctaLabel: opts.ctaLabel ?? null,
+        ctaVariant: opts.ctaVariant,
+      });
+    } else {
+      await sendSms({ to: contact, body: opts.body, label: "helperTaskEvent" });
+    }
+  } catch (err) {
+    notifyFailed(meta, err);
   }
 }
 

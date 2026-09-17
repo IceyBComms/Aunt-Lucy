@@ -18,6 +18,7 @@ import { classifyContact } from "./contactChannel";
 import { sendClaimConfirmation, type ClaimEmailParams } from "./email";
 import { sendSms } from "./sms";
 import { logger } from "./logger";
+import { notifyFailed, notifySkipped } from "./notifyOutcome";
 import { LIFT_WAIT_MODE_SMS_CLAUSES, type LiftWaitMode } from "./liftWaitMode";
 import { getAppBaseUrl } from "./appUrl";
 import { calendarFeedUrl } from "./calendarFeed";
@@ -65,9 +66,9 @@ export async function sendClaimConfirmationToHelper(
     // contact value itself is deliberately absent: it is personal data, and when
     // it is the fallback case it is a person's NAME. The slot id is enough to
     // find the row.
-    logger.warn(
-      { slotId: params.slotId },
-      "Claim confirmation not sent — contact is neither an email address nor a phone number",
+    notifySkipped(
+      { label: "helperClaimConfirmed", channel: "email", to: null, detail: { slotId: params.slotId } },
+      "contact is neither an email address nor a phone number",
     );
     return;
   }
@@ -124,5 +125,22 @@ export async function sendClaimConfirmationToHelper(
         ? calendarFeedUrl(params.calendarToken)
         : null,
   };
-  await sendClaimConfirmation(emailParams);
+  // sendClaimConfirmation returns void and both callers fire this without
+  // awaiting (`void sendClaimConfirmationToHelper(...)` in routes/slots.ts and
+  // routes/invites.ts), so a throw from here would become an unhandled
+  // rejection with nothing logged — the helper silently never gets their
+  // release link. Bug #123.
+  try {
+    await sendClaimConfirmation(emailParams);
+  } catch (err) {
+    notifyFailed(
+      {
+        label: "helperClaimConfirmed",
+        channel: "email",
+        to: params.helperContact,
+        detail: { slotId: params.slotId },
+      },
+      err,
+    );
+  }
 }

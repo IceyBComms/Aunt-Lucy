@@ -2,6 +2,7 @@ import twilio from "twilio";
 import { TIME_TBC_CLAUSE } from "./timeTbc";
 import { logger } from "./logger";
 import { measureSms } from "./smsSegments";
+import { notifyFailed, notifySent, notifySkipped } from "./notifyOutcome";
 
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
 const authToken = process.env.TWILIO_AUTH_TOKEN;
@@ -59,17 +60,18 @@ export async function sendSms({
   body: string;
   label?: string;
 }): Promise<boolean> {
+  const meta = { label: label ?? "unlabelled", channel: "sms" as const, to };
   if (!client || !fromNumber) {
-    logger.warn({ to }, "SMS not sent — Twilio not configured");
+    notifySkipped(meta, "Twilio not configured");
     return false;
   }
   warnIfMultiSegment(body, label);
   try {
     await client.messages.create({ body, from: fromNumber, to });
-    logger.info({ to }, "SMS sent");
+    notifySent(meta);
     return true;
   } catch (err) {
-    logger.error({ err, to }, "Failed to send SMS");
+    notifyFailed(meta, err);
     return false;
   }
 }
@@ -130,8 +132,9 @@ export async function sendInviteSms({
   helperName: string;
   inviteUrl: string;
 }): Promise<void> {
+  const meta = { label: "inviteSms", channel: "sms" as const, to };
   if (!client || !fromNumber) {
-    logger.warn({ to }, "SMS not sent — Twilio not configured");
+    notifySkipped(meta, "Twilio not configured");
     return;
   }
 
@@ -146,9 +149,9 @@ export async function sendInviteSms({
 
   try {
     await client.messages.create({ body, from: fromNumber, to });
-    logger.info({ to }, "Invite SMS sent");
+    notifySent(meta);
   } catch (err) {
-    logger.error({ err, to }, "Failed to send invite SMS");
+    notifyFailed(meta, err);
   }
 }
 

@@ -8,6 +8,7 @@ import { formatMoney, gstRateLabel, type GstBreakdown } from "./gst";
 import type { FounderStats } from "./founderStats";
 import { asOccasion, type Occasion } from "./occasion";
 import { buildFeedbackNotification, feedbackOccasionLabel } from "./pageFeedback";
+import { attemptSend, notifySkipped } from "./notifyOutcome";
 
 // A RESEND_API_KEY containing "placeholder" means local development: don't send
 // real email. Magic links are logged to the console instead (see sendMagicLink).
@@ -337,21 +338,20 @@ export async function sendMagicLink({ to, magicLink }: MagicLinkParams): Promise
   }
 
   if (!resend) {
-    logger.warn("RESEND_API_KEY not set — skipping magic link email");
+    notifySkipped({ label: "magicLink", channel: "email", to }, "RESEND_API_KEY not set");
     return;
   }
 
-  const { error } = await resend.emails.send({
-    from: FROM_ADDRESS,
-    to,
-    ...buildMagicLinkEmail(magicLink),
-  });
+  const { error } = await attemptSend({ label: "magicLink", channel: "email", to }, () =>
+    resend!.emails.send({
+      from: FROM_ADDRESS,
+      to,
+      ...buildMagicLinkEmail(magicLink),
+    }),
+  );
   if (error) {
-    logger.error({ error }, "Failed to send magic link email");
     throw new Error(`Resend error: ${error.message}`);
   }
-
-  logger.info("Magic link email sent");
 }
 
 // ─── Pilot Application Notification ──────────────────────────────────────────
@@ -379,7 +379,10 @@ interface PilotApplicationParams {
 export async function sendPilotApplicationNotification(params: PilotApplicationParams): Promise<void> {
   const adminEmail = process.env.ADMIN_EMAIL;
   if (!resend || !adminEmail) {
-    logger.warn("RESEND_API_KEY or ADMIN_EMAIL not set — skipping pilot notification");
+    notifySkipped(
+      { label: "pilotApplication", channel: "email", to: adminEmail },
+      "RESEND_API_KEY or ADMIN_EMAIL not set",
+    );
     return;
   }
 
@@ -450,27 +453,26 @@ export async function sendPilotApplicationNotification(params: PilotApplicationP
     params.usageDescription,
   ].filter((l) => l !== null).join("\n");
 
-  const { error } = await resend.emails.send({
-    from: FROM_ADDRESS,
-    to: adminEmail,
-    replyTo: params.email,
-    subject: `New pilot application — ${params.fullName}, ${params.orgName}`,
-    html,
-    text,
-  });
-
-  if (error) {
-    logger.error({ error }, "Failed to send pilot application notification");
-  } else {
-    logger.info({ to: adminEmail }, "Pilot application notification sent");
-  }
+  await attemptSend({ label: "pilotApplication", channel: "email", to: adminEmail }, () =>
+    resend!.emails.send({
+      from: FROM_ADDRESS,
+      to: adminEmail,
+      replyTo: params.email,
+      subject: `New pilot application — ${params.fullName}, ${params.orgName}`,
+      html,
+      text,
+    }),
+  );
 }
 
 // ─── Claim Confirmation Email ─────────────────────────────────────────────────
 
 export async function sendClaimConfirmation(params: ClaimEmailParams): Promise<void> {
   if (!resend) {
-    logger.warn("RESEND_API_KEY not set — skipping claim confirmation email");
+    notifySkipped(
+      { label: "claimConfirmation", channel: "email", to: params.helperContact },
+      "RESEND_API_KEY not set",
+    );
     return;
   }
 
@@ -489,19 +491,22 @@ export async function sendClaimConfirmation(params: ClaimEmailParams): Promise<v
   }
 
   const subject = `Thanks for helping ${params.recipientName} — here's what you've signed up for`;
-  const { error } = await resend.emails.send({
-    from: FROM_ADDRESS,
-    to: params.helperContact,
-    subject,
-    html: buildHtml(params),
-    text: buildPlainText(params),
-  });
-
-  if (error) {
-    logger.error({ error, to: params.helperContact }, "Failed to send claim confirmation email");
-  } else {
-    logger.info({ to: params.helperContact }, "Claim confirmation email sent");
-  }
+  await attemptSend(
+    {
+      label: "claimConfirmation",
+      channel: "email",
+      to: params.helperContact,
+      detail: { slotId: params.slotId },
+    },
+    () =>
+      resend!.emails.send({
+        from: FROM_ADDRESS,
+        to: params.helperContact,
+        subject,
+        html: buildHtml(params),
+        text: buildPlainText(params),
+      }),
+  );
 }
 
 // ─── Helper Invite Email (9c and the trusted invite) ─────────────────────────
@@ -633,23 +638,23 @@ export async function sendHelperInviteEmail(
     return true;
   }
   if (!resend) {
-    logger.warn("RESEND_API_KEY not set — skipping helper invite email");
+    notifySkipped({ label: "helperInvite", channel: "email", to: params.to }, "RESEND_API_KEY not set");
     return false;
   }
 
-  const { error } = await resend.emails.send({
-    from: FROM_ADDRESS,
-    to: params.to,
-    subject: params.subject,
-    html,
-    text: params.text,
-  });
+  const { error } = await attemptSend({ label: "helperInvite", channel: "email", to: params.to }, () =>
+    resend!.emails.send({
+      from: FROM_ADDRESS,
+      to: params.to,
+      subject: params.subject,
+      html,
+      text: params.text,
+    }),
+  );
 
   if (error) {
-    logger.error({ error, to: params.to }, "Failed to send helper invite email");
     return false;
   }
-  logger.info({ to: params.to }, "Helper invite email sent");
   return true;
 }
 
@@ -822,21 +827,31 @@ export async function sendRecipientClaimNotification(
     return true;
   }
   if (!resend) {
-    logger.warn("RESEND_API_KEY not set — skipping recipient claim notification");
+    notifySkipped(
+      { label: "recipientClaimNotification", channel: "email", to: params.to },
+      "RESEND_API_KEY not set",
+    );
     return false;
   }
 
-  const { error } = await resend.emails.send({
-    from: FROM_ADDRESS,
-    to: params.to,
-    ...buildRecipientClaimNotificationEmail(params),
-  });
+  const { error } = await attemptSend(
+    {
+      label: "recipientClaimNotification",
+      channel: "email",
+      to: params.to,
+      detail: { claims: params.claims.length },
+    },
+    () =>
+      resend!.emails.send({
+        from: FROM_ADDRESS,
+        to: params.to,
+        ...buildRecipientClaimNotificationEmail(params),
+      }),
+  );
 
   if (error) {
-    logger.error({ error, to: params.to }, "Failed to send recipient claim notification");
     return false;
   }
-  logger.info({ to: params.to, claims: params.claims.length }, "Recipient claim notification sent");
   return true;
 }
 
@@ -1120,22 +1135,24 @@ export async function sendOrganiserCardShare(
   params: OrganiserCardShareParams,
 ): Promise<void> {
   if (!resend) {
-    logger.warn("RESEND_API_KEY not set — skipping organiser card-share email");
+    notifySkipped(
+      { label: "organiserCardShare", channel: "email", to: params.to },
+      "RESEND_API_KEY not set",
+    );
     return;
   }
 
-  const { error } = await resend.emails.send({
-    from: FROM_ADDRESS,
-    to: params.to,
-    ...buildOrganiserCardShareEmail(params),
-  });
+  const { error } = await attemptSend({ label: "organiserCardShare", channel: "email", to: params.to }, () =>
+    resend!.emails.send({
+      from: FROM_ADDRESS,
+      to: params.to,
+      ...buildOrganiserCardShareEmail(params),
+    }),
+  );
 
   if (error) {
-    logger.error({ error, to: params.to }, "Failed to send organiser card-share email");
     throw new Error(`Resend error: ${error.message}`);
   }
-
-  logger.info({ to: params.to }, "Organiser card-share email sent");
 }
 
 // ─── 1. Buyer confirmation + tax receipt ─────────────────────────────────────
@@ -1271,22 +1288,24 @@ export async function sendBuyerConfirmation(
   params: BuyerConfirmationParams,
 ): Promise<void> {
   if (!resend) {
-    logger.warn("RESEND_API_KEY not set — skipping buyer confirmation email");
+    notifySkipped(
+      { label: "buyerConfirmation", channel: "email", to: params.to },
+      "RESEND_API_KEY not set",
+    );
     return;
   }
 
-  const { error } = await resend.emails.send({
-    from: FROM_ADDRESS,
-    to: params.to,
-    ...buildBuyerConfirmationEmail(params),
-  });
+  const { error } = await attemptSend({ label: "buyerConfirmation", channel: "email", to: params.to }, () =>
+    resend!.emails.send({
+      from: FROM_ADDRESS,
+      to: params.to,
+      ...buildBuyerConfirmationEmail(params),
+    }),
+  );
 
   if (error) {
-    logger.error({ error, to: params.to }, "Failed to send buyer confirmation email");
     throw new Error(`Resend error: ${error.message}`);
   }
-
-  logger.info({ to: params.to }, "Buyer confirmation email sent");
 }
 
 // ─── 2. Recipient activation (the keepsake) ──────────────────────────────────
@@ -1442,22 +1461,21 @@ export function buildGiftDeliveryEmail(params: GiftDeliveryParams): RenderedEmai
 
 export async function sendGiftDelivery(params: GiftDeliveryParams): Promise<void> {
   if (!resend) {
-    logger.warn("RESEND_API_KEY not set — skipping gift delivery email");
+    notifySkipped({ label: "giftDelivery", channel: "email", to: params.to }, "RESEND_API_KEY not set");
     return;
   }
 
-  const { error } = await resend.emails.send({
-    from: FROM_ADDRESS,
-    to: params.to,
-    ...buildGiftDeliveryEmail(params),
-  });
+  const { error } = await attemptSend({ label: "giftDelivery", channel: "email", to: params.to }, () =>
+    resend!.emails.send({
+      from: FROM_ADDRESS,
+      to: params.to,
+      ...buildGiftDeliveryEmail(params),
+    }),
+  );
 
   if (error) {
-    logger.error({ error, to: params.to }, "Failed to send gift delivery email");
     throw new Error(`Resend error: ${error.message}`);
   }
-
-  logger.info({ to: params.to }, "Gift delivery email sent");
 }
 
 // ─── 3. Gentle activation nudge ──────────────────────────────────────────────
@@ -1508,22 +1526,24 @@ export async function sendActivationReminder(
   params: ActivationReminderParams,
 ): Promise<void> {
   if (!resend) {
-    logger.warn("RESEND_API_KEY not set — skipping activation reminder email");
+    notifySkipped(
+      { label: "activationReminder", channel: "email", to: params.to },
+      "RESEND_API_KEY not set",
+    );
     return;
   }
 
-  const { error } = await resend.emails.send({
-    from: FROM_ADDRESS,
-    to: params.to,
-    ...buildActivationReminderEmail(params),
-  });
+  const { error } = await attemptSend({ label: "activationReminder", channel: "email", to: params.to }, () =>
+    resend!.emails.send({
+      from: FROM_ADDRESS,
+      to: params.to,
+      ...buildActivationReminderEmail(params),
+    }),
+  );
 
   if (error) {
-    logger.error({ error, to: params.to }, "Failed to send activation reminder email");
     throw new Error(`Resend error: ${error.message}`);
   }
-
-  logger.info({ to: params.to }, "Activation reminder email sent");
 }
 
 // ─── Crisis: safety-net "keep this link" email (Item 14) ──────────────────────
@@ -1626,21 +1646,21 @@ export async function sendCrisisPageSaved(
     return;
   }
   if (!resend) {
-    logger.warn("RESEND_API_KEY not set — skipping crisis page-saved email");
+    notifySkipped({ label: "crisisPageSaved", channel: "email", to: params.to }, "RESEND_API_KEY not set");
     return;
   }
 
-  const { error } = await resend.emails.send({
-    from: FROM_ADDRESS,
-    to: params.to,
-    ...buildCrisisPageSavedEmail(params),
-  });
+  const { error } = await attemptSend({ label: "crisisPageSaved", channel: "email", to: params.to }, () =>
+    resend!.emails.send({
+      from: FROM_ADDRESS,
+      to: params.to,
+      ...buildCrisisPageSavedEmail(params),
+    }),
+  );
 
   if (error) {
-    logger.error({ error, to: params.to }, "Failed to send crisis page-saved email");
     return;
   }
-  logger.info({ to: params.to }, "Crisis page-saved email sent");
 }
 
 /**
@@ -1790,21 +1810,21 @@ export async function sendItem17Email(params: Item17EmailParams): Promise<boolea
     return true;
   }
   if (!resend) {
-    logger.warn("RESEND_API_KEY not set — skipping Item 17 email");
+    notifySkipped({ label: "item17", channel: "email", to: params.to }, "RESEND_API_KEY not set");
     return false;
   }
 
-  const { error } = await resend.emails.send({
-    from: FROM_ADDRESS,
-    to: params.to,
-    ...buildItem17Email(params),
-  });
+  const { error } = await attemptSend({ label: "item17", channel: "email", to: params.to }, () =>
+    resend!.emails.send({
+      from: FROM_ADDRESS,
+      to: params.to,
+      ...buildItem17Email(params),
+    }),
+  );
 
   if (error) {
-    logger.error({ error, to: params.to }, "Failed to send Item 17 email");
     return false;
   }
-  logger.info({ to: params.to }, "Item 17 email sent");
   return true;
 }
 
@@ -1939,22 +1959,27 @@ export async function sendFounderDigest(stats: FounderStats): Promise<boolean> {
     return true;
   }
   if (!resend) {
-    logger.warn("RESEND_API_KEY not set — skipping founder digest");
+    notifySkipped(
+      { label: "founderDigest", channel: "email", to: FOUNDER_DIGEST_RECIPIENT },
+      "RESEND_API_KEY not set",
+    );
     return false;
   }
 
-  const { error } = await resend.emails.send({
-    from: FROM_ADDRESS,
-    to: FOUNDER_DIGEST_RECIPIENT,
-    ...rendered,
-  });
+  const { error } = await attemptSend(
+    { label: "founderDigest", channel: "email", to: FOUNDER_DIGEST_RECIPIENT },
+    () =>
+      resend!.emails.send({
+        from: FROM_ADDRESS,
+        to: FOUNDER_DIGEST_RECIPIENT,
+        ...rendered,
+      }),
+  );
 
   if (error) {
-    logger.error({ error }, "Failed to send founder digest");
     throw new Error(`Resend error sending founder digest: ${JSON.stringify(error)}`);
   }
 
-  logger.info({ to: FOUNDER_DIGEST_RECIPIENT }, "Founder digest sent");
   return true;
 }
 
@@ -2051,20 +2076,26 @@ export async function sendPageFeedbackNotification(params: {
     return true;
   }
   if (!resend) {
-    logger.warn("RESEND_API_KEY not set — page feedback notification not sent");
+    notifySkipped(
+      { label: "pageFeedback", channel: "email", to: PAGE_FEEDBACK_RECIPIENT },
+      "RESEND_API_KEY not set",
+    );
     return false;
   }
 
-  const { error } = await resend.emails.send({
-    from: FROM_ADDRESS,
-    to: PAGE_FEEDBACK_RECIPIENT,
-    ...rendered,
-  });
+  const { error } = await attemptSend(
+    { label: "pageFeedback", channel: "email", to: PAGE_FEEDBACK_RECIPIENT },
+    () =>
+      resend!.emails.send({
+        from: FROM_ADDRESS,
+        to: PAGE_FEEDBACK_RECIPIENT,
+        ...rendered,
+      }),
+  );
 
   if (error) {
     throw new Error(`Resend error sending page feedback: ${JSON.stringify(error)}`);
   }
 
-  logger.info({ to: PAGE_FEEDBACK_RECIPIENT }, "Page feedback notification sent");
   return true;
 }
