@@ -87,11 +87,72 @@ function redactDestination(to: NotifyMeta["to"]): string {
   return redactContact(to);
 }
 
-/** A message for the log line. The error object itself goes in `err`. */
+/** A message for the log line. What of the error object is kept: see safeError. */
 export function describeError(err: unknown): string {
   if (err instanceof Error) return err.message;
   if (typeof err === "string") return err;
+  if (err && typeof err === "object" && typeof (err as { message?: unknown }).message === "string") {
+    return (err as { message: string }).message;
+  }
   return "unknown error";
+}
+
+// An email address anywhere in a string.
+const EMAIL_IN_TEXT = /[^\s<>()"'`,;:]+@([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+)/g;
+// A phone number anywhere in a string: 8–15 digits, optionally led by "+",
+// optionally split by single spaces. Dashes and dots are NOT separators, so a
+// date (2026-09-18), an IP or a version string is left alone; Twilio's own
+// error codes (21211) are too short to match.
+const MOBILE_IN_TEXT = /\+?\d(?: ?\d){7,14}/g;
+
+/**
+ * Take every contact point out of free text — a provider's error message, a
+ * reason string. Redacted the same way as the `to` field, so the line still
+ * lines up with itself.
+ */
+export function scrubContactPoints(text: string): string {
+  return text
+    .replace(EMAIL_IN_TEXT, (_m, domain: string) => `…@${domain}`)
+    .replace(MOBILE_IN_TEXT, (m) => redactMobile(m));
+}
+
+/**
+ * What of a provider's error is allowed onto the line.
+ *
+ * NEVER log the error object itself. Checked against real errors on 18
+ * September 2026 (PR #127 follow-up A):
+ *   • Twilio's 21211 message quotes the number back in full — "The 'To' number
+ *     +61… is not a valid phone number." — and pino's serialiser copies it into
+ *     both `message` and `stack`.
+ *   • A Twilio NETWORK failure throws axios's error, and pino copies every
+ *     enumerable field of it: `config.data` (the whole SMS body, invite link and
+ *     token included, plus the To number) and `config.headers.Authorization` —
+ *     the Twilio account SID and auth token, base64'd, which is not encryption.
+ *   • Resend's errors are plain `{ statusCode, name, message }` and did not echo
+ *     the recipient in a real rejected send, but nothing promises they never will.
+ * So: a whitelist of the diagnostic fields, every string scrubbed of contact
+ * points, and no stack, config, request, response or `details`.
+ */
+export function safeError(err: unknown): Record<string, unknown> {
+  if (err == null || typeof err !== "object") {
+    return { message: scrubContactPoints(describeError(err)) };
+  }
+  const e = err as Record<string, unknown>;
+  const out: Record<string, unknown> = {
+    type: err.constructor?.name ?? "unknown",
+    message: scrubContactPoints(describeError(err)),
+  };
+  if (typeof e.name === "string") out.name = e.name;
+  for (const key of ["status", "statusCode", "code"] as const) {
+    const v = e[key];
+    if (typeof v === "number") out[key] = v;
+    else if (typeof v === "string") out[key] = scrubContactPoints(v);
+  }
+  // Twilio's link to the error's docs page — a fixed URL per error code.
+  if (typeof e.moreInfo === "string" && e.moreInfo.startsWith("https://www.twilio.com/docs/")) {
+    out.moreInfo = e.moreInfo;
+  }
+  return out;
 }
 
 function context(meta: NotifyMeta): Record<string, unknown> {
@@ -117,10 +178,20 @@ export function notifySkipped(meta: NotifyMeta, reason: string): void {
   logger.warn({ ...context(meta), reason }, "Notification skipped");
 }
 
-/** It was attempted and did not go. */
+/**
+ * It was attempted and did not go. The error goes through safeError — never onto
+ * the line as-is — and the reason is scrubbed, because callers build it from
+ * the provider's own message.
+ */
 export function notifyFailed(meta: NotifyMeta, err: unknown, reason?: string): void {
   logger.error(
-    { ...context(meta), err, reason: reason ?? describeError(err) },
+    {
+      ...context(meta),
+      // Deliberately NOT the `err` key: pino runs its error serialiser on `err`,
+      // which re-adds a stack and overwrites `type`. This key is written as-is.
+      error: safeError(err),
+      reason: scrubContactPoints(reason ?? describeError(err)),
+    },
     "Notification failed",
   );
 }
@@ -148,7 +219,28 @@ export async function attemptSend<E extends { message: string }>(
     result = await send();
   } catch (err) {
     notifyFailed(meta, err, `the ${meta.channel} transport threw: ${describeError(err)}`);
-    return { error: { name: "transport_error", message: describeError(err) } };
+    // WHY THIS RETURNS THE ERROR INSTEAD OF RETURNING false (OR SWALLOWING IT)
+    // The obvious rule — "a failed send returns false and never throws past
+    // its caller" — is wrong here, and applying it would reintroduce the bug
+    // this module exists to fix. Each sender in email.ts keeps its OWN failure
+    // policy, and some of them throw ON PURPOSE, because their caller depends
+    // on the throw:
+    //   • routes/internal.ts:168 — the gift-delivery cron. sendGiftDeliveryEmail
+    //     throwing is what stamps the gift_messages row `failed` so it retries.
+    //     If this returned false instead, a failed $59 gift delivery would be
+    //     recorded as delivered and never retried.
+    //   • routes/auth.ts:54 — sendMagicLink throwing is what turns into the 503
+    //     the organiser sees. Swallowed, sign-in would claim "check your email"
+    //     for an email that never left.
+    // So a thrown transport error is converted into the SAME { error } shape a
+    // provider refusal takes, and handed back. Each sender's `if (error)` then
+    // does what it always did — throw, return false, or carry on. What this
+    // wrapper guarantees is only that the error REACHES that branch, and gets
+    // its one log line, instead of escaping into a void'd promise. Two
+    // philosophies in one file need a note; this is it.
+    return {
+      error: { name: "transport_error", message: scrubContactPoints(describeError(err)) },
+    };
   }
 
   if (result.error) {
