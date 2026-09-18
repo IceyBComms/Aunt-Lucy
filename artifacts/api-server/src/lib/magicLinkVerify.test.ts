@@ -220,8 +220,11 @@ describe("OrganiseVerify.tsx — loading the page does not sign in", () => {
     path.resolve(__dirname, "../../../rally/src/pages/OrganiseVerify.tsx"),
     "utf8",
   );
-  const effect = source.match(/useEffect\(\(\) => \{([\s\S]*?)\n {2}\}, \[/)?.[1];
-  const confirm = source.match(/async function confirmSignIn\(\) \{([\s\S]*?)\n {2}\}\n/)?.[1];
+  // \r?\n, not \n: the repo stores LF, but a Windows clone with core.autocrlf
+  // checks this page out CRLF, and a bare \n then silently fails to match —
+  // `confirm` comes back undefined and sign-in LOOKS broken when it is not (#124).
+  const effect = source.match(/useEffect\(\(\) => \{([\s\S]*?)\r?\n {2}\}, \[/)?.[1];
+  const confirm = source.match(/async function confirmSignIn\(\) \{([\s\S]*?)\r?\n {2}\}\r?\n/)?.[1];
 
   it("finds the on-load effect and the button handler (or this test is reading the wrong shape)", () => {
     expect(effect).toBeTruthy();
