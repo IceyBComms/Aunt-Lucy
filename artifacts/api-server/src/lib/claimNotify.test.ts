@@ -99,7 +99,13 @@ describe("sendClaimConfirmationToHelper", () => {
     await sendClaimConfirmationToHelper({ ...base, helperContact: "Jane Smith" });
 
     const [ctx, msg] = warn.mock.calls[0];
-    expect(ctx).toEqual({ slotId: "slot-abc-123" });
+    expect(ctx).toMatchObject({ slotId: "slot-abc-123", label: "helperClaimConfirmed" });
+    // Bug #123: the line now carries WHY it was skipped, so a skip can never
+    // again be mistaken for a send that blew up. Both used to be silence.
+    expect(msg).toBe("Notification skipped");
+    expect(String(ctx.reason)).toContain("neither an email address nor a phone number");
+    // Unchanged and the whole point of the original test: the contact here is a
+    // person's NAME, and none of it may reach the log.
     expect(JSON.stringify(ctx) + msg).not.toContain("Jane");
   });
 
