@@ -15,7 +15,7 @@ export default function SupportPage() {
   const [, params] = useRoute("/s/:slug");
   const slug = params?.slug || "";
   
-  const { data: page, isLoading, isError, notLiveYet, needsPin, submitPin, claimSlot, isClaiming } = useSupportPageFlow(slug);
+  const { data: page, isLoading, isError, notLiveYet, closed, needsPin, submitPin, claimSlot, isClaiming } = useSupportPageFlow(slug);
 
   const [pinInput, setPinInput] = useState("");
   const [pinSubmitted, setPinSubmitted] = useState(false);
@@ -131,7 +131,7 @@ export default function SupportPage() {
   // A page that exists but hasn't been switched on yet. This is checked before
   // the generic branch below so the visitor is told to hang on to their link
   // rather than that the page doesn't exist. Only a 404 carrying the server's
-  // own "isn't available yet" message gets here — see isNotLiveYetError in
+  // own "isn't available yet" message gets here — see supportPage404Reason in
   // use-rally.ts — so a guessed slug still falls through to the generic text.
   if (notLiveYet) {
     return (
@@ -147,6 +147,39 @@ export default function SupportPage() {
           <h1 className="text-3xl font-serif font-bold text-foreground mb-4">Not live yet</h1>
           <p className="text-muted-foreground text-lg leading-relaxed">
             The page is still being set up. Hang on to this link — it'll work as soon as it's switched on.
+          </p>
+        </motion.div>
+      </div>
+    );
+  }
+
+  // ⏸️ TODO(copy) — a page that has been CLOSED (bug #090).
+  //
+  // 🛑 IT NEVER SAYS WHY. Not that someone died, not that they no longer need
+  // help, not the occasion, not even the recipient's name. Someone arriving
+  // late is told it is over and nothing more — this screen is reachable by
+  // anyone holding the link, including people the family never invited.
+  //
+  // Until this branch existed a closed page read "Page not found — this page
+  // doesn't exist or has been removed", which was both untrue and a statement
+  // about the page. That was #028 for the third time (see the reason table in
+  // use-rally.ts), so it is fixed the same way the second one was rather than
+  // with a special case.
+  if (closed) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-6">
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="w-full max-w-md text-center"
+          data-testid="support-page-closed"
+        >
+          <div className="w-20 h-20 bg-secondary rounded-full flex items-center justify-center mx-auto mb-6 text-primary">
+            <Heart className="w-10 h-10" />
+          </div>
+          <h1 className="text-3xl font-serif font-bold text-foreground mb-4">This page has closed</h1>
+          <p className="text-muted-foreground text-lg leading-relaxed">
+            Thank you for coming to help. There's nothing more needed here.
           </p>
         </motion.div>
       </div>

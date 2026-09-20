@@ -181,7 +181,11 @@ describe("the claim, sent as the button sends it", () => {
 });
 
 describe("a page that isn't live cannot be claimed", () => {
-  for (const status of ["draft", "pending_approval", "closed"]) {
+  // ⚠️ "closed" LEFT THIS LIST ON 20 SEPTEMBER 2026 (bug #090) and has its own
+  // block below. It used to be refused with the not-live wording — "this link
+  // will work as soon as it's switched on" — which is true of a draft and a lie
+  // about a page that has stopped.
+  for (const status of ["draft", "pending_approval"]) {
     it(`${status}: refused with 409 page_not_live, nothing written, nothing sent`, async () => {
       page.status = status;
 
@@ -206,6 +210,32 @@ describe("a page that isn't live cannot be claimed", () => {
       expect(errors).toEqual([]);
     });
   }
+
+  it("closed: refused as CLOSED, never as not-yet-live and never as broken", async () => {
+    // Bug #090. An invitation to a closed page reads as closed: it does not
+    // promise the link will work later, it does not say the link is invalid or
+    // expired, and — ruling 6 — it says nothing about why and does not name the
+    // recipient.
+    page.status = "closed";
+
+    const err = (await claimInvite(TOKEN).catch((e: unknown) => e)) as {
+      status?: number;
+      reason?: string;
+      message?: string;
+    };
+
+    expect(err).toMatchObject({ status: 409, reason: "page_closed" });
+    expect(err.message).not.toMatch(/switched on|still being set up/);
+    expect(err.message).not.toMatch(/invalid|expired/i);
+    expect(err.message).not.toMatch(/Sam/);
+    // Nothing written, nothing sent — the same floor as the not-live branch.
+    expect(slot.isClaimed).toBe(false);
+    expect(slot.claimedByName).toBeNull();
+    expect(invite.claimedAt).toBeNull();
+    expect(writes).toEqual([]);
+    expect(claimedEvents).toEqual([]);
+    expect(errors).toEqual([]);
+  });
 
   it("a page row that has gone is refused the same way", async () => {
     const original = store.findByToken;

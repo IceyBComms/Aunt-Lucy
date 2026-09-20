@@ -104,7 +104,37 @@ export const supportPagesTable = pgTable("support_pages", {
   // 'active' once this timestamp passes. Null means "went live straight away".
   scheduledActivateAt: timestamp("scheduled_activate_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
+  // When the page was closed (bug #090). Null on every page that has never been
+  // closed; set alongside status = 'closed' and deliberately NOT cleared when a
+  // page is reopened — it is the record that it happened, not a live flag.
+  //
+  // Declared here since the original Replit-era commit and carried by no
+  // migration until 0017, which adds it IF NOT EXISTS for any database built
+  // from the migration files alone. See that file's header.
+  //
+  // ⚠️ Its real job is retention. Kate's lawyer has advised that personal
+  // information must not be kept once it is no longer needed; every retention
+  // rule will read "X after closure", and a date never written cannot be
+  // backfilled. The retention work itself does not exist yet.
   closedAt: timestamp("closed_at"),
+  // What the page WAS when it was closed, so reopening puts it BACK rather than
+  // publishing it (bug #090, migration 0017).
+  //
+  // Closing a page that isn't live yet is legitimate — a scheduled gift page
+  // whose recipient has died is one of the cases closure exists for — but
+  // reopening one to 'active' would make a half-built page live that nobody
+  // ever chose to publish. A draft closed and reopened is a draft again; a
+  // scheduled gift goes back to scheduled (its scheduled_activate_at is never
+  // touched, so the activation cron picks it up exactly as before).
+  //
+  // Plain TEXT, not the page_status enum, on purpose: this is a RECORD of a
+  // past value, not a live status. It must never take part in a status query,
+  // and it must survive the enum gaining or losing a value. Null means "closed
+  // before this shipped" — restoredStatus() in api-server's lib/pageClosure.ts
+  // falls back to 'active' and is the single place that decides so.
+  //
+  // NOT cleared on reopen: like closed_at, it is the record of what happened.
+  statusBeforeClose: text("status_before_close"),
 });
 
 export const insertSupportPageSchema = createInsertSchema(supportPagesTable).omit({

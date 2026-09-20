@@ -23,6 +23,9 @@ import type {
   AddManagerRequest,
   BereavementGateError,
   ClaimSlotRequest,
+  ClosePageRequest,
+  ClosePageResult,
+  ClosurePreview,
   ConflictError,
   CreateGiftRequest,
   CreateGiftResponse,
@@ -45,6 +48,7 @@ import type {
   OkResponse,
   OrganiserCardView,
   PinRequiredError,
+  ReopenPageResult,
   SealCardResponse,
   SignCardContext,
   SignCardRequest,
@@ -2261,6 +2265,272 @@ export const useGrantRecipientAccess = <
   TContext
 > => {
   return useMutation(getGrantRecipientAccessMutationOptions(options));
+};
+
+/**
+ * Feeds the confirm screen, which must NAME each person and the task they committed to — never a bare count. Computed on the server by the same rule the close route runs (lib/pageClosure.ts closureCancellations), so the list a family reads before pressing the button cannot drift from the list that is actually acted on.
+Only claims that are LIVE AND STILL AHEAD OF US appear: claimed, not already released, and the task has not yet happened. Never a task that has already happened, and never somebody who was invited and never claimed — they committed nothing.
+Read-only, and 410s on an already-closed page like every other /manage route.
+ * @summary Exactly who would be told if this page were closed now
+ */
+export const getGetClosurePreviewUrl = (token: string) => {
+  return `/api/manage/${token}/closure-preview`;
+};
+
+export const getClosurePreview = async (
+  token: string,
+  options?: RequestInit,
+): Promise<ClosurePreview> => {
+  return customFetch<ClosurePreview>(getGetClosurePreviewUrl(token), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetClosurePreviewQueryKey = (token: string) => {
+  return [`/api/manage/${token}/closure-preview`] as const;
+};
+
+export const getGetClosurePreviewQueryOptions = <
+  TData = Awaited<ReturnType<typeof getClosurePreview>>,
+  TError = ErrorType<NotFoundError>,
+>(
+  token: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getClosurePreview>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetClosurePreviewQueryKey(token);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getClosurePreview>>
+  > = ({ signal }) => getClosurePreview(token, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!token,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getClosurePreview>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetClosurePreviewQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getClosurePreview>>
+>;
+export type GetClosurePreviewQueryError = ErrorType<NotFoundError>;
+
+/**
+ * @summary Exactly who would be told if this page were closed now
+ */
+
+export function useGetClosurePreview<
+  TData = Awaited<ReturnType<typeof getClosurePreview>>,
+  TError = ErrorType<NotFoundError>,
+>(
+  token: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getClosurePreview>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetClosurePreviewQueryOptions(token, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Stops the page immediately and cancels the live, future claims, then tells people. A second state ("closed to new claims while existing ones run") was considered and DECLINED by Kate on 20 September 2026 — it is close to what you already get by not adding tasks.
+Any unrevoked grant-holder may close. The recipient may ALWAYS close and can never be locked out, so this route resolves the token itself rather than using the shared middleware, which filters revoked grants out in SQL. A helper holds a claim link, never a grant, and never can.
+Reversible — see /manage/{token}/reopen — but only the PAGE comes back.
+ * @summary Close the page — one button
+ */
+export const getClosePageUrl = (token: string) => {
+  return `/api/manage/${token}/close`;
+};
+
+export const closePage = async (
+  token: string,
+  closePageRequest?: ClosePageRequest,
+  options?: RequestInit,
+): Promise<ClosePageResult> => {
+  return customFetch<ClosePageResult>(getClosePageUrl(token), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(closePageRequest),
+  });
+};
+
+export const getClosePageMutationOptions = <
+  TError = ErrorType<NotFoundError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof closePage>>,
+    TError,
+    { token: string; data: BodyType<ClosePageRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof closePage>>,
+  TError,
+  { token: string; data: BodyType<ClosePageRequest> },
+  TContext
+> => {
+  const mutationKey = ["closePage"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof closePage>>,
+    { token: string; data: BodyType<ClosePageRequest> }
+  > = (props) => {
+    const { token, data } = props ?? {};
+
+    return closePage(token, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ClosePageMutationResult = NonNullable<
+  Awaited<ReturnType<typeof closePage>>
+>;
+export type ClosePageMutationBody = BodyType<ClosePageRequest>;
+export type ClosePageMutationError = ErrorType<NotFoundError>;
+
+/**
+ * @summary Close the page — one button
+ */
+export const useClosePage = <
+  TError = ErrorType<NotFoundError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof closePage>>,
+    TError,
+    { token: string; data: BodyType<ClosePageRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof closePage>>,
+  TError,
+  { token: string; data: BodyType<ClosePageRequest> },
+  TContext
+> => {
+  return useMutation(getClosePageMutationOptions(options));
+};
+
+/**
+ * Puts the page back to the status it HAD when it was closed — a draft reopens as a draft, a scheduled gift as scheduled — and clears nothing else. Reopening an unpublished page must never publish it, which is why support_pages.status_before_close is recorded at closure. It does NOT restore the cancelled claims — those tasks return to the list unclaimed and anyone who wants them claims again, so a helper who was told "this is cancelled" is never silently re-booked. It does not restore invitations that closure cancelled, and messages already sent cannot be unsent. The screen says all of that.
+ * @summary Reopen a closed page
+ */
+export const getReopenPageUrl = (token: string) => {
+  return `/api/manage/${token}/reopen`;
+};
+
+export const reopenPage = async (
+  token: string,
+  options?: RequestInit,
+): Promise<ReopenPageResult> => {
+  return customFetch<ReopenPageResult>(getReopenPageUrl(token), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getReopenPageMutationOptions = <
+  TError = ErrorType<NotFoundError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof reopenPage>>,
+    TError,
+    { token: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof reopenPage>>,
+  TError,
+  { token: string },
+  TContext
+> => {
+  const mutationKey = ["reopenPage"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof reopenPage>>,
+    { token: string }
+  > = (props) => {
+    const { token } = props ?? {};
+
+    return reopenPage(token, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ReopenPageMutationResult = NonNullable<
+  Awaited<ReturnType<typeof reopenPage>>
+>;
+
+export type ReopenPageMutationError = ErrorType<NotFoundError>;
+
+/**
+ * @summary Reopen a closed page
+ */
+export const useReopenPage = <
+  TError = ErrorType<NotFoundError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof reopenPage>>,
+    TError,
+    { token: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof reopenPage>>,
+  TError,
+  { token: string },
+  TContext
+> => {
+  return useMutation(getReopenPageMutationOptions(options));
 };
 
 /**

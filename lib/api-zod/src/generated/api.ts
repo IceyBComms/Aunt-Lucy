@@ -636,7 +636,17 @@ export const GetManageStateResponse = zod.object({
   role: zod.enum(["recipient", "manager"]),
   recipientName: zod.string(),
   slug: zod.string(),
-  status: zod.string(),
+  status: zod
+    .string()
+    .describe(
+      "'draft' | 'pending_approval' | 'active' | 'closed'. When it is 'closed' this response is REDUCED (bug #090): tasks, contacts, invites and managers come back empty and the invite-copy fields are null, because a closed page's \/manage permits exactly two things — seeing that it is closed, and reopening it. The cut is made on the server, not hidden in the client.",
+    ),
+  closedAt: zod
+    .date()
+    .nullish()
+    .describe(
+      'When the page was closed, or null if it never has been. Null-safe on purpose: a page closed before migration 0017 reached a database would have no date, and \"closed, we don\'t know when\" is a truthful screen — the client simply omits the line.',
+    ),
   occasion: zod
     .enum([
       "new_baby",
@@ -1125,6 +1135,104 @@ export const GrantRecipientAccessBody = zod
   .describe(
     "Give the affected person their own always-on recipient access (the section-E loop-in from the nudge).",
   );
+
+/**
+ * Feeds the confirm screen, which must NAME each person and the task they committed to — never a bare count. Computed on the server by the same rule the close route runs (lib/pageClosure.ts closureCancellations), so the list a family reads before pressing the button cannot drift from the list that is actually acted on.
+Only claims that are LIVE AND STILL AHEAD OF US appear: claimed, not already released, and the task has not yet happened. Never a task that has already happened, and never somebody who was invited and never claimed — they committed nothing.
+Read-only, and 410s on an already-closed page like every other /manage route.
+ * @summary Exactly who would be told if this page were closed now
+ */
+export const GetClosurePreviewParams = zod.object({
+  token: zod.coerce.string(),
+});
+
+export const GetClosurePreviewResponse = zod.object({
+  recipientName: zod.string(),
+  people: zod.array(
+    zod.object({
+      slotId: zod.string(),
+      name: zod
+        .string()
+        .nullable()
+        .describe("The helper's name as they gave it when claiming, if any."),
+      task: zod
+        .string()
+        .describe(
+          "The task as the product names it everywhere else (taskLabel).",
+        ),
+      when: zod
+        .string()
+        .describe(
+          '\"Friday 8 August at 3:00pm\", or \"whenever suits\" for an undated offer.',
+        ),
+      reachable: zod
+        .boolean()
+        .describe(
+          "False when the claim carries no contact point. Their claim is cancelled exactly like everyone else's; there is simply nowhere to send the message, and the screen has to be honest about that.",
+        ),
+    }),
+  ),
+});
+
+/**
+ * Stops the page immediately and cancels the live, future claims, then tells people. A second state ("closed to new claims while existing ones run") was considered and DECLINED by Kate on 20 September 2026 — it is close to what you already get by not adding tasks.
+Any unrevoked grant-holder may close. The recipient may ALWAYS close and can never be locked out, so this route resolves the token itself rather than using the shared middleware, which filters revoked grants out in SQL. A helper holds a claim link, never a grant, and never can.
+Reversible — see /manage/{token}/reopen — but only the PAGE comes back.
+ * @summary Close the page — one button
+ */
+export const ClosePageParams = zod.object({
+  token: zod.coerce.string(),
+});
+
+export const closePageBodyNoteMax = 1000;
+
+export const ClosePageBody = zod.object({
+  tellHelpers: zod
+    .boolean()
+    .optional()
+    .describe(
+      'Who does the telling. True (the default) sends each cancelled helper their message; false is \"I\'ll tell people myself\" — the same claims are cancelled and NOTHING is sent to the helpers, while the other grant-holders are still told either way.\nDefaults to TRUE when absent or malformed: choosing not to tell people is a deliberate act, and an old client or a retry must never produce the silent variant by accident. On a page about someone who has died this message may be the first many helpers hear, and some families want to make those calls themselves.',
+    ),
+  note: zod
+    .string()
+    .max(closePageBodyNoteMax)
+    .nullish()
+    .describe(
+      'The optional free-text the closer may add. EMPTY BY DEFAULT and never prefilled — prefilled text gets sent unread. It is appended to a FIXED FACT written by us that always sends and is not editable (the specific task this helper committed to is not going ahead), so a family who writes only \"thank you all so much\" can never leave somebody believing the school run is still on.\nNOT STORED. It is rendered into the outgoing messages and discarded; there is no column for it. It will collect sensitive detail, and the safest place for that is nowhere.',
+    ),
+});
+
+export const ClosePageResponse = zod.object({
+  ok: zod.boolean(),
+  cancelled: zod
+    .number()
+    .describe("How many live, future claims were cancelled."),
+  helpersTold: zod
+    .number()
+    .describe(
+      "How many helpers were messaged. Zero when tellHelpers was false.",
+    ),
+  othersTold: zod
+    .number()
+    .describe("How many other grant-holders were messaged. Never the closer."),
+});
+
+/**
+ * Puts the page back to the status it HAD when it was closed — a draft reopens as a draft, a scheduled gift as scheduled — and clears nothing else. Reopening an unpublished page must never publish it, which is why support_pages.status_before_close is recorded at closure. It does NOT restore the cancelled claims — those tasks return to the list unclaimed and anyone who wants them claims again, so a helper who was told "this is cancelled" is never silently re-booked. It does not restore invitations that closure cancelled, and messages already sent cannot be unsent. The screen says all of that.
+ * @summary Reopen a closed page
+ */
+export const ReopenPageParams = zod.object({
+  token: zod.coerce.string(),
+});
+
+export const ReopenPageResponse = zod.object({
+  ok: zod.boolean(),
+  status: zod
+    .enum(["draft", "pending_approval", "active"])
+    .describe(
+      "The status the page came back AS, which is what it was when it was closed — never a constant. A draft reopens as a draft and is still not live; a scheduled gift page reopens as a draft with its scheduled_activate_at untouched, so the activation cron picks it up exactly as before. Falls back to 'active' only when there is no record, i.e. a page closed before migration 0017 shipped.",
+    ),
+});
 
 /**
  * Stores the feedback and then notifies Kate. The ROW is written first and the email second, deliberately: the row is the record, the email is only the notification, and a send that fails must never lose the feedback nor show the person an error. Not gated on whether a task has been claimed — that rule decides whether the form is offered, not whether words are accepted. Multiple submissions per page are expected and allowed.

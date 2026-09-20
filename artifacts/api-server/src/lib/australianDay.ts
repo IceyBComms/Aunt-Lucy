@@ -41,3 +41,16 @@ export function soonDay(slotDate: string | null, now: Date = new Date()): SoonDa
   if (slotDate === nextDate(today)) return "tomorrow";
   return null;
 }
+
+/**
+ * "HH:MM:SS" for `now`, as a wall clock in Sydney shows it — the time-of-day
+ * sibling of sydneyDate above, and used for exactly one question: on a task
+ * dated TODAY, has its time been and gone? (lib/pageClosure.ts).
+ *
+ * en-GB with hour12 false is chosen for its stable 24-hour "HH:MM:SS" output,
+ * which sorts lexicographically against a stored slots.slot_time. The same
+ * daylight-saving caveat recorded at the top of this file applies.
+ */
+export function sydneyTime(now: Date): string {
+  return now.toLocaleTimeString("en-GB", { timeZone: TZ, hour12: false });
+}

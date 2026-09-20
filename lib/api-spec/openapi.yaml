@@ -838,6 +838,141 @@ paths:
               schema:
                 $ref: "#/components/schemas/NotFoundError"
 
+  /manage/{token}/closure-preview:
+    get:
+      operationId: getClosurePreview
+      tags: [manage]
+      summary: Exactly who would be told if this page were closed now
+      description: >-
+        Feeds the confirm screen, which must NAME each person and the task they
+        committed to — never a bare count. Computed on the server by the same
+        rule the close route runs (lib/pageClosure.ts closureCancellations), so
+        the list a family reads before pressing the button cannot drift from the
+        list that is actually acted on.
+
+        Only claims that are LIVE AND STILL AHEAD OF US appear: claimed, not
+        already released, and the task has not yet happened. Never a task that
+        has already happened, and never somebody who was invited and never
+        claimed — they committed nothing.
+
+        Read-only, and 410s on an already-closed page like every other /manage
+        route.
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Who would be told
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClosurePreview"
+        "401":
+          description: Invalid or revoked management token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotFoundError"
+        "410":
+          description: The page is already closed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotFoundError"
+
+  /manage/{token}/close:
+    post:
+      operationId: closePage
+      tags: [manage]
+      summary: Close the page — one button
+      description: >-
+        Stops the page immediately and cancels the live, future claims, then
+        tells people. A second state ("closed to new claims while existing ones
+        run") was considered and DECLINED by Kate on 20 September 2026 — it is
+        close to what you already get by not adding tasks.
+
+        Any unrevoked grant-holder may close. The recipient may ALWAYS close and
+        can never be locked out, so this route resolves the token itself rather
+        than using the shared middleware, which filters revoked grants out in
+        SQL. A helper holds a claim link, never a grant, and never can.
+
+        Reversible — see /manage/{token}/reopen — but only the PAGE comes back.
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClosePageRequest"
+      responses:
+        "200":
+          description: Closed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClosePageResult"
+        "401":
+          description: Invalid or revoked management token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotFoundError"
+        "409":
+          description: Already closed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotFoundError"
+
+  /manage/{token}/reopen:
+    post:
+      operationId: reopenPage
+      tags: [manage]
+      summary: Reopen a closed page
+      description: >-
+        Puts the page back to the status it HAD when it was closed — a draft
+        reopens as a draft, a scheduled gift as scheduled — and clears nothing
+        else. Reopening an unpublished page must never publish it, which is why
+        support_pages.status_before_close is recorded at closure. It does NOT
+        restore the cancelled claims — those tasks return to the list unclaimed
+        and anyone who wants them claims again, so a helper who was told "this
+        is cancelled" is never silently re-booked. It does not restore
+        invitations that closure cancelled, and messages already sent cannot be
+        unsent. The screen says all of that.
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Reopened
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReopenPageResult"
+        "401":
+          description: Invalid or revoked management token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotFoundError"
+        "409":
+          description: The page isn't closed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotFoundError"
+
   /manage/{token}/feedback:
     post:
       operationId: submitPageFeedback
@@ -1900,6 +2035,120 @@ components:
         - status
         - scheduledFor
 
+    ReopenPageResult:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        status:
+          type: string
+          enum: [draft, pending_approval, active]
+          description: >-
+            The status the page came back AS, which is what it was when it was
+            closed — never a constant. A draft reopens as a draft and is still
+            not live; a scheduled gift page reopens as a draft with its
+            scheduled_activate_at untouched, so the activation cron picks it up
+            exactly as before. Falls back to 'active' only when there is no
+            record, i.e. a page closed before migration 0017 shipped.
+      required:
+        - ok
+        - status
+
+    ClosurePersonToTell:
+      type: object
+      properties:
+        slotId:
+          type: string
+        name:
+          type: string
+          nullable: true
+          description: The helper's name as they gave it when claiming, if any.
+        task:
+          type: string
+          description: The task as the product names it everywhere else (taskLabel).
+        when:
+          type: string
+          description: >-
+            "Friday 8 August at 3:00pm", or "whenever suits" for an undated
+            offer.
+        reachable:
+          type: boolean
+          description: >-
+            False when the claim carries no contact point. Their claim is
+            cancelled exactly like everyone else's; there is simply nowhere to
+            send the message, and the screen has to be honest about that.
+      required:
+        - slotId
+        - name
+        - task
+        - when
+        - reachable
+
+    ClosurePreview:
+      type: object
+      properties:
+        recipientName:
+          type: string
+        people:
+          type: array
+          items:
+            $ref: "#/components/schemas/ClosurePersonToTell"
+      required:
+        - recipientName
+        - people
+
+    ClosePageRequest:
+      type: object
+      properties:
+        tellHelpers:
+          type: boolean
+          description: >-
+            Who does the telling. True (the default) sends each cancelled
+            helper their message; false is "I'll tell people myself" — the same
+            claims are cancelled and NOTHING is sent to the helpers, while the
+            other grant-holders are still told either way.
+
+            Defaults to TRUE when absent or malformed: choosing not to tell
+            people is a deliberate act, and an old client or a retry must never
+            produce the silent variant by accident. On a page about someone who
+            has died this message may be the first many helpers hear, and some
+            families want to make those calls themselves.
+        note:
+          type: string
+          maxLength: 1000
+          nullable: true
+          description: >-
+            The optional free-text the closer may add. EMPTY BY DEFAULT and
+            never prefilled — prefilled text gets sent unread. It is appended to
+            a FIXED FACT written by us that always sends and is not editable
+            (the specific task this helper committed to is not going ahead), so
+            a family who writes only "thank you all so much" can never leave
+            somebody believing the school run is still on.
+
+            NOT STORED. It is rendered into the outgoing messages and discarded;
+            there is no column for it. It will collect sensitive detail, and the
+            safest place for that is nowhere.
+
+    ClosePageResult:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        cancelled:
+          type: integer
+          description: How many live, future claims were cancelled.
+        helpersTold:
+          type: integer
+          description: How many helpers were messaged. Zero when tellHelpers was false.
+        othersTold:
+          type: integer
+          description: How many other grant-holders were messaged. Never the closer.
+      required:
+        - ok
+        - cancelled
+        - helpersTold
+        - othersTold
+
     ManageState:
       type: object
       properties:
@@ -1912,6 +2161,22 @@ components:
           type: string
         status:
           type: string
+          description: >-
+            'draft' | 'pending_approval' | 'active' | 'closed'. When it is
+            'closed' this response is REDUCED (bug #090): tasks, contacts,
+            invites and managers come back empty and the invite-copy fields are
+            null, because a closed page's /manage permits exactly two things —
+            seeing that it is closed, and reopening it. The cut is made on the
+            server, not hidden in the client.
+        closedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            When the page was closed, or null if it never has been. Null-safe on
+            purpose: a page closed before migration 0017 reached a database
+            would have no date, and "closed, we don't know when" is a truthful
+            screen — the client simply omits the line.
         occasion:
           oneOf:
             - $ref: "#/components/schemas/GiftOccasion"

@@ -41,7 +41,15 @@ beforeAll(async () => {
   // the real .env can never be the one in use. Nothing here opens a connection.
   process.env.DATABASE_URL = "postgres://nobody:nothing@127.0.0.1:1/none";
   ({ notifyRecipientOfTaskEvent } = await import("./item17Notify"));
-});
+  // ⚠️ EXPLICIT TIMEOUT, raised from vitest's 10s default on 20 Sep 2026.
+  // This hook cold-imports item17Notify's whole graph (db, Resend, Twilio) on a
+  // worker competing with every other file in the suite, and it crept past 10s
+  // once the suite grew. When it does, the WHOLE FILE fails with 29 skipped —
+  // which reads exactly like a broken test rather than a slow one, and that
+  // confusion is bug #124's whole lesson. The work here is an import: it opens
+  // no connection and waits on nothing real, so a longer ceiling cannot hide a
+  // hang that matters.
+}, 30_000);
 
 // 16 Sep 2026, 9:00am in Melbourne/Sydney (AEST, UTC+10).
 const WED_9AM = new Date("2026-09-15T23:00:00Z");
