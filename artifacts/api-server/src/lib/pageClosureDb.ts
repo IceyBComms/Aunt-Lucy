@@ -25,9 +25,10 @@ import { sendSms } from "./sms";
 import { isEmailAddress } from "./notifyTargets";
 import {
   CLOSED_PAGE_STATUS,
-  REOPENED_PAGE_STATUS,
   closureAudience,
   closureCancellations,
+  restoredStatus,
+  type RestorableStatus,
   type ClosureGrant,
   type ClosureSlot,
 } from "./pageClosure";
@@ -167,9 +168,18 @@ export async function performClosure(opts: {
   const { cancelled } = closureCancellations(opts.slots, now);
 
   // 1. STOP IT. Before anything is cancelled and before anyone is told.
+  //
+  // `statusBeforeClose` is written in the SAME statement that closes the page,
+  // so the two can never disagree: there is no window in which a page is closed
+  // with no record of what it was. It is what reopening restores — an
+  // unpublished page must come back unpublished, not go live.
   await db
     .update(supportPagesTable)
-    .set({ status: CLOSED_PAGE_STATUS, closedAt: now })
+    .set({
+      status: CLOSED_PAGE_STATUS,
+      closedAt: now,
+      statusBeforeClose: opts.page.status,
+    })
     .where(eq(supportPagesTable.id, opts.page.id));
 
   // 2. Cancel the claims. This happens whichever way ruling 3 went.
@@ -216,6 +226,7 @@ export async function performClosure(opts: {
     closerFirst,
     helpersTold: audience.helpers.length,
     tellHelpers: opts.tellHelpers,
+    occasion: opts.page.occasion ?? null,
   });
   for (const target of audience.others) {
     const contact = target.email ?? target.mobile;
@@ -260,16 +271,22 @@ export async function performClosure(opts: {
 /**
  * Reopen: the page comes back, the commitments do not.
  *
- * Sets the status and clears nothing else — `closed_at` deliberately stays, as
- * the record that it happened. Nothing here touches slots, so the cancelled
+ * Restores the status it had when it was closed and clears nothing else —
+ * `closed_at` and `status_before_close` both deliberately stay, as the record
+ * that it happened. Nothing here touches slots, so the cancelled
  * claims cannot return; nothing here touches helper_invites, so invitations
  * cancelled at closure stay cancelled. Both are ruling 5, and the reopen screen
  * says so rather than leaving whoever reopens to discover it.
  */
-export async function performReopen(page: SupportPage): Promise<void> {
+export async function performReopen(page: SupportPage): Promise<RestorableStatus> {
+  // ⚠️ NOT a constant. restoredStatus puts the page back to what it WAS — a
+  // draft returns as a draft, a scheduled gift returns as scheduled — so
+  // reopening can never publish something nobody chose to make live.
+  const status = restoredStatus(page);
   await db
     .update(supportPagesTable)
-    .set({ status: REOPENED_PAGE_STATUS })
+    .set({ status })
     .where(eq(supportPagesTable.id, page.id));
-  logger.info({ pageId: page.id }, "Page reopened");
+  logger.info({ pageId: page.id, status }, "Page reopened");
+  return status;
 }

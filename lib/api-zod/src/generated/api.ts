@@ -1218,7 +1218,7 @@ export const ClosePageResponse = zod.object({
 });
 
 /**
- * Sets the page back to active and clears nothing else. It does NOT restore the cancelled claims — those tasks return to the list unclaimed and anyone who wants them claims again, so a helper who was told "this is cancelled" is never silently re-booked. It does not restore invitations that closure cancelled, and messages already sent cannot be unsent. The screen says all of that.
+ * Puts the page back to the status it HAD when it was closed — a draft reopens as a draft, a scheduled gift as scheduled — and clears nothing else. Reopening an unpublished page must never publish it, which is why support_pages.status_before_close is recorded at closure. It does NOT restore the cancelled claims — those tasks return to the list unclaimed and anyone who wants them claims again, so a helper who was told "this is cancelled" is never silently re-booked. It does not restore invitations that closure cancelled, and messages already sent cannot be unsent. The screen says all of that.
  * @summary Reopen a closed page
  */
 export const ReopenPageParams = zod.object({
@@ -1227,6 +1227,11 @@ export const ReopenPageParams = zod.object({
 
 export const ReopenPageResponse = zod.object({
   ok: zod.boolean(),
+  status: zod
+    .enum(["draft", "pending_approval", "active"])
+    .describe(
+      "The status the page came back AS, which is what it was when it was closed — never a constant. A draft reopens as a draft and is still not live; a scheduled gift page reopens as a draft with its scheduled_activate_at untouched, so the activation cron picks it up exactly as before. Falls back to 'active' only when there is no record, i.e. a page closed before migration 0017 shipped.",
+    ),
 });
 
 /**

@@ -40,7 +40,17 @@ import { sydneyDate, sydneyTime } from "./australianDay";
 import type { NotifyTarget } from "./notifyTargets";
 
 export const CLOSED_PAGE_STATUS = "closed";
-export const REOPENED_PAGE_STATUS = "active";
+
+/**
+ * What a page falls back to when we have no record of what it was — a page
+ * closed before migration 0017 shipped. See restoredStatus below.
+ */
+export const DEFAULT_REOPENED_STATUS = "active";
+
+/** Every status a page may be RESTORED to. Deliberately excludes "closed". */
+export const RESTORABLE_STATUSES = ["draft", "pending_approval", "active"] as const;
+
+export type RestorableStatus = (typeof RESTORABLE_STATUSES)[number];
 
 /** The recipient's grant role — the one that can never be locked out. */
 export const RECIPIENT_GRANT_ROLE = "recipient";
@@ -62,6 +72,50 @@ export interface ClosureGrant {
 
 export interface ClosurePage {
   status: string;
+}
+
+/** A page as the reopen rule needs it. */
+export interface ReopenablePage {
+  status: string;
+  /** What it was when it was closed. Null on anything closed before 0017. */
+  statusBeforeClose: string | null;
+}
+
+/**
+ * WHAT DOES REOPENING PUT THE PAGE BACK TO?
+ *
+ * ⚠️ NOT ALWAYS "active", and this is the fault the first cut of closure had.
+ * Closing a page that is not yet live is LEGITIMATE and is one of the cases
+ * closure exists for — a scheduled gift page whose recipient has died is the
+ * example that decided it. But reopening one to 'active' would publish a
+ * half-built page that nobody ever chose to make live, skipping the publish
+ * guard (lib/pagePublish.ts) entirely. Banning the close would be the wrong
+ * fix; remembering what it was is the right one.
+ *
+ *   • a DRAFT closed and reopened is a draft again — still not live
+ *   • a SCHEDULED gift page goes back to scheduled: it is stored as a draft
+ *     with scheduled_activate_at set, closure never touches that timestamp,
+ *     and the activation cron (which filters on status 'draft') picks it up
+ *     again exactly as before
+ *   • an ACTIVE page comes back active, which is the common case
+ *
+ * TWO FALLBACKS, BOTH TO 'active':
+ *   • NULL — the page was closed before migration 0017 shipped, so there is no
+ *     record. It cannot be backfilled; 'active' is the only sensible guess, and
+ *     it is the status such a page almost certainly had, since closing a draft
+ *     needs the /manage screen this work also built.
+ *   • ANYTHING NOT RESTORABLE — a value the enum has since lost, or 'closed'
+ *     itself (which would strand the page shut and make the reopen button a
+ *     no-op that looks broken). Never trusted blindly.
+ */
+export function restoredStatus(
+  page: Pick<ReopenablePage, "statusBeforeClose">,
+): RestorableStatus {
+  const previous = page.statusBeforeClose?.trim();
+  if (previous && (RESTORABLE_STATUSES as readonly string[]).includes(previous)) {
+    return previous as RestorableStatus;
+  }
+  return DEFAULT_REOPENED_STATUS;
 }
 
 export type ClosureVerdict =
@@ -117,7 +171,8 @@ export function canClosePage(
 }
 
 /**
- * MAY THIS PERSON REOPEN IT? Same people, opposite status check.
+ * MAY THIS PERSON REOPEN IT? Same people, opposite status check. WHAT it is
+ * reopened TO is restoredStatus above, not a constant.
  *
  * ⚠️ Reopening restores the PAGE and nothing else. It cannot restore the
  * cancelled claims, and that is structural rather than a promise: closure

@@ -138,9 +138,19 @@ export function helperClosureSubject(recipientName: string): string {
  * ⏸️ TODO(copy) — what the OTHER grant-holders are told.
  *
  * They are told either way, which means this line has to carry the one thing
- * that actually differs: whether the helpers have heard. A sister who assumes
+ * that actually differs: WHETHER THE HELPERS HAVE HEARD. A sister who assumes
  * everybody was messaged, when her brother chose to ring them himself, will not
- * ring anyone.
+ * ring anyone. That sentence is the whole reason this message exists, and it is
+ * the grant-holders' equivalent of the helpers' fixed fact.
+ *
+ * TWO REGISTERS, on the same test the helper copy uses. The standard one is
+ * brisk and administrative, which is right for "we're fine now, thank you". The
+ * bereavement one drops the task-by-task framing — a co-manager on a page about
+ * someone who has died does not need "they aren't going ahead" itemised at
+ * them — and drops the cheerful "at any time" from the reopen line, because
+ * offering to restart a dead woman's meal roster in the same breath as telling
+ * her sister it has stopped reads appallingly. It still SAYS it can be
+ * reopened: ruling 5 is not negotiable by register.
  */
 export function grantHolderClosureMessage(params: {
   recipientName: string;
@@ -148,23 +158,38 @@ export function grantHolderClosureMessage(params: {
   helpersTold: number;
   /** False when the closer chose "I'll tell people myself". */
   tellHelpers: boolean;
+  /** The page's occasion, so a bereavement page takes the quieter wording. */
+  occasion?: string | null;
 }): { subject: string; body: string } {
   const recipientFirst = firstName(params.recipientName);
   const opening = closedClause(params.closerFirst, recipientFirst);
   const who = params.closerFirst ?? "They";
+  const gentle = isBereavement(params.occasion);
 
+  // The load-bearing sentence, in both registers.
   const tail = !params.tellHelpers
-    ? `${who === "They" ? "They're" : `${who} is`} letting the people who'd offered help know ` +
+    ? // ⚠️ Identical in both registers ON PURPOSE. This is the one thing the
+      // reader must act on, and softening it is how somebody ends up assuming
+      // the calls were made.
+      `${who === "They" ? "They're" : `${who} is`} letting the people who'd offered help know ` +
       `themselves, so nothing has been sent to them from here.`
     : params.helpersTold === 0
       ? `Nobody had a task booked, so there was nobody to tell.`
       : params.helpersTold === 1
-        ? `The one person who had a task booked has been told it isn't going ahead.`
-        : `The ${params.helpersTold} people who had tasks booked have been told they aren't going ahead.`;
+        ? gentle
+          ? `The one person who had a task booked has been let know.`
+          : `The one person who had a task booked has been told it isn't going ahead.`
+        : gentle
+          ? `The ${params.helpersTold} people who had tasks booked have been let know.`
+          : `The ${params.helpersTold} people who had tasks booked have been told they aren't going ahead.`;
+
+  const reopen = gentle
+    ? `There's nothing else you need to do. If it's ever wanted again, your own link will reopen it.`
+    : `It can be reopened at any time from your own link.`;
 
   return {
     subject: `${recipientFirst}'s page has closed`,
-    body: `${opening}. ${tail}\n\nIt can be reopened at any time from your own link.`,
+    body: `${opening}. ${tail}\n\n${reopen}`,
   };
 }
 

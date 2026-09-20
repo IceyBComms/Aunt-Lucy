@@ -1,6 +1,6 @@
--- 0017 — page closure (bug #090): record WHEN a page was closed.
+-- 0017 — page closure (bug #090): record WHEN a page was closed, and WHAT IT WAS.
 --
--- PURELY ADDITIVE. One nullable timestamp, no backfill, no default, no data
+-- PURELY ADDITIVE. Two nullable columns, no backfill, no defaults, no data
 -- touched. IF NOT EXISTS, so it is safe to re-run and safe on a database that
 -- already has the column.
 --
@@ -32,5 +32,26 @@
 BEGIN;
 
 ALTER TABLE "support_pages" ADD COLUMN IF NOT EXISTS "closed_at" timestamp;
+
+-- ── status_before_close ──────────────────────────────────────────────────────
+-- What the page WAS when it was closed, so reopening puts it back rather than
+-- publishing it.
+--
+-- ⚠️ THIS IS WHY IT CANNOT WAIT. Closing a page that is not yet live is
+-- legitimate and is one of the cases closure exists for — a scheduled gift page
+-- whose recipient has died. But reopening one to 'active' would publish a
+-- half-built page that nobody ever chose to make live. Without this column the
+-- only safe reopen is a guess, and the moment pages have been closed without it
+-- the record of what they should return to is GONE and cannot be backfilled.
+-- Same argument as closed_at above, for the same reason it is in the same file.
+--
+-- Nullable with no default and no backfill. NULL means "closed before this
+-- shipped" and the code falls back to 'active' — see restoredStatus() in
+-- api-server/src/lib/pageClosure.ts. Plain text rather than the page_status
+-- enum on purpose: it is a RECORD of a past value, not a live status, so it
+-- must never take part in a status query and must survive the enum gaining or
+-- losing a value (ALTER TYPE ... ADD VALUE is the shape that needed the 0003
+-- catch-up).
+ALTER TABLE "support_pages" ADD COLUMN IF NOT EXISTS "status_before_close" text;
 
 COMMIT;

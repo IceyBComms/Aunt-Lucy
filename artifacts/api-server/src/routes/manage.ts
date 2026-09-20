@@ -1416,8 +1416,9 @@ router.post("/manage/:token/close", async (req, res) => {
 /**
  * POST /manage/:token/reopen — the page comes back, the commitments do not.
  *
- * BOTH HALVES ARE TRUE AND THE SCREEN SAYS BOTH. Reopening restores the PAGE.
- * It does not restore the cancelled claims — those tasks return to the list
+ * BOTH HALVES ARE TRUE AND THE SCREEN SAYS BOTH. Reopening restores the PAGE —
+ * to the status it HAD when it was closed, so an unpublished page comes back
+ * unpublished rather than going live. It does not restore the cancelled claims — those tasks return to the list
  * unclaimed — it does not restore invitations cancelled at closure, and
  * messages already sent cannot be unsent.
  */
@@ -1433,8 +1434,10 @@ router.post("/manage/:token/reopen", async (req, res) => {
     return;
   }
 
-  await performReopen(context!.page);
-  res.json({ ok: true });
+  // The status it came back AS, not a constant: a draft reopens as a draft, a
+  // scheduled gift as scheduled. Returned so the client can say which.
+  const status = await performReopen(context!.page);
+  res.json({ ok: true, status });
 });
 
 // ─── Feedback: how did it actually go? ───────────────────────────────────────

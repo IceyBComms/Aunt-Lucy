@@ -7,6 +7,8 @@
  * to Aunt Lucy, and it never says why — not the exact sentences.
  */
 import { describe, expect, it } from "vitest";
+import fs from "node:fs";
+import path from "node:path";
 import {
   CLOSED_INVITE_MESSAGE,
   CLOSED_PAGE_MESSAGE,
@@ -63,6 +65,60 @@ describe("the fixed fact", () => {
   it("uses the recipient's own wording for a task when they wrote some", () => {
     const body = helperClosureMessage({ ...BASE, customLabel: "the Tuesday run to netball" });
     expect(body).toContain("the Tuesday run to netball");
+  });
+});
+
+describe("the task name is never a raw enum key", () => {
+  // ⚠️ A REAL LEAK, FOUND ON A REAL PAGE ON 16 SEPTEMBER. A cancellation
+  // message that prints "school_pickup" tells a helper the product is broken at
+  // the exact moment it is asking them to trust it.
+  //
+  // WHICH FUNCTION: taskLabel(slotType, customLabel) from lib/item17Copy.ts —
+  // the same lookup the shipped task-edit, task-cancel and helper-note messages
+  // use. Closure does not own a display-name table of its own, which is the
+  // point: "School pickup" is being renamed "School run" in a separate PR, and
+  // this message will follow that rename with no change here.
+  const EVERY_SLOT_TYPE = [
+    "meal",
+    "school_pickup",
+    "child_care",
+    "errand",
+    "dog_walking",
+    "shopping",
+    "visit",
+    "other",
+  ];
+
+  it("renders a display name for every slot type, with no underscores", () => {
+    for (const slotType of EVERY_SLOT_TYPE) {
+      const body = helperClosureMessage({ ...BASE, slotType, customLabel: null });
+      // The positive control: a real message was built.
+      expect(body).toContain("isn't going ahead");
+      // The absence: no raw key anywhere in it.
+      expect(body).not.toContain(slotType.includes("_") ? slotType : `${slotType}_`);
+      expect(body).not.toMatch(/\b[a-z]+_[a-z]+\b/);
+    }
+  });
+
+  it("an UNKNOWN slot type falls back to a display name, never to the key", () => {
+    // A value the enum gains before this copy is updated must not leak either.
+    const body = helperClosureMessage({ ...BASE, slotType: "gardening", customLabel: null });
+    expect(body).toContain("isn't going ahead");
+    expect(body).not.toContain("gardening");
+    expect(body).toContain("the task");
+  });
+
+  it("the closure preview uses the same function as the message", () => {
+    // Both call taskLabel, so the list a family reads on the confirm screen and
+    // the words the helper receives can never name the task differently.
+    const route = fs.readFileSync(
+      path.resolve(import.meta.dirname, "../routes/manage.ts"),
+      "utf8",
+    );
+    const previewAt = route.indexOf('"/manage/:token/closure-preview"');
+    const preview = route.slice(previewAt, previewAt + 1600);
+    expect(preview).toContain("taskLabel(s.slotType, s.customLabel)");
+    expect(preview).not.toContain("label: s.slotType");
   });
 });
 
@@ -195,6 +251,75 @@ describe("what the other grant-holders are told", () => {
     });
     expect(nobody.body).toContain("nobody to tell");
     expect(nobody.body).not.toContain("themselves");
+  });
+
+  it("takes the quieter register on a bereavement page", () => {
+    const standard = grantHolderClosureMessage({
+      recipientName: "Tammy Hughes",
+      closerFirst: "Fergus",
+      helpersTold: 3,
+      tellHelpers: true,
+      occasion: "new_baby",
+    });
+    const gentle = grantHolderClosureMessage({
+      recipientName: "Tammy Hughes",
+      closerFirst: "Fergus",
+      helpersTold: 3,
+      tellHelpers: true,
+      occasion: "bereavement",
+    });
+    // The standard one itemises; the gentle one does not.
+    expect(standard.body).toContain("told they aren't going ahead");
+    expect(gentle.body).toContain("have been let know");
+    expect(gentle.body).not.toContain("aren't going ahead");
+    // "at any time" is dropped: offering to restart a dead woman's meal roster
+    // in the same breath reads appallingly.
+    expect(standard.body).toContain("at any time");
+    expect(gentle.body).not.toContain("at any time");
+    // But ruling 5 survives the register — it still SAYS it can be reopened.
+    expect(gentle.body).toMatch(/reopen/i);
+  });
+
+  it("the 'I'll tell them myself' sentence is IDENTICAL in both registers", () => {
+    // ⚠️ Deliberate. It is the one thing the reader must act on, and softening
+    // it for a bereavement page is exactly how somebody ends up assuming the
+    // calls were already made.
+    const of = (occasion: string) =>
+      grantHolderClosureMessage({
+        recipientName: "Tammy Hughes",
+        closerFirst: "Fergus",
+        helpersTold: 0,
+        tellHelpers: false,
+        occasion,
+      }).body;
+    const sentence = "Fergus is letting the people who'd offered help know themselves, so nothing has been sent to them from here.";
+    expect(of("bereavement")).toContain(sentence);
+    expect(of("new_baby")).toContain(sentence);
+  });
+
+  it("a null occasion takes the standard register, which reads right anywhere", () => {
+    const body = grantHolderClosureMessage({
+      recipientName: "Tammy Hughes",
+      closerFirst: null,
+      helpersTold: 1,
+      tellHelpers: true,
+    }).body;
+    expect(body).toContain("Tammy's Aunt Lucy page has been closed");
+    expect(body).toMatch(/reopen/i);
+  });
+
+  it("never says why, in either register", () => {
+    for (const occasion of [null, "bereavement", "new_baby", "illness_recovery"]) {
+      const body = grantHolderClosureMessage({
+        recipientName: "Tammy Hughes",
+        closerFirst: "Fergus",
+        helpersTold: 2,
+        tellHelpers: true,
+        occasion,
+      }).body;
+      expect(body).toContain("has closed");
+      expect(body).not.toMatch(/died|death|passed away|funeral|illness|bereave/i);
+    }
   });
 
   it("tells them it can be reopened", () => {

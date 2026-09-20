@@ -117,6 +117,24 @@ export const supportPagesTable = pgTable("support_pages", {
   // rule will read "X after closure", and a date never written cannot be
   // backfilled. The retention work itself does not exist yet.
   closedAt: timestamp("closed_at"),
+  // What the page WAS when it was closed, so reopening puts it BACK rather than
+  // publishing it (bug #090, migration 0017).
+  //
+  // Closing a page that isn't live yet is legitimate — a scheduled gift page
+  // whose recipient has died is one of the cases closure exists for — but
+  // reopening one to 'active' would make a half-built page live that nobody
+  // ever chose to publish. A draft closed and reopened is a draft again; a
+  // scheduled gift goes back to scheduled (its scheduled_activate_at is never
+  // touched, so the activation cron picks it up exactly as before).
+  //
+  // Plain TEXT, not the page_status enum, on purpose: this is a RECORD of a
+  // past value, not a live status. It must never take part in a status query,
+  // and it must survive the enum gaining or losing a value. Null means "closed
+  // before this shipped" — restoredStatus() in api-server's lib/pageClosure.ts
+  // falls back to 'active' and is the single place that decides so.
+  //
+  // NOT cleared on reopen: like closed_at, it is the record of what happened.
+  statusBeforeClose: text("status_before_close"),
 });
 
 export const insertSupportPageSchema = createInsertSchema(supportPagesTable).omit({

@@ -463,6 +463,24 @@ export interface ManageInvite {
   claimedAt?: string | null;
 }
 
+/**
+ * The status the page came back AS, which is what it was when it was closed — never a constant. A draft reopens as a draft and is still not live; a scheduled gift page reopens as a draft with its scheduled_activate_at untouched, so the activation cron picks it up exactly as before. Falls back to 'active' only when there is no record, i.e. a page closed before migration 0017 shipped.
+ */
+export type ReopenPageResultStatus =
+  (typeof ReopenPageResultStatus)[keyof typeof ReopenPageResultStatus];
+
+export const ReopenPageResultStatus = {
+  draft: "draft",
+  pending_approval: "pending_approval",
+  active: "active",
+} as const;
+
+export interface ReopenPageResult {
+  ok: boolean;
+  /** The status the page came back AS, which is what it was when it was closed — never a constant. A draft reopens as a draft and is still not live; a scheduled gift page reopens as a draft with its scheduled_activate_at untouched, so the activation cron picks it up exactly as before. Falls back to 'active' only when there is no record, i.e. a page closed before migration 0017 shipped. */
+  status: ReopenPageResultStatus;
+}
+
 export interface ClosurePersonToTell {
   slotId: string;
   /** The helper's name as they gave it when claiming, if any. */

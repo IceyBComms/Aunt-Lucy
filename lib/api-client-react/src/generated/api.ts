@@ -48,6 +48,7 @@ import type {
   OkResponse,
   OrganiserCardView,
   PinRequiredError,
+  ReopenPageResult,
   SealCardResponse,
   SignCardContext,
   SignCardRequest,
@@ -2448,7 +2449,7 @@ export const useClosePage = <
 };
 
 /**
- * Sets the page back to active and clears nothing else. It does NOT restore the cancelled claims — those tasks return to the list unclaimed and anyone who wants them claims again, so a helper who was told "this is cancelled" is never silently re-booked. It does not restore invitations that closure cancelled, and messages already sent cannot be unsent. The screen says all of that.
+ * Puts the page back to the status it HAD when it was closed — a draft reopens as a draft, a scheduled gift as scheduled — and clears nothing else. Reopening an unpublished page must never publish it, which is why support_pages.status_before_close is recorded at closure. It does NOT restore the cancelled claims — those tasks return to the list unclaimed and anyone who wants them claims again, so a helper who was told "this is cancelled" is never silently re-booked. It does not restore invitations that closure cancelled, and messages already sent cannot be unsent. The screen says all of that.
  * @summary Reopen a closed page
  */
 export const getReopenPageUrl = (token: string) => {
@@ -2458,8 +2459,8 @@ export const getReopenPageUrl = (token: string) => {
 export const reopenPage = async (
   token: string,
   options?: RequestInit,
-): Promise<OkResponse> => {
-  return customFetch<OkResponse>(getReopenPageUrl(token), {
+): Promise<ReopenPageResult> => {
+  return customFetch<ReopenPageResult>(getReopenPageUrl(token), {
     ...options,
     method: "POST",
   });

@@ -22,6 +22,7 @@ import {
   closureAudience,
   closureCancellations,
   hasAlreadyHappened,
+  restoredStatus,
   type ClosureGrant,
   type ClosureSlot,
 } from "./pageClosure";
@@ -121,6 +122,57 @@ describe("who may close a page", () => {
     // holding queued invitations, is exactly the thing somebody may want
     // stopped before it starts.
     expect(canClosePage(RECIPIENT, { status: "draft" })).toEqual({ ok: true });
+  });
+});
+
+// ─── What reopening puts the page BACK to (Kate's ruling, 20 Sep 2026) ───────
+
+describe("what reopening restores", () => {
+  // ⚠️ NOT always "active". Closing a page that isn't live yet is legitimate —
+  // a scheduled gift page whose recipient has died is the case that decided it
+  // — but reopening one to 'active' would publish a half-built page nobody
+  // chose to make live, skipping the publish guard entirely.
+
+  it("an ACTIVE page closed and reopened comes back active", () => {
+    expect(restoredStatus({ statusBeforeClose: "active" })).toBe("active");
+  });
+
+  it("a DRAFT closed and reopened is still a DRAFT, and is NOT live", () => {
+    const restored = restoredStatus({ statusBeforeClose: "draft" });
+    expect(restored).toBe("draft");
+    // The absence that matters, beside the positive control above: it is not
+    // the live status. /s/:slug refuses anything that isn't 'active'.
+    expect(restored).not.toBe("active");
+  });
+
+  it("a SCHEDULED GIFT page goes back to scheduled", () => {
+    // A scheduled gift page IS a draft carrying scheduled_activate_at
+    // (gifts.ts: `status: scheduledActivateAt ? "draft" : "active"`). Closure
+    // never touches that timestamp, so restoring 'draft' hands it straight back
+    // to the activation cron, which filters on exactly that status.
+    const scheduled = { statusBeforeClose: "draft", scheduledActivateAt: new Date("2026-10-01") };
+    expect(restoredStatus(scheduled)).toBe("draft");
+    // And the thing that makes it "scheduled" rather than merely "draft" is
+    // untouched by anything in this module.
+    expect(scheduled.scheduledActivateAt).toEqual(new Date("2026-10-01"));
+  });
+
+  it("pending_approval round-trips too", () => {
+    expect(restoredStatus({ statusBeforeClose: "pending_approval" })).toBe("pending_approval");
+  });
+
+  it("NULL falls back to active — a page closed before migration 0017", () => {
+    // It cannot be backfilled: the moment it refers to has gone.
+    expect(restoredStatus({ statusBeforeClose: null })).toBe("active");
+  });
+
+  it("never restores to 'closed', which would strand the page shut", () => {
+    // A reopen button that leaves the page closed looks broken and is the one
+    // failure mode worse than reopening to the wrong open status.
+    expect(restoredStatus({ statusBeforeClose: "closed" })).toBe("active");
+    // Same for a value the enum has since lost, or junk.
+    expect(restoredStatus({ statusBeforeClose: "archived" })).toBe("active");
+    expect(restoredStatus({ statusBeforeClose: "   " })).toBe("active");
   });
 });
 
@@ -365,7 +417,12 @@ describe("the route still calls the rule", () => {
     // Two implementations of "which claims are live and still ahead of us"
     // would drift, and the one that drifted would be the one a family read
     // before pressing the button.
-    const previewAt = route.indexOf('router.get(\n  "/manage/:token/closure-preview"');
+    // ⚠️ NEWLINE-AGNOSTIC, and that is bug #124's lesson applied. This clone
+    // has core.autocrlf true and no .gitattributes, so a source file is CRLF on
+    // disk and LF in the repo. A pattern spanning a line break matches in one and
+    // not the other — this exact assertion went red on a working tree that had
+    // merely been checked out twice. Match within ONE line, never across.
+    const previewAt = route.indexOf('"/manage/:token/closure-preview"');
     expect(previewAt).toBeGreaterThan(-1);
     expect(route.indexOf("closureCancellations(", previewAt)).toBeGreaterThan(previewAt);
     expect(dbHalf).toContain("closureCancellations(");
@@ -387,11 +444,22 @@ describe("the route still calls the rule", () => {
     expect(closeRoute).toContain("loadClosureContext(");
   });
 
-  it("closing writes the status AND the date; reopening writes only the status", () => {
-    expect(dbHalf).toContain("status: CLOSED_PAGE_STATUS, closedAt: now");
+  it("closing records the date AND what the page was, in ONE statement", () => {
+    // In one statement so the two can never disagree: there is no window in
+    // which a page is closed with no record of what it should return to.
+    const closeAt = dbHalf.indexOf("status: CLOSED_PAGE_STATUS");
+    expect(closeAt).toBeGreaterThan(-1);
+    const statement = dbHalf.slice(closeAt, closeAt + 260);
+    expect(statement).toContain("closedAt: now");
+    expect(statement).toContain("statusBeforeClose: opts.page.status");
+  });
+
+  it("reopening asks restoredStatus rather than setting a constant", () => {
     const reopenAt = dbHalf.indexOf("export async function performReopen");
     const reopenBody = dbHalf.slice(reopenAt);
-    expect(reopenBody).toContain("status: REOPENED_PAGE_STATUS");
+    expect(reopenBody).toContain("restoredStatus(page)");
+    // ⚠️ The fault this replaced: reopening always going live.
+    expect(reopenBody).not.toMatch(/status: ["']active["']/);
     // ⚠️ Ruling 5. Reopening must not put the claims back, and the cheapest
     // proof of that is that it does not touch the slots table at all.
     expect(reopenBody).not.toContain("slotsTable");
