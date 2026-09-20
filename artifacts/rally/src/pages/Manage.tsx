@@ -10,6 +10,8 @@ import {
   Trash2,
   Clock,
   Pencil,
+  Lock,
+  RotateCcw,
 } from "lucide-react";
 import {
   useGetManageState,
@@ -26,6 +28,10 @@ import {
   useRevokeManager,
   useGrantRecipientAccess,
   useSubmitPageFeedback,
+  useClosePage,
+  useReopenPage,
+  useGetClosurePreview,
+  getGetClosurePreviewQueryKey,
   ApiError,
   type InvitePreview,
   type ManageTaskSummary,
@@ -43,6 +49,7 @@ import {
 } from "@/components/ui/dialog-framer";
 import { family as copy } from "@/lib/item17Copy";
 import { feedback as fb } from "@/lib/feedbackCopy";
+import { closure as closeCopy } from "@/lib/pageClosureCopy";
 import {
   LIFT_WAIT_MODES,
   LIFT_WAIT_MODE_LABELS,
@@ -145,6 +152,27 @@ export function Manage() {
   // to clear the boxes and flip to the thank-you in the same beat, so it does
   // both there rather than splitting the two halves across two callbacks.
   const submitFeedback = useSubmitPageFeedback();
+
+  // ── Closing the page (bug #090) ───────────────────────────────────────────
+  // The preview is fetched only while the confirm dialog is open: it is the
+  // list of real people this decision affects, and there is no reason to pull
+  // it on every visit to the management screen.
+  const [closing, setClosing] = useState(false);
+  // Ruling 3. Default "let them know" — choosing silence is the deliberate act,
+  // so it is never what a mis-tap or a half-loaded screen produces.
+  const [tellHelpers, setTellHelpers] = useState(true);
+  // Ruling 4(b). EMPTY, and nothing ever writes into it but the person typing.
+  const [closeNote, setCloseNote] = useState("");
+  const closePage = useClosePage({ mutation: { onSuccess: invalidate } });
+  const reopenPage = useReopenPage({ mutation: { onSuccess: invalidate } });
+  const closurePreview = useGetClosurePreview(token, {
+    query: {
+      queryKey: getGetClosurePreviewQueryKey(token),
+      enabled: closing && !!token,
+      retry: false,
+      staleTime: 0,
+    },
+  });
 
   // Item 17 — task edit / cancel. `editing` / `cancelling` hold the task whose
   // dialog is open; `flash` shows the shared "Done — Aunt Lucy's on it." line.
@@ -326,6 +354,69 @@ export function Manage() {
         <p className="text-[1.05rem] text-[#52493f]">
           This management link isn't valid or has been turned off.
         </p>
+        <SiteFooter compact />
+      </div>
+    );
+  }
+
+  // ── A CLOSED PAGE GETS A REDUCED SCREEN (bug #090) ───────────────────────
+  //
+  // Kate's ruling, 20 September 2026: on a closed page /manage permits exactly
+  // two things — seeing that it is closed (and when), and reopening it. No task
+  // editing, no contacts, no invite copy.
+  //
+  // This branch is a second gate, not the only one: the SERVER already sends
+  // empty task/contact/invite lists for a closed page, so none of that data
+  // reaches the browser to be hidden. Returning here is what stops the rest of
+  // this component rendering a stack of empty sections.
+  if (data.status === "closed") {
+    const closedOn = data.closedAt
+      ? new Date(data.closedAt).toLocaleDateString("en-AU", {
+          weekday: "long",
+          day: "numeric",
+          month: "long",
+          year: "numeric",
+        })
+      : null;
+    return (
+      <div className="mx-auto max-w-[34rem] px-5 py-10" data-testid="manage-closed">
+        <header className="mb-8 text-center">
+          <p className="text-[0.72rem] font-semibold uppercase tracking-[0.22em] text-[#d15b3e]">
+            {data.recipientName}'s page
+          </p>
+          <div className="mx-auto mt-5 flex h-14 w-14 items-center justify-center rounded-full bg-[#f1eae0] text-[#8b7e74]">
+            <Lock className="h-6 w-6" />
+          </div>
+          <h1 className="mt-4 font-serif text-[1.9rem] font-semibold text-[#2c2c2c]">
+            {closeCopy.closedTitle}
+          </h1>
+          {closedOn && (
+            <p className="mt-2 text-[0.9rem] text-[#8b7e74]">{closeCopy.closedOn(closedOn)}</p>
+          )}
+          <p className="mx-auto mt-3 max-w-[34ch] text-[0.97rem] leading-relaxed text-[#52493f]">
+            {closeCopy.closedBody}
+          </p>
+        </header>
+
+        <section className="rounded-[1.1rem] border border-[#e7ddd0] bg-white px-5 py-5">
+          {/* Both halves, again, at the point of acting on it. */}
+          <p className="mb-4 text-[0.9rem] leading-relaxed text-[#8b7e74]">
+            {closeCopy.reopenWarning}
+          </p>
+          <button
+            type="button"
+            onClick={() => reopenPage.mutate({ token })}
+            disabled={reopenPage.isPending}
+            className="inline-flex items-center gap-2 rounded-full bg-[#2d6a4f] px-5 py-2.5 text-[0.95rem] font-semibold text-white disabled:opacity-60"
+          >
+            <RotateCcw className="h-4 w-4" />
+            {reopenPage.isPending ? closeCopy.reopening : closeCopy.reopenButton}
+          </button>
+          {reopenPage.isError && (
+            <p className="mt-3 text-[0.88rem] text-[#c0563a]">{closeCopy.failed}</p>
+          )}
+        </section>
+
         <SiteFooter compact />
       </div>
     );
@@ -1332,6 +1423,35 @@ export function Manage() {
         </section>
       )}
 
+      {/* ── Closing this page (bug #090) ──────────────────────────────────
+          ONE closing action, not two, and neither button is red — red is a
+          currency here, and stopping a page is considered and reversible, not
+          destructive. Sits last, after everything that runs the page. */}
+      <section className="mb-7 rounded-[1.1rem] border border-[#e7ddd0] bg-white px-5 py-5">
+        <h2 className="font-serif text-[1.15rem] font-semibold text-[#2c2c2c]">
+          {closeCopy.sectionTitle}
+        </h2>
+        <p className="mt-2 text-[0.93rem] leading-relaxed text-[#8b7e74]">
+          {closeCopy.sectionBody}
+        </p>
+        <button
+          type="button"
+          data-testid="open-close-dialog"
+          onClick={() => {
+            // Reset both choices every time it is opened, so a previous,
+            // abandoned attempt can never leave the silent option armed or an
+            // old note sitting in the box.
+            setTellHelpers(true);
+            setCloseNote("");
+            setClosing(true);
+          }}
+          className="mt-4 inline-flex items-center gap-2 rounded-full border border-[#d8cbbb] px-5 py-2.5 text-[0.95rem] font-semibold text-[#52493f]"
+        >
+          <Lock className="h-4 w-4" />
+          {closeCopy.openButton}
+        </button>
+      </section>
+
       <div className="mt-8 text-center">
         <a
           href={`/s/${data.slug}`}
@@ -1341,6 +1461,142 @@ export function Manage() {
           <ArrowRight className="h-4 w-4" />
         </a>
       </div>
+
+      {/* ── The confirm screen (bug #090) ─────────────────────────────────
+          It NAMES each person and the task they committed to, and how many —
+          Kate's 22 August ruling: it stops immediately, THEN shows who is
+          already committed. Not a countdown, not a delay. */}
+      <Dialog open={closing} onOpenChange={(o) => !o && setClosing(false)}>
+        <DialogHeader>
+          <DialogTitle>{closeCopy.confirmTitle}</DialogTitle>
+        </DialogHeader>
+
+        <div className="flex flex-col gap-5 text-left" data-testid="close-confirm">
+          {closurePreview.isLoading ? (
+            <Loader2 className="h-5 w-5 animate-spin text-[#2d6a4f]" />
+          ) : (
+            <div>
+              <p className="text-[0.95rem] leading-relaxed text-[#52493f]">
+                {(closurePreview.data?.people.length ?? 0) === 0
+                  ? closeCopy.confirmNobody
+                  : closeCopy.confirmSomeone(closurePreview.data!.people.length)}
+              </p>
+              {(closurePreview.data?.people.length ?? 0) > 0 && (
+                <ul className="mt-3 flex flex-col gap-2" data-testid="close-people">
+                  {closurePreview.data!.people.map((person) => (
+                    <li
+                      key={person.slotId}
+                      className="rounded-[0.7rem] border border-[#e7ddd0] bg-[#faf7f2] px-3 py-2 text-[0.92rem] text-[#52493f]"
+                    >
+                      <strong className="font-semibold">{person.name ?? "Someone"}</strong>
+                      {" — "}
+                      {person.task}, {person.when}
+                      {/* Honest about the one we cannot reach, rather than
+                          quietly counting them among the told. */}
+                      {!person.reachable && (
+                        <span className="block text-[0.82rem] text-[#8b7e74]">
+                          {closeCopy.unreachable}
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+
+          {/* Ruling 3 — the closer chooses who does the telling. Offered even
+              when nobody is booked: the choice is about the page, and a list
+              that is empty right now may not have been a moment ago. */}
+          <fieldset className="flex flex-col gap-2">
+            <legend className="mb-1 text-[0.85rem] font-semibold text-[#2c2c2c]">
+              {closeCopy.tellingTitle}
+            </legend>
+            {[
+              { value: true, label: closeCopy.tellOptionUs, hint: closeCopy.tellOptionUsHint },
+              { value: false, label: closeCopy.tellOptionMe, hint: closeCopy.tellOptionMeHint },
+            ].map((option) => (
+              <label
+                key={String(option.value)}
+                className="flex cursor-pointer gap-2.5 rounded-[0.7rem] border border-[#e7ddd0] px-3 py-2.5"
+              >
+                <input
+                  type="radio"
+                  name="tellHelpers"
+                  className="mt-1"
+                  checked={tellHelpers === option.value}
+                  onChange={() => setTellHelpers(option.value)}
+                />
+                <span>
+                  <span className="block text-[0.93rem] font-semibold text-[#2c2c2c]">
+                    {option.label}
+                  </span>
+                  <span className="block text-[0.85rem] text-[#8b7e74]">{option.hint}</span>
+                </span>
+              </label>
+            ))}
+          </fieldset>
+
+          {/* Ruling 4(b) — EMPTY BY DEFAULT, never prefilled, and the
+              placeholder says what the box is for without suggesting what to
+              write. The fixed fact goes out whether or not this is filled in;
+              the hint below says so, because somebody who believes their own
+              words are the whole message will write only their own words. */}
+          <label className="flex flex-col gap-1.5">
+            <span className="text-[0.85rem] font-semibold text-[#2c2c2c]">
+              {closeCopy.noteLabel}
+            </span>
+            <textarea
+              value={closeNote}
+              onChange={(e) => setCloseNote(e.target.value)}
+              placeholder={closeCopy.notePlaceholder}
+              rows={3}
+              maxLength={1000}
+              data-testid="close-note"
+              className="w-full rounded-[0.7rem] border border-border bg-background px-3 py-2.5 text-[0.95rem] text-foreground focus:border-primary focus:outline-none"
+            />
+            <span className="text-[0.82rem] leading-relaxed text-[#8b7e74]">
+              {closeCopy.noteHint}
+            </span>
+          </label>
+
+          {/* Ruling 5 — BOTH HALVES, before the button, not after it. */}
+          <p className="text-[0.85rem] leading-relaxed text-[#8b7e74]">
+            {closeCopy.reversible}
+          </p>
+
+          {closePage.isError && (
+            <p className="text-[0.88rem] text-[#c0563a]">{closeCopy.failed}</p>
+          )}
+
+          <div className="flex gap-3">
+            <button
+              type="button"
+              data-testid="confirm-close"
+              disabled={closePage.isPending}
+              onClick={() =>
+                closePage.mutate(
+                  {
+                    token,
+                    data: { tellHelpers, note: closeNote.trim() || null },
+                  },
+                  { onSuccess: () => setClosing(false) },
+                )
+              }
+              className="rounded-full bg-[#2d6a4f] px-5 py-2.5 text-[0.95rem] font-semibold text-white disabled:opacity-60"
+            >
+              {closePage.isPending ? closeCopy.closing : closeCopy.confirmButton}
+            </button>
+            <button
+              type="button"
+              onClick={() => setClosing(false)}
+              className="rounded-full border border-[#d8cbbb] px-5 py-2.5 text-[0.95rem] font-semibold text-[#52493f]"
+            >
+              {closeCopy.cancelButton}
+            </button>
+          </div>
+        </div>
+      </Dialog>
 
       {/* Edit task dialog (Item 17) */}
       <Dialog open={editing !== null} onOpenChange={(o) => !o && setEditing(null)}>

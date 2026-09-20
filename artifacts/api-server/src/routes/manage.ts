@@ -21,8 +21,17 @@ import {
 } from "../lib/accessGrants";
 import {
   requireManagementToken,
+  requireManagementTokenAllowingClosed,
   type ManagementRequest,
 } from "../middleware/requireManagementToken";
+import { canClosePage, canReopenPage, closureCancellations } from "../lib/pageClosure";
+import {
+  asClosureGrant,
+  loadClosureContext,
+  loadClosureSlots,
+  performClosure,
+  performReopen,
+} from "../lib/pageClosureDb";
 import { getAppBaseUrl } from "../lib/appUrl";
 import { firstName } from "../lib/giftFulfilment";
 import { logger } from "../lib/logger";
@@ -132,8 +141,71 @@ router.get("/welcome/:token", requireManagementToken as any, async (req, res) =>
   });
 });
 
-router.get("/manage/:token", requireManagementToken as any, async (req, res) => {
-  const { pageId, grantId, grantRole } = req as unknown as ManagementRequest;
+router.get("/manage/:token", requireManagementTokenAllowingClosed as any, async (req, res) => {
+  const { pageId, grantId, grantRole, pageClosed } = req as unknown as ManagementRequest;
+
+  // ── A CLOSED PAGE SERVES A REDUCED SCREEN, AND THE REDUCTION IS DONE HERE ──
+  //
+  // Kate's ruling, 20 September 2026: on a closed page /manage permits exactly
+  // two things — seeing that it is closed (and when), and reopening it.
+  // Everything else stays 410, which every mutating route below gets for free
+  // from the ordinary middleware.
+  //
+  // Letting the READ through does not mean the management UI renders. It is cut
+  // off at the SERVER, not merely hidden in the browser: no tasks, no contacts,
+  // no invitations and no invite copy leave the machine for a closed page. A
+  // closed page is one that has stopped, and a screen offering to edit its
+  // school pickup would be the product arguing with itself.
+  if (pageClosed) {
+    const closedPage = await db.query.supportPagesTable.findFirst({
+      where: eq(supportPagesTable.id, pageId),
+      columns: {
+        recipientName: true,
+        occasion: true,
+        slug: true,
+        status: true,
+        closedAt: true,
+        recipientPronouns: true,
+      },
+    });
+    if (!closedPage) {
+      res.status(404).json({ error: "Page not found." });
+      return;
+    }
+    res.json({
+      role: grantRole,
+      recipientName: closedPage.recipientName,
+      status: closedPage.status,
+      // Null-safe on purpose: a page closed by a build that predates migration
+      // 0017 landing would have no date, and "closed, we don't know when" is a
+      // truthful screen. The client simply omits the line.
+      closedAt: closedPage.closedAt?.toISOString() ?? null,
+      slug: closedPage.slug,
+      occasion: closedPage.occasion ?? null,
+      recipientPronouns: closedPage.recipientPronouns,
+      // Everything a running page would carry, emptied. The client renders the
+      // closed screen off `status`; these keep the response shape stable for
+      // the generated types rather than describing anything real.
+      managers: [],
+      recipientHasOwnAccess: false,
+      feedbackVisible: false,
+      feedbackGiven: false,
+      cardKeepsakeUrl: null,
+      situationLine: null,
+      situationLineDefault: "",
+      trustedLine: null,
+      trustedLineDefault: "",
+      babyStage: null,
+      recipientEmail: null,
+      recipientMobile: null,
+      bereavement: closedPage.occasion === "bereavement",
+      shareLink: `${getAppBaseUrl()}/s/${closedPage.slug}`,
+      tasks: [],
+      contacts: [],
+      invites: [],
+    });
+    return;
+  }
 
   const page = await db.query.supportPagesTable.findFirst({
     where: eq(supportPagesTable.id, pageId),
@@ -233,6 +305,9 @@ router.get("/manage/:token", requireManagementToken as any, async (req, res) => 
     cardKeepsakeUrl,
     slug: page.slug,
     status: page.status,
+    // Always null here: this branch only runs for a page that is NOT closed.
+    // Present so the response shape is the same either way (bug #090).
+    closedAt: null,
     occasion: page.occasion ?? null,
     recipientPronouns: page.recipientPronouns,
     // The RAW stored overrides (null = "using the default"), so the /manage form
@@ -1237,6 +1312,130 @@ router.delete(
     res.json({ ok: true });
   },
 );
+
+// ─── Closing the page (bug #090) ─────────────────────────────────────────────
+//
+// `page_status` has carried a `closed` value since the first migration and
+// NOTHING anywhere wrote it, so "the person a page is about must always be able
+// to see everything and shut it down" was half unbuilt. These three routes are
+// that half. Every decision in them lives in lib/pageClosure.ts, which has no
+// database in it; these are the thin wiring, per the lib/draftDeletion
+// precedent set on #071.
+//
+// ⚠️ close and reopen do NOT use requireManagementToken. They resolve the token
+// themselves via loadClosureContext, which applies no `revoked_at` filter and
+// returns closed pages, because the middleware's SQL filter would make ruling 7
+// ("the recipient can never be locked out") and ruling 5 (reversibility)
+// unreachable before any rule ran.
+
+/**
+ * GET /manage/:token/closure-preview — exactly who will be told, and how many.
+ *
+ * ⚠️ THE CONFIRM SCREEN MUST NAME THE PEOPLE, so the answer is computed HERE,
+ * by the same closureCancellations the close route runs, rather than re-derived
+ * in the browser from the task list. Two implementations of "which claims are
+ * live and still ahead of us" would drift, and the one that drifted would be
+ * the one a family read before pressing the button.
+ *
+ * Read-only: it changes nothing and can be opened as often as you like. It uses
+ * the ordinary middleware, so it 410s on an already-closed page.
+ */
+router.get(
+  "/manage/:token/closure-preview",
+  requireManagementToken as any,
+  async (req, res) => {
+    const { pageId } = req as unknown as ManagementRequest;
+
+    const page = await db.query.supportPagesTable.findFirst({
+      where: eq(supportPagesTable.id, pageId),
+    });
+    if (!page) {
+      res.status(404).json({ error: "Page not found." });
+      return;
+    }
+
+    const slots = await loadClosureSlots(pageId);
+    const { cancelled } = closureCancellations(slots, new Date());
+
+    res.json({
+      recipientName: page.recipientName,
+      // Each person and the task they committed to — never a bare count. A
+      // helper with no contact on file still appears: their claim is cancelled
+      // like everyone else's, and the screen has to be honest that there is
+      // nowhere to send their message.
+      people: cancelled.map((s) => ({
+        slotId: s.id,
+        name: s.claimedByName,
+        task: taskLabel(s.slotType, s.customLabel),
+        when: whenLabel(s.slotDate, s.slotTime),
+        reachable: !!s.claimedByContact?.trim(),
+      })),
+    });
+  },
+);
+
+/**
+ * POST /manage/:token/close — one button. It stops the page immediately and
+ * cancels the live claims.
+ *
+ * ⚠️ A SECOND STATE — "closed to new claims while the existing ones run" — was
+ * CONSIDERED AND DECLINED by Kate on 20 September 2026: it is close to what you
+ * already get by not adding tasks. Recorded here, and in bug row #090, so its
+ * absence is never filed as an oversight.
+ */
+router.post("/manage/:token/close", async (req, res) => {
+  const body = (req.body ?? {}) as Record<string, unknown>;
+  const context = await loadClosureContext(String(req.params.token ?? ""));
+
+  const verdict = canClosePage(
+    context ? asClosureGrant(context.grant) : null,
+    context?.page ?? null,
+  );
+  if (!verdict.ok) {
+    res.status(verdict.status).json({ error: verdict.error });
+    return;
+  }
+  const { grant, page } = context!;
+
+  // Ruling 3 — the closer chooses who does the telling. The DEFAULT IS TRUE:
+  // an old client, a retry or a malformed body must never silently produce the
+  // silent variant. Choosing not to tell people is a deliberate act, so it has
+  // to be said explicitly.
+  const tellHelpers = body.tellHelpers !== false;
+  // Ruling 4(b) — empty by default, never prefilled. Length-capped like every
+  // other free-text field here; blank and whitespace both mean "nothing added".
+  const rawNote = typeof body.note === "string" ? body.note.trim() : "";
+  const note = rawNote ? rawNote.slice(0, 1000) : null;
+
+  const slots = await loadClosureSlots(page.id);
+  const outcome = await performClosure({ page, grant, slots, tellHelpers, note });
+
+  res.json({ ok: true, ...outcome });
+});
+
+/**
+ * POST /manage/:token/reopen — the page comes back, the commitments do not.
+ *
+ * BOTH HALVES ARE TRUE AND THE SCREEN SAYS BOTH. Reopening restores the PAGE.
+ * It does not restore the cancelled claims — those tasks return to the list
+ * unclaimed — it does not restore invitations cancelled at closure, and
+ * messages already sent cannot be unsent.
+ */
+router.post("/manage/:token/reopen", async (req, res) => {
+  const context = await loadClosureContext(String(req.params.token ?? ""));
+
+  const verdict = canReopenPage(
+    context ? asClosureGrant(context.grant) : null,
+    context?.page ?? null,
+  );
+  if (!verdict.ok) {
+    res.status(verdict.status).json({ error: verdict.error });
+    return;
+  }
+
+  await performReopen(context!.page);
+  res.json({ ok: true });
+});
 
 // ─── Feedback: how did it actually go? ───────────────────────────────────────
 

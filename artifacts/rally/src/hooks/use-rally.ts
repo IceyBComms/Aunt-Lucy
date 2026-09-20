@@ -10,23 +10,37 @@ import { useToast } from "@/hooks/use-toast";
 import type { ClaimSlotRequest, SlotResponse } from "@workspace/api-client-react";
 
 // pages.ts answers 404 for three different reasons — no such slug, the page is
-// closed, or the page exists but isn't active yet — and the only thing that
+// CLOSED, or the page exists but isn't active yet — and the only thing that
 // tells them apart is the message it sends back. Matching on that message is
 // deliberate: the server alone decides whether a slug resolves to a real page,
-// so a guessed or malformed slug never reaches the "not live yet" branch. It
-// gets the doesn't-exist message, which doesn't match, and falls through to the
-// generic text. Keep this string in step with
-// artifacts/api-server/src/routes/pages.ts.
-const NOT_LIVE_YET_ERROR = "This support page isn't available yet.";
+// so a guessed or malformed slug never reaches either named branch. It gets the
+// doesn't-exist message, which matches neither, and falls through to the
+// generic text.
+//
+// ⚠️ THIS HAS NOW BEEN THE SAME BUG THREE TIMES. #028 was the "not live yet"
+// case being thrown away; bug #090 was the CLOSED case being thrown away, and
+// a closed page read "This page doesn't exist or has been removed" — both
+// wrong and a statement about the page. So the third reason is not bolted on
+// beside the second: the reasons are a TABLE, and adding a fourth means adding
+// a row to it.
+//
+// Keep these strings in step with artifacts/api-server/src/routes/pages.ts.
+// api-server's pageClosureDrift.test.ts fails if the closed one drifts.
+const PAGE_404_REASONS = {
+  "This support page isn't available yet.": "not_live_yet",
+  "This support page has been closed.": "closed",
+} as const;
 
-function isNotLiveYetError(error: unknown): boolean {
-  if (!(error instanceof ApiError) || error.status !== 404) return false;
+export type SupportPage404Reason = (typeof PAGE_404_REASONS)[keyof typeof PAGE_404_REASONS];
+
+/** Which of the server's named 404s is this, if any? */
+export function supportPage404Reason(error: unknown): SupportPage404Reason | null {
+  if (!(error instanceof ApiError) || error.status !== 404) return null;
   const data: unknown = error.data;
-  return (
-    typeof data === "object" &&
-    data !== null &&
-    (data as { error?: unknown }).error === NOT_LIVE_YET_ERROR
-  );
+  if (typeof data !== "object" || data === null) return null;
+  const message = (data as { error?: unknown }).error;
+  if (typeof message !== "string") return null;
+  return PAGE_404_REASONS[message as keyof typeof PAGE_404_REASONS] ?? null;
 }
 
 export function useSupportPageFlow(slug: string) {
@@ -100,13 +114,18 @@ export function useSupportPageFlow(slug: string) {
     }
   }, [claimMutation, pin]);
 
+  const reason = query.isError ? supportPage404Reason(query.error) : null;
+
   return {
     ...query,
     needsPin: needsPin && !query.isSuccess,
     // A real page that simply hasn't been switched on yet — told apart from a
     // genuine 404 so the visitor can be asked to hang on to their link rather
     // than be told the page doesn't exist.
-    notLiveYet: query.isError && isNotLiveYetError(query.error),
+    notLiveYet: reason === "not_live_yet",
+    // A real page that has been closed. It is over, and the screen says only
+    // that — never why (bug #090, ruling 6).
+    closed: reason === "closed",
     submitPin,
     claimSlot,
     isClaiming: claimMutation.isPending

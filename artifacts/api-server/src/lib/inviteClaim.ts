@@ -29,6 +29,8 @@
  */
 import crypto from "crypto";
 import { Router, type IRouter } from "express";
+import { CLOSED_PAGE_STATUS } from "./pageClosure";
+import { CLOSED_INVITE_MESSAGE } from "./pageClosureCopy";
 import { LIVE_PAGE_STATUS } from "./inviteSendRule";
 import { calendarFeedUrl } from "./calendarFeed";
 import { firstName } from "./names";
@@ -134,10 +136,21 @@ export function createInviteClaimRouter(deps: InviteClaimDeps): IRouter {
   router.get("/invite/:token", async (req, res) => {
     const invite = await store.findByToken(req.params.token);
 
-    // A closed page's invite is answered exactly like a dead link — the same
-    // choice /s/:slug makes for a closed page (bug #028 left that generic).
-    if (!invite || !invite.slot || !invite.page || invite.page.status === "closed") {
+    if (!invite || !invite.slot || !invite.page) {
       res.status(404).json({ error: INVALID_LINK });
+      return;
+    }
+
+    // A CLOSED page's invite reads as CLOSED, never as broken (bug #090).
+    //
+    // This used to fall in with the branch above and answer "This invitation
+    // link is invalid or has expired" — which reads as our mistake or theirs,
+    // to somebody who was asked personally. It is the same fault as #028, one
+    // door along. Its own message, carrying no more about why than the public
+    // page does, and not naming the recipient: the token alone is not proof of
+    // who is holding it.
+    if (invite.page.status === CLOSED_PAGE_STATUS) {
+      res.status(404).json({ error: CLOSED_INVITE_MESSAGE, reason: "page_closed" });
       return;
     }
 
@@ -191,6 +204,17 @@ export function createInviteClaimRouter(deps: InviteClaimDeps): IRouter {
 
     if (!invite || !invite.slot) {
       res.status(404).json({ error: "This invitation link is invalid." });
+      return;
+    }
+
+    // Bug #090. A CLOSED page is checked FIRST, because the not-live branch
+    // below tells the helper the link "will work as soon as it's switched on"
+    // — true for a draft, a lie for a page that has stopped. In practice the
+    // GET above already refuses and the button is never offered; this is the
+    // same refusal made honest for a stale tab or a replayed request.
+    if (invite.page?.status === CLOSED_PAGE_STATUS) {
+      log.warn({ inviteId: invite.id }, "Invite claim refused — page closed");
+      res.status(409).json({ error: CLOSED_INVITE_MESSAGE, reason: "page_closed" });
       return;
     }
 

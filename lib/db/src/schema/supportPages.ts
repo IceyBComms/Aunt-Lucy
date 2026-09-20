@@ -104,6 +104,18 @@ export const supportPagesTable = pgTable("support_pages", {
   // 'active' once this timestamp passes. Null means "went live straight away".
   scheduledActivateAt: timestamp("scheduled_activate_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
+  // When the page was closed (bug #090). Null on every page that has never been
+  // closed; set alongside status = 'closed' and deliberately NOT cleared when a
+  // page is reopened — it is the record that it happened, not a live flag.
+  //
+  // Declared here since the original Replit-era commit and carried by no
+  // migration until 0017, which adds it IF NOT EXISTS for any database built
+  // from the migration files alone. See that file's header.
+  //
+  // ⚠️ Its real job is retention. Kate's lawyer has advised that personal
+  // information must not be kept once it is no longer needed; every retention
+  // rule will read "X after closure", and a date never written cannot be
+  // backfilled. The retention work itself does not exist yet.
   closedAt: timestamp("closed_at"),
 });
 

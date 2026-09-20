@@ -3,9 +3,17 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { supportPagesTable } from "./supportPages";
 
-// What a grant lets someone do. Only "recipient" is minted today; "manager" is
-// reserved for the parked co-admin / handover work so the shape is ready but
-// nothing acts on it yet.
+// What a grant lets someone do.
+//
+// ⚠️ CORRECTED 20 September 2026 (comment only). This said "manager" was
+// RESERVED and that nothing acted on it yet. That stopped being true with #081:
+// managers are minted by /manage (mintManagerGrant) and by every organiser and
+// crisis page's own setup person (grantSetupPersonAccess), the role decides who
+// a claim notification is ADDRESSED to ("shown up for you" vs "shown up for
+// Val"), and it decides who may revoke whom. The stale note was actively
+// misleading for bug #090, where "who may close a page" turns on exactly this
+// distinction: any unrevoked grant may close, and the RECIPIENT may close even
+// if their grant has been revoked (lib/pageClosure.ts).
 export const pageGrantRoleEnum = pgEnum("page_grant_role", [
   "recipient",
   "manager",
@@ -19,11 +27,14 @@ export const pageGrantRoleEnum = pgEnum("page_grant_role", [
  * single page-wide token. That is the future-proofing note from the brief: a
  * second manager can be added, the page handed over, or one person's access
  * revoked, all without disturbing anyone else's link. Access is checked by
- * resolving the token to this row (token valid, revoked_at null, page open).
+ * resolving the token to this row (token valid, revoked_at null, page open) —
+ * with ONE deliberate exception, added with page closure (#090): the close and
+ * reopen routes resolve the token WITHOUT the revoked filter, because the
+ * person a page is about must always be able to shut it down and can never be
+ * locked out of doing so.
  *
  * The token is private and separate from the public gift keepsake link
- * (/gift/:redemptionToken) and the public support page (/s/:slug). Only the
- * recipient's own grant is created for now; the co-admin/handover UI is parked.
+ * (/gift/:redemptionToken) and the public support page (/s/:slug).
  */
 export const pageGrantsTable = pgTable("page_grants", {
   id: text("id")

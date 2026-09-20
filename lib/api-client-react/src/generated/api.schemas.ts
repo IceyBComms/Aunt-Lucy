@@ -463,6 +463,45 @@ export interface ManageInvite {
   claimedAt?: string | null;
 }
 
+export interface ClosurePersonToTell {
+  slotId: string;
+  /** The helper's name as they gave it when claiming, if any. */
+  name: string | null;
+  /** The task as the product names it everywhere else (taskLabel). */
+  task: string;
+  /** "Friday 8 August at 3:00pm", or "whenever suits" for an undated offer. */
+  when: string;
+  /** False when the claim carries no contact point. Their claim is cancelled exactly like everyone else's; there is simply nowhere to send the message, and the screen has to be honest about that. */
+  reachable: boolean;
+}
+
+export interface ClosurePreview {
+  recipientName: string;
+  people: ClosurePersonToTell[];
+}
+
+export interface ClosePageRequest {
+  /** Who does the telling. True (the default) sends each cancelled helper their message; false is "I'll tell people myself" — the same claims are cancelled and NOTHING is sent to the helpers, while the other grant-holders are still told either way.
+Defaults to TRUE when absent or malformed: choosing not to tell people is a deliberate act, and an old client or a retry must never produce the silent variant by accident. On a page about someone who has died this message may be the first many helpers hear, and some families want to make those calls themselves. */
+  tellHelpers?: boolean;
+  /**
+   * The optional free-text the closer may add. EMPTY BY DEFAULT and never prefilled — prefilled text gets sent unread. It is appended to a FIXED FACT written by us that always sends and is not editable (the specific task this helper committed to is not going ahead), so a family who writes only "thank you all so much" can never leave somebody believing the school run is still on.
+NOT STORED. It is rendered into the outgoing messages and discarded; there is no column for it. It will collect sensitive detail, and the safest place for that is nowhere.
+   * @maxLength 1000
+   */
+  note?: string | null;
+}
+
+export interface ClosePageResult {
+  ok: boolean;
+  /** How many live, future claims were cancelled. */
+  cancelled: number;
+  /** How many helpers were messaged. Zero when tellHelpers was false. */
+  helpersTold: number;
+  /** How many other grant-holders were messaged. Never the closer. */
+  othersTold: number;
+}
+
 export type ManageStateRole =
   (typeof ManageStateRole)[keyof typeof ManageStateRole];
 
@@ -500,7 +539,10 @@ export interface ManageState {
   role: ManageStateRole;
   recipientName: string;
   slug: string;
+  /** 'draft' | 'pending_approval' | 'active' | 'closed'. When it is 'closed' this response is REDUCED (bug #090): tasks, contacts, invites and managers come back empty and the invite-copy fields are null, because a closed page's /manage permits exactly two things — seeing that it is closed, and reopening it. The cut is made on the server, not hidden in the client. */
   status: string;
+  /** When the page was closed, or null if it never has been. Null-safe on purpose: a page closed before migration 0017 reached a database would have no date, and "closed, we don't know when" is a truthful screen — the client simply omits the line. */
+  closedAt?: string | null;
   occasion?: GiftOccasion | null;
   recipientPronouns: RecipientPronouns;
   /** The RAW stored standard-invite override, or null when using the default. Null lets the UI show the field as empty with ghost text. */

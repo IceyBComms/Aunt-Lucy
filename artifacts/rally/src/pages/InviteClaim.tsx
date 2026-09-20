@@ -84,6 +84,11 @@ export default function InviteClaim() {
   const [isClaiming, setIsClaiming] = useState(false);
   const [claimed, setClaimed] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Bug #090 — a CLOSED page is not a dead link, and must not be shown as one.
+  // Tracked separately from `error` because the two get different screens: the
+  // generic one is headed "Invitation not found", which contradicts a body
+  // saying the page has closed.
+  const [pageClosed, setPageClosed] = useState(false);
   const [claimError, setClaimError] = useState<string | null>(null);
   // Present only after a fresh claim in this session — the private handle to
   // release this slot again if plans change. Not returned by GET /invite (a
@@ -102,7 +107,12 @@ export default function InviteClaim() {
         setDetails(data);
         if (data.pageLive !== false && data.claimedByYou) setClaimed(true);
       })
-      .catch((err: any) => setError(err.message ?? "This invitation is invalid."))
+      .catch((err: any) => {
+        // The server's machine-readable refusal, not its words — the copy can
+        // be reworded without this branch going quiet.
+        if (err?.reason === "page_closed") setPageClosed(true);
+        else setError(err.message ?? "This invitation is invalid.");
+      })
       .finally(() => setIsLoading(false));
   }, [token]);
 
@@ -127,6 +137,34 @@ export default function InviteClaim() {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <Loader2 className="w-10 h-10 text-primary animate-spin" />
+      </div>
+    );
+  }
+
+  // ⏸️ TODO(copy) — an invitation to a page that has CLOSED (bug #090).
+  //
+  // It used to answer "This invitation link is invalid or has expired" under an
+  // "Invitation not found" heading, which reads as our mistake or theirs to
+  // somebody who was asked personally. It reads as closed now, and — ruling 6 —
+  // says nothing about why, and does not name the recipient: holding the token
+  // is not proof of who is holding it.
+  if (pageClosed) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        <div className="flex-1 flex flex-col items-center justify-center p-6">
+          <div className="w-full max-w-sm text-center" data-testid="invite-closed">
+            <div className="w-16 h-16 bg-secondary rounded-2xl flex items-center justify-center mx-auto mb-5">
+              <Clock className="w-8 h-8 text-primary" />
+            </div>
+            <h1 className="font-serif text-2xl font-bold text-foreground mb-3">
+              This page has closed
+            </h1>
+            <p className="text-muted-foreground leading-relaxed">
+              Thank you for being willing to help. There's nothing more needed here.
+            </p>
+          </div>
+        </div>
+        <SiteFooter compact />
       </div>
     );
   }
