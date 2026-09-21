@@ -38,6 +38,7 @@
  */
 import { sydneyDate, sydneyTime } from "./australianDay";
 import type { NotifyTarget } from "./notifyTargets";
+import type { SlotFlexibility } from "@workspace/task-copy";
 
 export const CLOSED_PAGE_STATUS = "closed";
 
@@ -210,6 +211,8 @@ export interface ClosureSlot {
   slotDate: string | null;
   /** HH:MM or HH:MM:SS, or null. Only ever meaningful beside a date. */
   slotTime: string | null;
+  /** Row #145 — carried so the closure message names the time as it was shown. */
+  flexibility: SlotFlexibility;
   isClaimed: boolean;
   claimedByName: string | null;
   claimedByContact: string | null;
@@ -307,6 +310,8 @@ export interface HelperToTell {
   customLabel: string | null;
   slotDate: string | null;
   slotTime: string | null;
+  /** Row #145 — see ClosureSlot. */
+  flexibility: SlotFlexibility;
 }
 
 export interface ClosureAudience {
@@ -359,6 +364,7 @@ export function closureAudience(opts: {
             customLabel: slot.customLabel,
             slotDate: slot.slotDate,
             slotTime: slot.slotTime,
+            flexibility: slot.flexibility,
           },
         ];
       })

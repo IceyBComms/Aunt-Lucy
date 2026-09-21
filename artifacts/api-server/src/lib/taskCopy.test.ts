@@ -32,6 +32,7 @@ import {
   formatShortDate,
   formatTaskDate,
   formatTaskTime,
+  taskTimeLabel,
   taskLabel,
   taskNoun,
   taskPickerHint,
@@ -197,23 +198,23 @@ describe("the one date format", () => {
   });
 
   it("the CARD join is ' · '", () => {
-    expect(taskWhenCard("2026-09-22", "15:00", IN_2026)).toBe(
+    expect(taskWhenCard("2026-09-22", "15:00", "fixed", IN_2026)).toBe(
       "Tuesday 22 September · 3:00pm",
     );
   });
 
   it("the SENTENCE join is ' at ' — the same words, joined differently", () => {
-    expect(taskWhenSentence("2026-09-22", "15:00", IN_2026)).toBe(
+    expect(taskWhenSentence("2026-09-22", "15:00", "fixed", IN_2026)).toBe(
       "Tuesday 22 September at 3:00pm",
     );
-    expect(taskWhenClause("2026-09-22", "15:00", IN_2026)).toBe(
+    expect(taskWhenClause("2026-09-22", "15:00", "fixed", IN_2026)).toBe(
       "on Tuesday 22 September at 3:00pm",
     );
   });
 
   it("an undated task is words, and takes no 'on'", () => {
-    expect(taskWhenCard(null, null, IN_2026)).toBe("Whenever suits");
-    expect(taskWhenClause(null, null, IN_2026)).toBe("whenever suits");
+    expect(taskWhenCard(null, null, "fixed", IN_2026)).toBe("Whenever suits");
+    expect(taskWhenClause(null, null, "fixed", IN_2026)).toBe("whenever suits");
   });
 
   it("the short form drops the weekday, and keeps the year rule", () => {
@@ -230,13 +231,13 @@ describe("a dated task with no time", () => {
   const IN_2026 = new Date("2026-09-21T00:00:00Z");
 
   it('reads "Any time that day" on a card', () => {
-    expect(taskWhenCard("2026-09-22", null, IN_2026)).toBe(
+    expect(taskWhenCard("2026-09-22", null, "fixed", IN_2026)).toBe(
       "Tuesday 22 September · Any time that day",
     );
   });
 
   it("reads the same words, lower case, in a sentence", () => {
-    expect(taskWhenSentence("2026-09-22", null, IN_2026)).toBe(
+    expect(taskWhenSentence("2026-09-22", null, "fixed", IN_2026)).toBe(
       "Tuesday 22 September, any time that day",
     );
   });
@@ -245,6 +246,58 @@ describe("a dated task with no time", () => {
     expect(ANY_TIME_THAT_DAY_CLAUSE).toBe(
       ANY_TIME_THAT_DAY.charAt(0).toLowerCase() + ANY_TIME_THAT_DAY.slice(1),
     );
+  });
+});
+
+/**
+ * ROW #145 — "around", and the three places it may and may not appear.
+ *
+ * Kate's ruling, 21 September 2026: a flexible task with a time reads "around
+ * 4:00pm"; a fixed one reads plain "4:00pm". She found it on a dated errand she
+ * had marked "Around then is fine", whose public card read "4:00pm" — the same
+ * words a school run gets.
+ *
+ * ⚠️ P2. "fixed does not say around" passes for free against a formatter that
+ * never says it at all, so every negative here sits beside the positive from
+ * the SAME inputs.
+ */
+describe("a flexible time says so", () => {
+  const IN_2026 = new Date("2026-09-21T00:00:00Z");
+
+  it("the time label carries the word, and only when flexible", () => {
+    expect(taskTimeLabel("16:00", "flexible")).toBe("around 4:00pm");
+    expect(taskTimeLabel("16:00", "fixed")).toBe("4:00pm");
+  });
+
+  it("Kate's two shapes, verbatim", () => {
+    expect(taskWhenCard("2026-09-23", "16:00", "flexible", IN_2026)).toBe(
+      "Wednesday 23 September · around 4:00pm",
+    );
+    expect(taskWhenSentence("2026-09-23", "16:00", "flexible", IN_2026)).toBe(
+      "Wednesday 23 September at around 4:00pm",
+    );
+  });
+
+  it("a FIXED task reads the same line without the word", () => {
+    expect(taskWhenCard("2026-09-23", "16:00", "fixed", IN_2026)).toBe(
+      "Wednesday 23 September · 4:00pm",
+    );
+    expect(taskWhenSentence("2026-09-23", "16:00", "fixed", IN_2026)).toBe(
+      "Wednesday 23 September at 4:00pm",
+    );
+  });
+
+  it("an UNTIMED task never takes it, however flexible it is", () => {
+    // Row #143 forces an untimed task flexible on the server, so this is the
+    // COMMON case, not an edge one — and "around any time that day" would be
+    // the sentence every one of them shipped.
+    expect(taskWhenCard("2026-09-23", null, "flexible", IN_2026)).toBe(
+      "Wednesday 23 September · Any time that day",
+    );
+    expect(taskWhenSentence("2026-09-23", null, "flexible", IN_2026)).toBe(
+      "Wednesday 23 September, any time that day",
+    );
+    expect(taskWhenClause(null, null, "flexible", IN_2026)).toBe("whenever suits");
   });
 });
 
@@ -422,8 +475,10 @@ describe("no SMS body can carry the card join", () => {
     const now = new Date("2026-09-21T00:00:00Z");
     for (const time of ["15:00", null]) {
       for (const date of ["2026-09-22", null]) {
-        expect(taskWhenSentence(date, time, now)).not.toContain(CARD_JOIN.trim());
-        expect(taskWhenClause(date, time, now)).not.toContain(CARD_JOIN.trim());
+        expect(taskWhenSentence(date, time, "fixed", now)).not.toContain(CARD_JOIN.trim());
+        expect(taskWhenClause(date, time, "fixed", now)).not.toContain(CARD_JOIN.trim());
+        expect(taskWhenSentence(date, time, "flexible", now)).not.toContain(CARD_JOIN.trim());
+        expect(taskWhenClause(date, time, "flexible", now)).not.toContain(CARD_JOIN.trim());
       }
     }
   });

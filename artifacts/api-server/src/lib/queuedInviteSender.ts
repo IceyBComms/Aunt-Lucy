@@ -139,7 +139,11 @@ export async function sendQueuedInvites(
                   pronounsEnum,
                 ),
                 taskLabel: taskLabel(trustedSlot.slotType, trustedSlot.customLabel),
-                when: whenLabel(trustedSlot.slotDate, trustedSlot.slotTime),
+                when: whenLabel(
+                  trustedSlot.slotDate,
+                  trustedSlot.slotTime,
+                  trustedSlot.flexibility,
+                ),
                 // Bug #033 — null on anything that isn't an answered lift, and
                 // null renders no line at all.
                 liftNote: trustedSlot.liftWaitMode

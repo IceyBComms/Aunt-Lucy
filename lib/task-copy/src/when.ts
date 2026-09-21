@@ -29,6 +29,7 @@
  * late-evening task onto the previous day. The only clock this file consults is
  * "what year is it in Australia right now", for the year rule.
  */
+import type { SlotFlexibility } from "./flexibility";
 
 const MONTHS = [
   "January",
@@ -120,25 +121,79 @@ export function formatTaskTime(slotTime: string): string {
 }
 
 /**
- * The card form: "Tuesday 22 September · 3:00pm", "Tuesday 22 September · Any
- * time that day", or "Whenever suits" when there is no date.
+ * THE "AROUND" MARKER (row #145, Kate's ruling 21 September 2026).
+ *
+ * A task carries a `flexibility` of "flexible" or "fixed", and until now that
+ * fact reached nobody: the family chose "Around then is fine" on the add-task
+ * form, the answer WAS stored, and every helper-facing surface then printed a
+ * bare "4:00pm" — indistinguishable from a school run the family cannot move.
+ * So a helper planned their day around a time that was never a deadline, and a
+ * flexible task was quietly as rigid as a fixed one.
+ *
+ * Kate's ruling is one word: a flexible task with a time reads "around 4:00pm";
+ * a fixed one reads plain "4:00pm".
+ *
+ * ⚠️ It lives HERE, and only here, for the same reason the format itself does
+ * (row #139). "around" added at one call site is another copy of a display rule
+ * with no owner — which is row #136 all over again, and the drifted copy is the
+ * one a helper reads.
+ *
+ * ⚠️ AN UNTIMED TASK NEVER TAKES IT. A dated task with no time is already
+ * FLEXIBLE by row #143's rule (the server forces it), and it already reads "Any
+ * time that day" — "around any time that day" is not a sentence, and the word
+ * would add nothing to copy that is already the whole answer.
+ *
+ * ⚠️ GSM-7. "around " is seven plain Latin characters, so an SMS that gains it
+ * gains seven characters and no encoding change — unlike "·" (see above). Seven
+ * characters can still tip a message over a segment boundary, which is a cost
+ * question rather than an encoding one, and is measured in smsSegments.test.ts
+ * rather than guessed at.
+ */
+const AROUND_PREFIX = "around ";
+
+/**
+ * A task's time as a helper should read it: "around 4:00pm" when the family
+ * said the time can move, "4:00pm" when it cannot.
+ *
+ * The ONE place the marker is applied. Every card, line, sentence, email, text
+ * and calendar title goes through this, or through the three `taskWhen*`
+ * builders below, which call it.
+ */
+export function taskTimeLabel(slotTime: string, flexibility: SlotFlexibility): string {
+  const time = formatTaskTime(slotTime);
+  return flexibility === "flexible" ? `${AROUND_PREFIX}${time}` : time;
+}
+
+/**
+ * The card form: "Tuesday 22 September · 3:00pm", "Tuesday 22 September ·
+ * around 3:00pm" when the time can move (row #145), "Tuesday 22 September ·
+ * Any time that day", or "Whenever suits" when there is no date.
  *
  * For a line of its own — a task card, the manage list. NOT for a sentence, and
  * never for an SMS.
+ *
+ * `flexibility` is REQUIRED, on all three builders, deliberately. It could have
+ * defaulted to "fixed" and every existing call site would have kept compiling —
+ * which is exactly how row #145 happened in the first place: a fact the data
+ * already held, that no surface was obliged to ask for. Required means the
+ * compiler names every screen and every message that shows a task's time, and a
+ * new one cannot quietly leave it out.
  */
 export function taskWhenCard(
   slotDate: string | null,
   slotTime: string | null,
+  flexibility: SlotFlexibility,
   now: Date = new Date(),
 ): string {
   if (!slotDate) return WHENEVER_SUITS;
   const date = formatTaskDate(slotDate, now);
-  return `${date}${CARD_JOIN}${slotTime ? formatTaskTime(slotTime) : ANY_TIME_THAT_DAY}`;
+  return `${date}${CARD_JOIN}${slotTime ? taskTimeLabel(slotTime, flexibility) : ANY_TIME_THAT_DAY}`;
 }
 
 /**
- * The sentence form: "Tuesday 22 September at 3:00pm", "Tuesday 22 September,
- * any time that day", or "whenever suits" when there is no date.
+ * The sentence form: "Tuesday 22 September at 3:00pm", "Tuesday 22 September at
+ * around 3:00pm" when the time can move (row #145), "Tuesday 22 September, any
+ * time that day", or "whenever suits" when there is no date.
  *
  * Same words as the card, joined for reading inside a sentence. This is the
  * only form an SMS may use.
@@ -146,12 +201,13 @@ export function taskWhenCard(
 export function taskWhenSentence(
   slotDate: string | null,
   slotTime: string | null,
+  flexibility: SlotFlexibility,
   now: Date = new Date(),
 ): string {
   if (!slotDate) return WHENEVER_SUITS_CLAUSE;
   const date = formatTaskDate(slotDate, now);
   return slotTime
-    ? `${date} at ${formatTaskTime(slotTime)}`
+    ? `${date} at ${taskTimeLabel(slotTime, flexibility)}`
     : `${date}, ${ANY_TIME_THAT_DAY_CLAUSE}`;
 }
 
@@ -164,9 +220,10 @@ export function taskWhenSentence(
 export function taskWhenClause(
   slotDate: string | null,
   slotTime: string | null,
+  flexibility: SlotFlexibility,
   now: Date = new Date(),
 ): string {
-  const when = taskWhenSentence(slotDate, slotTime, now);
+  const when = taskWhenSentence(slotDate, slotTime, flexibility, now);
   return slotDate ? `on ${when}` : when;
 }
 

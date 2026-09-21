@@ -26,6 +26,9 @@ const BASE = {
   customLabel: null,
   slotDate: "2026-09-22",
   slotTime: "15:15",
+  // Row #145 — FIXED keeps every assertion below about the words it was
+  // written for; the "around" wording has its own tests.
+  flexibility: "fixed" as const,
   occasion: null as string | null,
   note: null as string | null,
 };

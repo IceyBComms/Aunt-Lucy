@@ -10,12 +10,20 @@ import { measureSms } from "./smsSegments";
 // A production-shaped release URL: 48 hex characters on the live host = 84.
 const LINK = `https://www.auntlucy.com.au/release/${"a".repeat(48)}`;
 
-const build = (slotType: string, customLabel: string | null, date: string | null, time: string | null) =>
+const build = (
+  slotType: string,
+  customLabel: string | null,
+  date: string | null,
+  time: string | null,
+  // Row #145. Defaults to FIXED so every assertion written before it still
+  // reads the words it was written for; the "around" case is tested beside it.
+  flexibility: "flexible" | "fixed" = "fixed",
+) =>
   helperClaimConfirmed({
     helperFirstName: "Jane",
     recipientFirstName: "Sarah",
     task: taskLabel(slotType, customLabel),
-    whenClause: whenClause(date, time),
+    whenClause: whenClause(date, time, flexibility),
     releaseLink: LINK,
   });
 

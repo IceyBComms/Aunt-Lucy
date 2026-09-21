@@ -70,7 +70,15 @@ export function SlotCard({ slot, onClaim, index }: SlotCardProps) {
   // flexible offer and reads "Whenever suits"; a DATED slot with no time reads
   // "Any time that day" (row #143), which replaces "Time to be confirmed" —
   // those words promised a confirmation nobody was going to send.
-  const when = taskWhenCard(slot.slotDate ?? null, slot.slotTime ?? null);
+  //
+  // Row #145 — and "around 3:00pm" when the family said the time can move. This
+  // is the card Kate was reading when she found that a flexible errand and a
+  // fixed school run were the same words.
+  const when = taskWhenCard(
+    slot.slotDate ?? null,
+    slot.slotTime ?? null,
+    slot.flexibility,
+  );
 
   if (slot.isClaimed) {
     return (

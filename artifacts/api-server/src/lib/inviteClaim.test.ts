@@ -115,6 +115,7 @@ beforeEach(() => {
     customLabel: null,
     slotDate: "2026-09-20",
     slotTime: "15:15",
+    flexibility: "fixed",
     liftWaitMode: null,
     notes: "Gate B",
     dietaryNotes: null,

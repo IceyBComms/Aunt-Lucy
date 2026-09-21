@@ -1,5 +1,5 @@
 import twilio from "twilio";
-import { taskWhenClause } from "@workspace/task-copy";
+import { taskWhenClause, type SlotFlexibility } from "@workspace/task-copy";
 import { logger } from "./logger";
 import { measureSms } from "./smsSegments";
 import { notifyFailed, notifySent, notifySkipped } from "./notifyOutcome";
@@ -88,6 +88,7 @@ export function buildInviteSmsBody({
   slotTypeLabel,
   slotDate,
   slotTime,
+  flexibility,
   helperName,
   inviteUrl,
 }: {
@@ -95,6 +96,7 @@ export function buildInviteSmsBody({
   slotTypeLabel: string;
   slotDate: string | null;
   slotTime: string | null;
+  flexibility: SlotFlexibility;
   helperName: string;
   inviteUrl: string;
 }): string {
@@ -103,7 +105,7 @@ export function buildInviteSmsBody({
   // An undated task takes "whenever suits" in place of "on <date>", and a dated
   // task with no time reads ", any time that day" (row #143) rather than
   // trailing off, because silence there reads as "any time is fine".
-  const whenStr = taskWhenClause(slotDate, slotTime);
+  const whenStr = taskWhenClause(slotDate, slotTime, flexibility);
   return (
     `Hi ${helperName}, you've been personally invited to help ${recipientName} with a ${slotTypeLabel} ${whenStr}. ` +
     `Tap to confirm: ${inviteUrl}`
@@ -116,6 +118,7 @@ export async function sendInviteSms({
   slotTypeLabel,
   slotDate,
   slotTime,
+  flexibility,
   helperName,
   inviteUrl,
 }: {
@@ -124,6 +127,7 @@ export async function sendInviteSms({
   slotTypeLabel: string;
   slotDate: string | null;
   slotTime: string | null;
+  flexibility: SlotFlexibility;
   helperName: string;
   inviteUrl: string;
 }): Promise<void> {
@@ -138,6 +142,7 @@ export async function sendInviteSms({
     slotTypeLabel,
     slotDate,
     slotTime,
+    flexibility,
     helperName,
     inviteUrl,
   });

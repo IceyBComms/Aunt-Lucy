@@ -138,6 +138,7 @@ router.post("/slots/:slotId/claim", async (req, res) => {
     slotType: row.slotType,
     customLabel: row.customLabel,
     slotDate: row.slotDate,
+    flexibility: row.flexibility,
     slotTime: row.slotTime,
     liftWaitMode: row.liftWaitMode,
     notes: row.notes,
@@ -327,7 +328,10 @@ router.post("/slots/release/:token", async (req, res) => {
         ? recipientFixedLostHelper({
             helperName,
             task: label,
-            when: whenLabel(row.slotDate, row.slotTime),
+            // Inside the `flexibility === "fixed"` branch, so this one never
+            // takes row #145's "around" — and the literal says which branch
+            // this is rather than leaving a reader to trace it.
+            when: whenLabel(row.slotDate, row.slotTime, "fixed"),
             shareLink,
           })
         : recipientFlexibleCancelled({

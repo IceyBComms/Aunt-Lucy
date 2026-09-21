@@ -14,6 +14,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  PARTIAL_TIME_MESSAGE,
+  findPartialTimeInput,
+  isPartialTime,
+} from "@/lib/partialTime";
 import { Textarea } from "@/components/ui/textarea";
 import { apiFetch } from "@/lib/api";
 import {
@@ -269,6 +274,8 @@ function SlotForm({
   onChange,
   onRemove,
   onLeave,
+  timePartial,
+  onTimePartial,
   showRemove,
 }: {
   slot: SlotDraft;
@@ -277,6 +284,10 @@ function SlotForm({
   onRemove: () => void;
   /** Focus has left this card's subtree — see the onBlur below. */
   onLeave: (card: HTMLElement) => void;
+  /** Row #144 — is THIS card's time box currently half-typed? */
+  timePartial: boolean;
+  /** Row #144 — the card reporting its own time box's state upwards. */
+  onTimePartial: (partial: boolean) => void;
   showRemove: boolean;
 }) {
   const sel = SLOT_TYPES.find((t) => t.value === slot.slotType) ?? SLOT_TYPES[0];
@@ -472,8 +483,28 @@ function SlotForm({
           <Input
             type="time"
             value={slot.slotTime}
-            onChange={(e) => onChange({ ...slot, slotTime: e.target.value })}
+            /* Row #144. A change means the browser parsed something, so the box
+               is no longer half-typed. A box BECOMING half-typed fires no
+               change event at all, which is why blur and the Continue guard
+               both read validity instead of value. */
+            onChange={(e) => {
+              onChange({ ...slot, slotTime: e.target.value });
+              onTimePartial(false);
+            }}
+            onBlur={(e) => onTimePartial(isPartialTime(e.currentTarget))}
+            aria-invalid={timePartial || undefined}
           />
+          {/* Row #144 — beside the box. This is also what the person sees when
+              the card quietly did not autosave, which used to be silent: focus
+              left, hasPartialInput said no, and nothing happened or was said. */}
+          {timePartial && (
+            <p
+              data-testid="slot-time-help"
+              className="pl-1 text-xs leading-snug text-destructive"
+            >
+              {PARTIAL_TIME_MESSAGE}
+            </p>
+          )}
         </div>
       </div>
 
@@ -749,6 +780,16 @@ export default function OrganiseAddSlots() {
   cardsRef.current = cards;
   /** Cards the person asked to collapse while their save was still in flight. */
   const collapseWhenSaved = useRef<Set<string>>(new Set());
+  /**
+   * Row #144 — the card whose time box is half-typed, or null.
+   *
+   * ONE at a time, deliberately: the guard stops at the first, focuses it and
+   * says so, so there is only ever one card being asked about. A set would let
+   * three cards shout at once about a form the person can only fix one field of.
+   */
+  const [partialTimeCardId, setPartialTimeCardId] = useState<string | null>(null);
+  /** The form element, so the Continue guard can find the offending box in it. */
+  const formRef = useRef<HTMLFormElement>(null);
 
   const isResuming = savedSlots.length > 0;
 
@@ -919,15 +960,23 @@ export default function OrganiseAddSlots() {
    * actually touched, it is complete by the same rules Continue enforces, and
    * nothing in it is half-typed.
    *
-   * Silent on failure, on purpose: the card stays a draft and Continue tries
+   * Silent on FAILURE, on purpose: the card stays a draft and Continue tries
    * again. A failed autosave must never look like a lost task, or interrupt
    * someone mid-form with an error they cannot act on.
+   *
+   * ⚠️ Row #144 — but NOT silent on a half-typed field any more. That branch
+   * used to return with nothing said, so a person who typed a time and left the
+   * card saw a card that did not save and was told nothing about why. The card
+   * still does not save; it now says which box needs finishing.
    */
   function handleCardLeave(id: string, el: HTMLElement) {
     const card = cardsRef.current.find((c) => c.id === id);
     if (!card || card.state !== "draft") return;
+    if (hasPartialInput(el)) {
+      if (findPartialTimeInput(el)) setPartialTimeCardId(id);
+      return;
+    }
     if (!isDraftTouched(card.draft) || !isDraftComplete(card.draft)) return;
-    if (hasPartialInput(el)) return;
     saveCard(id, card.draft).catch(() => {});
   }
 
@@ -954,6 +1003,25 @@ export default function OrganiseAddSlots() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    // Row #144 — a half-typed time stops Continue before anything is written.
+    //
+    // The browser's own constraint validation already refuses to submit a form
+    // holding a badInput field, so in a real browser this rarely runs — but it
+    // is what makes the refusal OURS rather than a generic bubble, and it is
+    // the half a test can exercise (validity cannot be typed, only defined).
+    const partial = findPartialTimeInput(formRef.current ?? (e.target as ParentNode));
+    if (partial) {
+      const card = partial.closest<HTMLElement>('[data-testid="slot-card"]');
+      const index = card
+        ? Array.from(
+            (formRef.current ?? document).querySelectorAll('[data-testid="slot-card"]'),
+          ).indexOf(card)
+        : -1;
+      setPartialTimeCardId(index >= 0 && cards[index] ? cards[index].id : null);
+      setError(null);
+      partial.focus();
+      return;
+    }
     if (hasTrustedWithNoHelpers) {
       setError(
         "Please add at least one trusted helper for each invitation-only slot.",
@@ -1090,7 +1158,7 @@ export default function OrganiseAddSlots() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form ref={formRef} onSubmit={handleSubmit} className="space-y-4">
           {cards.map((card) => (
             <SlotForm
               key={card.id}
@@ -1101,6 +1169,12 @@ export default function OrganiseAddSlots() {
                 card.state === "saved" ? removeSavedCard(card.id) : removeSlot(card.id)
               }
               onLeave={(el) => handleCardLeave(card.id, el)}
+              timePartial={partialTimeCardId === card.id}
+              onTimePartial={(partial) =>
+                setPartialTimeCardId((cur) =>
+                  partial ? card.id : cur === card.id ? null : cur,
+                )
+              }
               // A saved card can always be taken off the page; a draft only when
               // it is not the last one; a card mid-save not at all.
               showRemove={

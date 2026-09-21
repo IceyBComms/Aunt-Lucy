@@ -843,7 +843,7 @@ async function prepareInvite(
         recipientFirstName,
         trustedLine,
         taskLabel: taskLabel(slot.slotType, slot.customLabel),
-        when: whenLabel(slot.slotDate, slot.slotTime),
+        when: whenLabel(slot.slotDate, slot.slotTime, slot.flexibility),
         link,
         unsubscribeUrl,
         openingLine,
@@ -1273,7 +1273,7 @@ router.patch(
       const waitClause = updated.liftWaitMode
         ? ` (${LIFT_WAIT_MODE_SMS_CLAUSES[updated.liftWaitMode]})`
         : "";
-      const newDetail = `${whenLabel(updated.slotDate, updated.slotTime)}${waitClause}`;
+      const newDetail = `${whenLabel(updated.slotDate, updated.slotTime, updated.flexibility)}${waitClause}`;
       const label = taskLabel(updated.slotType, updated.customLabel);
       const releaseLink = cancelToken ? releaseLinkFor(cancelToken) : shareLinkFor(page);
       void notifyHelperOfTaskEvent({
@@ -1447,7 +1447,7 @@ router.get(
         slotId: s.id,
         name: s.claimedByName,
         task: taskLabel(s.slotType, s.customLabel),
-        when: whenLabel(s.slotDate, s.slotTime),
+        when: whenLabel(s.slotDate, s.slotTime, s.flexibility),
         reachable: !!s.claimedByContact?.trim(),
       })),
     });

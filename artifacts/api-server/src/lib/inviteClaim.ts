@@ -34,6 +34,7 @@ import { CLOSED_INVITE_MESSAGE } from "./pageClosureCopy";
 import { LIVE_PAGE_STATUS } from "./inviteSendRule";
 import { calendarFeedUrl } from "./calendarFeed";
 import { firstName } from "./names";
+import type { SlotFlexibility } from "@workspace/task-copy";
 
 export interface InviteClaimPage {
   id: string;
@@ -59,6 +60,8 @@ export interface InviteClaimSlot {
   customLabel: string | null;
   slotDate: string | null;
   slotTime: string | null;
+  /** Row #145 — the invite page and the confirmation both say "around". */
+  flexibility: SlotFlexibility;
   liftWaitMode: string | null;
   notes: string | null;
   dietaryNotes: string | null;
@@ -181,6 +184,7 @@ export function createInviteClaimRouter(deps: InviteClaimDeps): IRouter {
         customLabel: slot.customLabel,
         slotDate: slot.slotDate,
         slotTime: slot.slotTime,
+        flexibility: slot.flexibility,
         liftWaitMode: slot.liftWaitMode,
         notes: slot.notes,
       },

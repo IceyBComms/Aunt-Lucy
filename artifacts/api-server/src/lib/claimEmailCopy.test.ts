@@ -25,6 +25,9 @@ const BASE: ClaimEmailParams = {
   customLabel: null,
   slotDate: "2026-09-22",
   slotTime: "18:00",
+  // Row #145 — FIXED keeps every assertion below about the words it was
+  // written for; the "around" wording has its own tests.
+  flexibility: "fixed" as const,
   liftWaitMode: null,
   notes: null,
   dietaryNotes: null,

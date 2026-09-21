@@ -7,7 +7,7 @@ import { sendSms } from "../lib/sms";
 import { sendHelperInviteEmail } from "../lib/email";
 import { sendClaimConfirmationToHelper } from "../lib/claimNotify";
 import { logger } from "../lib/logger";
-import { LIFT_WAIT_MODE_HELPER_LINES } from "../lib/liftWaitMode";
+import { LIFT_WAIT_MODE_HELPER_LINES, asLiftWaitMode } from "../lib/liftWaitMode";
 import { getAppBaseUrl } from "../lib/appUrl";
 import { firstName } from "../lib/giftFulfilment";
 import { createInviteClaimRouter, type InviteClaimStore } from "../lib/inviteClaim";
@@ -153,7 +153,7 @@ router.post(
                   pronounsEnum,
                 ),
                 taskLabel: taskLabel(slot.slotType, slot.customLabel),
-                when: whenLabel(slot.slotDate, slot.slotTime),
+                when: whenLabel(slot.slotDate, slot.slotTime, slot.flexibility),
                 // Bug #033 — null on anything that isn't an answered lift, and
                 // null renders no line at all.
                 liftNote: slot.liftWaitMode
@@ -295,14 +295,21 @@ router.use(
         customLabel: slot.customLabel,
         slotDate: slot.slotDate,
         slotTime: slot.slotTime,
-        liftWaitMode: slot.liftWaitMode,
+        flexibility: slot.flexibility,
+        // Narrowed rather than cast. This call used to end in a blanket
+        // `as Parameters<...>[0]`, which existed only because InviteClaimSlot
+        // types liftWaitMode as a plain string — and which would ALSO have let
+        // row #145's new required `flexibility` go missing here in silence, on
+        // the one claim path no compiler was watching. One field narrowed is
+        // cheaper than a cast that hides every future field.
+        liftWaitMode: asLiftWaitMode(slot.liftWaitMode),
         notes: slot.notes,
         dietaryNotes: slot.dietaryNotes,
         headcount: slot.headcount,
         location: page.location,
         cancelToken,
         calendarToken,
-      } as Parameters<typeof sendClaimConfirmationToHelper>[0]);
+      });
     },
     log: logger,
   }),

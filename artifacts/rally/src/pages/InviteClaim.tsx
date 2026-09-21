@@ -10,6 +10,7 @@ import {
   taskNoun,
   taskWhenCard,
   taskWhenClause,
+  type SlotFlexibility,
 } from "@workspace/task-copy";
 import { CarFront, CheckCircle2, Clock, Loader2, XCircle, MapPin, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -51,6 +52,8 @@ interface InviteDetails {
     customLabel: string | null;
     slotDate: string;
     slotTime: string | null;
+    /** Row #145 — "around 4:00pm" when the family said the time can move. */
+    flexibility: SlotFlexibility;
     /** Bug #033 — null unless this is an answered lift. */
     liftWaitMode: string | null;
     notes: string | null;
@@ -216,8 +219,12 @@ export default function InviteClaim() {
   const slotLabel = taskLabel(slot.slotType, slot.customLabel);
   const slotNoun = taskNoun(slot.slotType, slot.customLabel);
   // Row #139 — one format. The card takes the "·" join, the sentence takes "at".
-  const whenCard = taskWhenCard(slot.slotDate, slot.slotTime ?? null);
-  const whenSentence = taskWhenClause(slot.slotDate, slot.slotTime ?? null);
+  const whenCard = taskWhenCard(slot.slotDate, slot.slotTime ?? null, slot.flexibility);
+  const whenSentence = taskWhenClause(
+    slot.slotDate,
+    slot.slotTime ?? null,
+    slot.flexibility,
+  );
   // Bug #033. Null renders nothing at all — no line, no empty space.
   const waitMode = asLiftWaitMode(slot.liftWaitMode);
 
