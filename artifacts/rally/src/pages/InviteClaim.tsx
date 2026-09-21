@@ -61,7 +61,7 @@ interface InviteDetails {
 
 const SLOT_TYPE_LABELS: Record<string, { icon: string; label: string }> = {
   meal: { icon: "🍲", label: "Meal" },
-  school_pickup: { icon: "🚗", label: "School Pickup" },
+  school_pickup: { icon: "🚗", label: "School Run" },
   child_care: { icon: "👶", label: "Child Care" },
   errand: { icon: "🧺", label: "Errand" },
   dog_walking: { icon: "🐕", label: "Dog Walking" },

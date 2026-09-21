@@ -24,7 +24,7 @@ const FROM_ADDRESS = "Aunt Lucy <noreply@auntlucy.com.au>";
 
 const SLOT_TYPE_LABELS: Record<string, string> = {
   meal: "Dropping off a meal",
-  school_pickup: "School pickup",
+  school_pickup: "School run",
   child_care: "Looking after the kids",
   errand: "Running an errand",
   dog_walking: "Dog walking",
