@@ -64,26 +64,17 @@ vi.mock("@/lib/api", () => ({
 const { default: OrganiseDashboard } = await import("@/pages/OrganiseDashboard");
 
 /**
- * "Closed on {date}" renders as TWO text nodes, so a plain string matcher
- * cannot see it. This matches on the element's whole textContent instead.
+ * The form BOTH card dates are written in — draft and closed alike.
  *
- * The date is computed here the same way the card computes it, deliberately:
- * pinning a literal would make the test hostage to the machine timezone (the
- * same instant is Friday in Melbourne and Thursday in London), and a test that
- * fails on a colleague's laptop teaches nobody anything. What is being proved
- * is that the LINE is there and carries that page's date, which it does.
+ * Computed here the same way the card computes it, deliberately: pinning a
+ * literal would make these tests hostage to the machine timezone (the same
+ * instant is one day in Melbourne and another in London), and a test that
+ * fails on a colleague's laptop teaches nobody anything. What this proves is
+ * that the LINE is there and carries that page's date. The FORM itself —
+ * no weekday, and the year only when it differs — is pinned separately below,
+ * where mirroring the implementation would not bite.
  */
-function longDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-AU", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
-}
-
-/** The draft line's form: day and month, and the year only when it differs. */
-function startedDate(iso: string): string {
+function cardDate(iso: string): string {
   const d = new Date(iso);
   const thisYear = d.getFullYear() === new Date().getFullYear();
   return d.toLocaleDateString("en-AU", {
@@ -154,7 +145,7 @@ describe("Part A — the buttons on a dashboard card", () => {
 
     // Positive control from the same render: the card exists and says closed.
     expect(await screen.findByText("Support for Tammy Hughes")).toBeTruthy();
-    expect(hasLine(`Closed on ${longDate("2026-09-18T04:00:00.000Z")}`)).toBeTruthy();
+    expect(hasLine(`Closed on ${cardDate("2026-09-18T04:00:00.000Z")}`)).toBeTruthy();
 
     // The claim. Before this a closed page could not be reopened from here,
     // even though /manage has offered reopening since #090.
@@ -170,7 +161,7 @@ describe("Part A — the buttons on a dashboard card", () => {
     expect(await screen.findByText("Support for Tammy Hughes")).toBeTruthy();
     // Row #130 — two drafts for the same person were identical cards.
     expect(
-      hasLine(`Not live yet · started ${startedDate("2026-08-12T00:00:00.000Z")}`),
+      hasLine(`Not live yet · started ${cardDate("2026-08-12T00:00:00.000Z")}`),
     ).toBeTruthy();
 
     expect(screen.getByRole("button", { name: /Continue setting up/ })).toBeTruthy();
@@ -196,7 +187,7 @@ describe("Part A — the buttons on a dashboard card", () => {
 
 // ─── PART A: how the draft date is written ───────────────────────────────────
 
-describe("the draft line's date (Kate's ruling, 21 Sep 2026)", () => {
+describe("how the card dates are written (Kate's ruling, 21 Sep 2026)", () => {
   const WEEKDAYS = [
     "Monday",
     "Tuesday",
@@ -259,6 +250,54 @@ describe("the draft line's date (Kate's ruling, 21 Sep 2026)", () => {
     for (const day of WEEKDAYS) {
       expect(line).not.toContain(day);
     }
+  });
+  /** The whole "Closed on …" line, as rendered. */
+  async function closedLine(closedAt: string): Promise<string> {
+    api.pages = [page({ status: "closed", closedAt })];
+    renderDashboard();
+    await screen.findByText("Support for Tammy Hughes");
+    const el = screen.getByText((_c, e) =>
+      (e?.textContent ?? "").startsWith("Closed on"),
+    );
+    return el.textContent ?? "";
+  }
+
+  it("the CLOSED line is written the same way — no weekday, no year this year", async () => {
+    const line = await closedLine(iso(0));
+
+    // Positive control: the line really rendered, with a real date on it.
+    expect(line).toContain("Closed on");
+    expect(line.length).toBeGreaterThan("Closed on ".length);
+
+    for (const day of WEEKDAYS) {
+      expect(line).not.toContain(day);
+    }
+    expect(line).not.toContain(String(new Date().getFullYear()));
+  });
+
+  it("the CLOSED line carries the year when it is from another year", async () => {
+    const line = await closedLine(iso(1));
+
+    expect(line).toContain(String(new Date().getFullYear() - 1));
+  });
+
+  it("the two card dates agree — a draft and a closed page from the same day read alike", async () => {
+    // The claim that matters, and the reason both lines share one helper: they
+    // sit on adjacent cards in the same list, so two formats would be visible
+    // side by side. Row #139 is open because dates are written several
+    // different ways across the product; this is the one place they now don't.
+    const when = iso(0);
+    const draft = await draftLine(when);
+    cleanup();
+    const closed = await closedLine(when);
+
+    const draftDate = draft.replace("Not live yet · started ", "");
+    const closedDate = closed.replace("Closed on ", "");
+
+    // Positive control: both really produced a date, so this is not two empty
+    // strings agreeing with each other.
+    expect(draftDate.length).toBeGreaterThan(0);
+    expect(draftDate).toBe(closedDate);
   });
 });
 
@@ -365,7 +404,13 @@ describe("Part D — the heading on the coloured header", () => {
  * 5. the weekday and year put back on the draft line's date
  *      → "carries no weekday" and "carries no year when the draft is from
  *        this year" both FAIL, along with the exact-line assertion.
- * 6. the manage-link fetch moved into the list effect (fetched for every page
+ * 6. the closed line given its own long-form helper again, leaving the draft
+ *    line on the short one
+ *      → the closed-line form test FAILS, the exact-line assertion FAILS, and
+ *        so does "the two card dates agree" — which is the one that exists to
+ *        stop exactly this, a second date format appearing on the card beside
+ *        the first.
+ * 7. the manage-link fetch moved into the list effect (fetched for every page
  *    up front)
  *      → "the token is fetched on CLICK, never with the list" FAILS.
  */

@@ -38,31 +38,28 @@ function coveredLabel(n: number): string {
 }
 
 /**
- * "12 August" — the day a draft was started (Kate's ruling, 21 Sep 2026).
+ * "12 August" — how BOTH dates on a dashboard card are written (Kate's ruling,
+ * 21 September 2026).
  *
- * No weekday: which Wednesday it was is not what tells two drafts apart, and
- * it made an already-long line longer. No year either, UNLESS the draft is
- * from a different year from today — in which case the year is the whole
- * point, because a draft left over from last year is a different kind of
- * thing from one started on Tuesday.
+ * No weekday: which Wednesday it was is not what tells two cards apart, and it
+ * made an already-long line longer. No year either, UNLESS the date is from a
+ * different year from today — in which case the year is the whole point,
+ * because a draft left over from last year is a different kind of thing from
+ * one started on Tuesday.
+ *
+ * ONE function, used by the draft line AND the closed line, deliberately. They
+ * sit on adjacent cards in the same list, so two formats would be visible side
+ * by side — and row #139 is open precisely because dates are written several
+ * different ways across the product. A second helper here is how a third way
+ * would start.
  */
-function startedDate(iso: string): string {
+function cardDate(iso: string): string {
   const d = new Date(iso);
   const thisYear = d.getFullYear() === new Date().getFullYear();
   return d.toLocaleDateString("en-AU", {
     day: "numeric",
     month: "long",
     ...(thisYear ? {} : { year: "numeric" }),
-  });
-}
-
-/** "Tuesday, 12 August 2026" — the same en-AU form /manage uses. */
-function longDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-AU", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
   });
 }
 
@@ -306,13 +303,13 @@ export default function OrganiseDashboard() {
                   */}
                   {page.status === "draft" && (
                     <p className="text-sm text-muted-foreground mb-4">
-                      Not live yet · started {startedDate(page.createdAt)}
+                      Not live yet · started {cardDate(page.createdAt)}
                     </p>
                   )}
 
                   {page.status === "closed" && page.closedAt && (
                     <p className="text-sm text-muted-foreground mb-4">
-                      Closed on {longDate(page.closedAt)}
+                      Closed on {cardDate(page.closedAt)}
                     </p>
                   )}
 
