@@ -74,6 +74,14 @@ export const GetSupportPageResponse = zod.object({
           "Null means the task has no fixed date — a flexible offer, claimed whenever suits. The date is set when a helper claims it.",
         ),
       slotTime: zod.string().nullish(),
+      flexibility: zod
+        .enum(["flexible", "fixed"])
+        .describe(
+          "Whether the time of a task is the helper's to nudge (flexible) or the family's fact (fixed). Item 17.",
+        )
+        .describe(
+          'Row #145. Whether the time can move. The helper-facing card reads \"around 4:00pm\" when this is `flexible` and a plain \"4:00pm\" when it is `fixed`, so a helper can tell a meal they may nudge from a school run they may not. Always sent — every slot row carries it.',
+        ),
       liftWaitMode: zod
         .enum(["drop_off", "wait", "pick_up"])
         .nullish()
@@ -148,6 +156,14 @@ export const ClaimSlotResponse = zod.object({
       "Null means the task has no fixed date — a flexible offer, claimed whenever suits. The date is set when a helper claims it.",
     ),
   slotTime: zod.string().nullish(),
+  flexibility: zod
+    .enum(["flexible", "fixed"])
+    .describe(
+      "Whether the time of a task is the helper's to nudge (flexible) or the family's fact (fixed). Item 17.",
+    )
+    .describe(
+      'Row #145. Whether the time can move. The helper-facing card reads \"around 4:00pm\" when this is `flexible` and a plain \"4:00pm\" when it is `fixed`, so a helper can tell a meal they may nudge from a school run they may not. Always sent — every slot row carries it.',
+    ),
   liftWaitMode: zod
     .enum(["drop_off", "wait", "pick_up"])
     .nullish()

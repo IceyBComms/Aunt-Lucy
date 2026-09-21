@@ -41,6 +41,8 @@ router.get("/calendar/:token", async (req, res) => {
     customLabel: slot.customLabel,
     slotDate: slot.slotDate,
     slotTime: slot.slotTime,
+    // Row #145 — "around 4:00pm" in the event title when the time can move.
+    flexibility: slot.flexibility,
     // Bug #033 — drives the event DURATION, not just its words.
     liftWaitMode: slot.liftWaitMode,
     recipientFirstName: firstName(page.recipientName),

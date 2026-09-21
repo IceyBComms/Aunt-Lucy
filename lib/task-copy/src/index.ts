@@ -26,6 +26,7 @@ export {
   CARD_JOIN,
   formatTaskDate,
   formatTaskTime,
+  taskTimeLabel,
   taskWhenCard,
   taskWhenSentence,
   taskWhenClause,

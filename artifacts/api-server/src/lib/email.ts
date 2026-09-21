@@ -1,7 +1,11 @@
 import { Resend } from "resend";
 import { logger } from "./logger";
 import { claimAddressee } from "./claimNotifyCopy";
-import { taskInstruction, taskWhenSentence } from "@workspace/task-copy";
+import {
+  taskInstruction,
+  taskWhenSentence,
+  type SlotFlexibility,
+} from "@workspace/task-copy";
 import { LIFT_WAIT_MODE_HELPER_LINES, type LiftWaitMode } from "./liftWaitMode";
 import { getAppBaseUrl } from "./appUrl";
 import { formatMoney, gstRateLabel, type GstBreakdown } from "./gst";
@@ -40,6 +44,10 @@ export interface ClaimEmailParams {
   customLabel: string | null;
   slotDate: string | null;
   slotTime: string | null;
+  // Row #145 — does the time move? "flexible" prints "around 4:00pm", "fixed"
+  // prints "4:00pm". Required, because a helper reading this email is deciding
+  // how to arrange their day around it.
+  flexibility: SlotFlexibility;
   // Bug #033 — for a lift, whether the helper waits. NULL on every task that
   // isn't an answered lift, in which case NOTHING is rendered: no row, no line.
   liftWaitMode: LiftWaitMode | null;
@@ -67,6 +75,7 @@ export function buildHtml(params: ClaimEmailParams): string {
     customLabel,
     slotDate,
     slotTime,
+    flexibility,
     liftWaitMode,
     notes,
     dietaryNotes,
@@ -79,8 +88,9 @@ export function buildHtml(params: ClaimEmailParams): string {
   const typeLabel = taskInstruction(slotType, customLabel);
   // Row #139 — the ONE format, in its sentence form: "Tuesday 22 September at
   // 3:00pm", or ", any time that day" when no time is set (row #143). Emails
-  // never take the card's "·" join.
-  const dateTimeLine = taskWhenSentence(slotDate, slotTime);
+  // never take the card's "·" join. Row #145 — "at around 3:00pm" when the
+  // family said the time can move.
+  const dateTimeLine = taskWhenSentence(slotDate, slotTime, flexibility);
 
   // "Add to your calendar" — rendered only for dated tasks (the caller passes
   // calendarUrl only then). Approved copy, bug #037.
@@ -187,6 +197,7 @@ export function buildPlainText(params: ClaimEmailParams): string {
     customLabel,
     slotDate,
     slotTime,
+    flexibility,
     liftWaitMode,
     notes,
     dietaryNotes,
@@ -199,8 +210,9 @@ export function buildPlainText(params: ClaimEmailParams): string {
   const typeLabel = taskInstruction(slotType, customLabel);
   // Row #139 — the ONE format, in its sentence form: "Tuesday 22 September at
   // 3:00pm", or ", any time that day" when no time is set (row #143). Emails
-  // never take the card's "·" join.
-  const dateTimeLine = taskWhenSentence(slotDate, slotTime);
+  // never take the card's "·" join. Row #145 — "at around 3:00pm" when the
+  // family said the time can move.
+  const dateTimeLine = taskWhenSentence(slotDate, slotTime, flexibility);
 
   let text = `Hi ${helperFirstName},\n\n`;
   text += `Thank you so much for stepping up to help ${recipientName}. It really does make a difference.\n\n`;
@@ -633,6 +645,8 @@ export interface RecipientClaimItem {
   customLabel: string | null;
   slotDate: string | null;
   slotTime: string | null;
+  /** Row #145 — the family reads their own page back in the same words. */
+  flexibility: SlotFlexibility;
   note: string | null;
 }
 
@@ -670,8 +684,9 @@ export interface RecipientClaimNotificationParams {
   occasion?: string | null;
 }
 
-/** "Friday 1 August at 3:00pm" / "…, any time that day" / "whenever suits". */
-const claimWhenLabel = taskWhenSentence;
+/** "Friday 1 August at 3:00pm" / "…at around 3:00pm" / "…, any time that day". */
+const claimWhenLabel = (c: RecipientClaimItem) =>
+  taskWhenSentence(c.slotDate, c.slotTime, c.flexibility);
 
 export function buildRecipientClaimNotificationEmail(
   params: RecipientClaimNotificationParams,
@@ -710,7 +725,7 @@ export function buildRecipientClaimNotificationEmail(
 
   const lineFor = (c: RecipientClaimItem) => {
     const task = taskInstruction(c.slotType, c.customLabel);
-    const when = claimWhenLabel(c.slotDate, c.slotTime);
+    const when = claimWhenLabel(c);
     const noteBit = c.note ? ` · "${c.note}"` : "";
     return { task, when, noteBit, helper: c.helperName };
   };

@@ -41,7 +41,7 @@ import {
   SLOT_TYPES,
   defaultFlexibilityForType,
   formatTaskDate,
-  formatTaskTime,
+  taskTimeLabel,
   taskLabel,
   taskPickerHint,
   type SlotFlexibility,
@@ -142,9 +142,16 @@ const TRUSTED_ONLY_HINT =
 /** Row #139 — one format, shared with every screen and message. */
 const prettyDate = formatTaskDate;
 
-/** "15:00" → "3:00 PM". Tolerant of a stored HH:MM:SS. */
-/** Row #139 — "3:00pm", lower case, no space. One formatter, everywhere. */
-const prettyTime = formatTaskTime;
+/**
+ * Row #139 — "3:00pm", lower case, no space. Row #145 — "around 3:00pm" when
+ * the family said the time can move. One formatter, everywhere.
+ *
+ * The flexibility control sits three lines below this card on the same screen,
+ * so the reader CAN see their own answer — but they read this card back to
+ * check the page is right, and it is the same card a helper will read. It says
+ * what the helper will see.
+ */
+const prettyTime = taskTimeLabel;
 
 function todayIso(): string {
   const d = new Date();
@@ -889,7 +896,7 @@ export function GiftActivation({ token }: { token: string }) {
                         {task.slotDate && task.slotTime && (
                           <span className="inline-flex items-center gap-1 text-[0.78rem] text-[#8b7e74]">
                             <Clock className="h-3.5 w-3.5" />
-                            {prettyTime(task.slotTime)}
+                            {prettyTime(task.slotTime, task.flexibility)}
                           </span>
                         )}
                         {/* Bug #033 — a dated task with no time yet says so,

@@ -25,7 +25,12 @@
 
 import ical, { ICalEventStatus, ICalCalendarMethod } from "ical-generator";
 import { getAppBaseUrl } from "./appUrl";
-import { ANY_TIME_THAT_DAY, taskNoun } from "@workspace/task-copy";
+import {
+  ANY_TIME_THAT_DAY,
+  taskNoun,
+  taskTimeLabel,
+  type SlotFlexibility,
+} from "@workspace/task-copy";
 import {
   LIFT_WAIT_MODE_HELPER_LINES,
   liftWaitMinutes,
@@ -51,6 +56,15 @@ export interface CalendarClaimData {
   slotDate: string | null;
   /** "HH:MM" / "HH:MM:SS" or null (a dated task with no set time = all-day). */
   slotTime: string | null;
+  /**
+   * Row #145 — does the time move?
+   *
+   * A calendar entry is the one surface that CANNOT say this by itself: an
+   * event at 4pm looks identical whether the family can move it or not, and a
+   * helper reading their week sees only the block. So the word rides in the
+   * TITLE, beside the wait-or-not answer, for the same reason that one does.
+   */
+  flexibility: SlotFlexibility;
   /** The recipient's first name only — the event title never carries more. */
   recipientFirstName: string;
   /** page.location, free text, already shown to this helper in their email. */
@@ -99,6 +113,17 @@ export function buildClaimIcs(data: CalendarClaimData): string {
     const label = taskNoun(data.slotType, data.customLabel);
     const timed = !!data.slotTime;
     const waitSuffix = liftWaitSummarySuffix(data.liftWaitMode);
+    // Row #145. Only a FLEXIBLE task with a time earns a word here: a fixed one
+    // is exactly the appointment the event already shows, and an untimed one is
+    // an all-day entry that says "Any time that day" in its body.
+    const aroundSuffix =
+      data.slotTime && data.flexibility === "flexible"
+        ? taskTimeLabel(data.slotTime, "flexible")
+        : null;
+    // One parenthesis, however many things need saying — "(around 4:00pm)",
+    // "(waits)", or "(around 4:00pm, waits)" — rather than two brackets fighting
+    // for the end of a title a helper reads in a week view.
+    const titleSuffix = [aroundSuffix, waitSuffix].filter(Boolean).join(", ");
     const start = floatingInstant(data.slotDate, data.slotTime);
 
     const event = cal.createEvent({
@@ -110,8 +135,8 @@ export function buildClaimIcs(data: CalendarClaimData): string {
       // The wait-or-not answer rides in the TITLE as well as the duration: a
       // helper scanning a week view sees the words without opening the event.
       // Omitted entirely when unset, so a non-lift title is unchanged.
-      summary: waitSuffix
-        ? `Helping ${data.recipientFirstName}: ${label} (${waitSuffix})`
+      summary: titleSuffix
+        ? `Helping ${data.recipientFirstName}: ${label} (${titleSuffix})`
         : `Helping ${data.recipientFirstName}: ${label}`,
       status: data.claimed
         ? ICalEventStatus.CONFIRMED

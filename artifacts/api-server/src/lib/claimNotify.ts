@@ -24,6 +24,7 @@ import { getAppBaseUrl } from "./appUrl";
 import { calendarFeedUrl } from "./calendarFeed";
 import { firstName } from "./names";
 import { helperClaimConfirmed, taskLabel, whenClause } from "./item17Copy";
+import type { SlotFlexibility } from "@workspace/task-copy";
 
 /** The release link a helper uses to see, change or cancel their claim. */
 export function releaseUrlFor(cancelToken: string): string {
@@ -40,6 +41,8 @@ export interface ClaimConfirmationParams {
   customLabel: string | null;
   slotDate: string | null;
   slotTime: string | null;
+  /** Row #145 — "around 4:00pm" when the family said the time can move. */
+  flexibility: SlotFlexibility;
   /** Bug #033 — null on anything that isn't an answered lift. */
   liftWaitMode: LiftWaitMode | null;
   notes: string | null;
@@ -78,7 +81,7 @@ export async function sendClaimConfirmationToHelper(
       helperFirstName: firstName(params.helperFirstName),
       recipientFirstName: firstName(params.recipientName),
       task: taskLabel(params.slotType, params.customLabel),
-      whenClause: whenClause(params.slotDate, params.slotTime),
+      whenClause: whenClause(params.slotDate, params.slotTime, params.flexibility),
       releaseLink: releaseUrl,
       // GSM-safe and only present on an answered lift (bug #033). The phone-only
       // helper gets no email and no calendar, so this SMS is the ONLY place they
@@ -110,6 +113,7 @@ export async function sendClaimConfirmationToHelper(
     customLabel: params.customLabel,
     slotDate: params.slotDate,
     slotTime: params.slotTime,
+    flexibility: params.flexibility,
     liftWaitMode: params.liftWaitMode,
     notes: params.notes,
     dietaryNotes: params.dietaryNotes,

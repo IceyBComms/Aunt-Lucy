@@ -518,6 +518,53 @@ describe("Part C — adding a task to a live page", () => {
     expect(created.label).toBe("Meal");
   });
 
+  /**
+   * ROW #145 — KATE'S OWN CASE, ON THE REAL ROUTE.
+   *
+   * A dated errand — which this codebase reads as a LIFT, and whose category
+   * default is therefore FIXED — with a time, and "Around then is fine". The
+   * question row #145 had to settle first was whether that answer survived the
+   * save at all, or was being overridden by the lift rule. It survives: the
+   * category default is only the seed the form starts from, and an explicit
+   * answer wins on both doors.
+   *
+   * ⚠️ P2's positive control is the second half of this test: the SAME request
+   * without the answer really does come back fixed. Without it, "flexible was
+   * stored" would pass against a route that stored flexible for everything.
+   */
+  it("a dated errand marked 'Around then is fine' is STORED flexible", async () => {
+    asManager();
+
+    const res = await addTask({
+      slotType: "errand",
+      slotDate: "2026-09-23",
+      slotTime: "16:00",
+      liftWaitMode: "wait",
+      flexibility: "flexible",
+    });
+    const created = (await res.json()) as Row;
+    const written = inserts.find((i) => i.table === "slots");
+
+    expect(res.status).toBe(201);
+    // What reached the database, not merely what the response echoed.
+    expect(written?.values.flexibility).toBe("flexible");
+    expect(written?.values.slotTime).toBe("16:00");
+    expect(created.flexibility).toBe("flexible");
+  });
+
+  it("…and the same errand with no answer still takes the lift default, fixed", async () => {
+    asManager();
+
+    await addTask({
+      slotType: "errand",
+      slotDate: "2026-09-23",
+      slotTime: "16:00",
+      liftWaitMode: "wait",
+    });
+
+    expect(inserts.find((i) => i.table === "slots")?.values.flexibility).toBe("fixed");
+  });
+
   it("a recipient grant can add one too — no account anywhere", async () => {
     selectMode = "manage";
     manageGrant = { id: "grant-recipient", role: "recipient" };

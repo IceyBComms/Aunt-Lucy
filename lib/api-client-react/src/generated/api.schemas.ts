@@ -25,6 +25,17 @@ export const SlotType = {
 } as const;
 
 /**
+ * Whether the time of a task is the helper's to nudge (flexible) or the family's fact (fixed). Item 17.
+ */
+export type SlotFlexibility =
+  (typeof SlotFlexibility)[keyof typeof SlotFlexibility];
+
+export const SlotFlexibility = {
+  flexible: "flexible",
+  fixed: "fixed",
+} as const;
+
+/**
  * Bug #033 — for a LIFT, whether the helper drops off, waits and brings them home, or collects. "Drop off" is a twenty-minute favour; "wait" can be half a day, and nothing used to say which.
 NULL IS MEANINGFUL AND IS THE COMMON CASE: it means "not a lift, or nobody has said yet", and every surface renders nothing at all for it. A dated "pick up a prescription" errand is null and must look untouched.
 The presence of this field is also what marks a task as a lift — there is no 'lift' slot type. See migration 0011.
@@ -47,6 +58,8 @@ export interface SlotResponse {
   /** Null means the task has no fixed date — a flexible offer, claimed whenever suits. The date is set when a helper claims it. */
   slotDate?: string | null;
   slotTime?: string | null;
+  /** Row #145. Whether the time can move. The helper-facing card reads "around 4:00pm" when this is `flexible` and a plain "4:00pm" when it is `fixed`, so a helper can tell a meal they may nudge from a school run they may not. Always sent — every slot row carries it. */
+  flexibility: SlotFlexibility;
   liftWaitMode?: LiftWaitMode | null;
   notes?: string | null;
   /** Meal slots only (bug #006): allergies / dietary preferences a helper needs before cooking. Null on every other slot type. */
@@ -283,17 +296,6 @@ export interface GiftReview {
   manageToken?: string | null;
   suggestions: SuggestedTask[];
 }
-
-/**
- * Whether the time of a task is the helper's to nudge (flexible) or the family's fact (fixed). Item 17.
- */
-export type SlotFlexibility =
-  (typeof SlotFlexibility)[keyof typeof SlotFlexibility];
-
-export const SlotFlexibility = {
-  flexible: "flexible",
-  fixed: "fixed",
-} as const;
 
 export interface ActivateGiftTask {
   slotType: SlotType;

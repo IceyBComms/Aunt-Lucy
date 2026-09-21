@@ -175,6 +175,7 @@ describe("the addressee swap (#039 family)", () => {
       customLabel: null,
       slotDate: null,
       slotTime: null,
+      flexibility: "fixed" as const,
       note: null,
     },
   ];

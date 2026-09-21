@@ -58,6 +58,7 @@ function slot(over: Partial<ClosureSlot> = {}): ClosureSlot {
     customLabel: null,
     slotDate: TOMORROW,
     slotTime: null,
+    flexibility: "fixed",
     isClaimed: true,
     claimedByName: "Priya",
     claimedByContact: "priya@example.com",

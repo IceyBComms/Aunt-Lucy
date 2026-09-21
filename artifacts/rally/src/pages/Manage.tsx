@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRoute, Link } from "wouter";
 import {
   ArrowLeft,
@@ -46,6 +46,7 @@ import {
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { situationHint, trustedHint } from "@/lib/inviteCopyHints";
+import { PARTIAL_TIME_MESSAGE, isPartialTime } from "@/lib/partialTime";
 import {
   Dialog,
   DialogHeader,
@@ -105,13 +106,18 @@ interface Selection {
 }
 
 /**
- * "Friday 1 August · 3:00pm" / "Friday 1 August · Any time that day" / "" when
+ * "Friday 1 August · 3:00pm", "Friday 1 August · around 3:00pm" when the time
+ * can move (row #145), "Friday 1 August · Any time that day", or "" when
  * undated. Row #139 — the one formatter, in its card form; an undated task
  * shows nothing here rather than "Whenever suits", because this screen already
  * says so elsewhere and a blank when-line is what the list has always shown.
  */
-function formatWhen(slotDate: string | null, slotTime: string | null): string {
-  return slotDate ? taskWhenCard(slotDate, slotTime) : "";
+function formatWhen(
+  slotDate: string | null,
+  slotTime: string | null,
+  flexibility: SlotFlexibility,
+): string {
+  return slotDate ? taskWhenCard(slotDate, slotTime, flexibility) : "";
 }
 
 /**
@@ -240,11 +246,20 @@ export function Manage() {
       dietaryNotes: t.dietaryNotes ?? "",
       headcount: t.headcount != null ? String(t.headcount) : "",
     });
+    setEditTimePartial(false);
     setEditing(t);
   };
 
   const saveEdit = () => {
     if (!editing) return;
+    // Row #144 — a half-typed time stops the save, which is what leaves the
+    // time already on the task untouched. The same predicate and the same
+    // sentence as both add forms: three doors, one rule.
+    if (isPartialTime(editTimeRef.current)) {
+      setEditTimePartial(true);
+      editTimeRef.current?.focus();
+      return;
+    }
     const isMeal = editing.slotType === "meal";
     editTask.mutate(
       {
@@ -299,6 +314,33 @@ export function Manage() {
   const [newDate, setNewDate] = useState("");
   const [newTime, setNewTime] = useState("");
   /**
+   * Row #144 — the time box, and whether it is currently half-typed.
+   *
+   * The ref is how the guard puts focus back where the person was; the flag is
+   * what puts Kate's sentence beside the box. Both are cleared whenever the
+   * form is opened or the time changes, so the message never outlives the
+   * problem it describes.
+   */
+  const newTimeRef = useRef<HTMLInputElement>(null);
+  const [newTimePartial, setNewTimePartial] = useState(false);
+  /**
+   * Row #144, the EDIT dialog's own time box — the third door (Kate, 21 Sep
+   * 2026, after the first two were built).
+   *
+   * Worse here than on the two add forms, and that is why it is guarded the
+   * same way rather than differently: an add form with a half-typed time saved
+   * a task with no time, but the EDIT form is sitting on a time that already
+   * exists, so a half-typed replacement wrote `null` OVER IT. Somebody
+   * correcting 3:15pm to 3:45pm and stopping one tap short lost the 3:15.
+   *
+   * The refusal is the whole protection. Nothing is sent, so the stored time is
+   * left exactly as it was — it is never re-written to null and never guessed
+   * at. A box the person fully CLEARS still means "Any time that day", as it
+   * always has: an empty box is an answer, a half-typed one is not.
+   */
+  const editTimeRef = useRef<HTMLInputElement>(null);
+  const [editTimePartial, setEditTimePartial] = useState(false);
+  /**
    * "Does it need to be at that time?" — seeded from the TASK TYPE's own
    * default, the same one the server uses. There is no second copy of the rule
    * to keep honest any more: both doors and the server import it from
@@ -337,6 +379,7 @@ export function Manage() {
     setNewType("meal");
     setNewDate("");
     setNewTime("");
+    setNewTimePartial(false);
     setNewFlexibility(defaultFlexibilityForType("meal"));
     setNewFlexibilityTouched(false);
     setNewWaitMode(null);
@@ -348,6 +391,16 @@ export function Manage() {
   }
 
   function onAddTask() {
+    // Row #144 — a half-typed time stops the save. Nothing is sent, nothing is
+    // guessed at, and the person is left looking at the box they were in with
+    // the two ways out of it written beside it. An EMPTY box is not this: it
+    // passes straight through and saves as "Any time that day", as it always
+    // has.
+    if (isPartialTime(newTimeRef.current)) {
+      setNewTimePartial(true);
+      newTimeRef.current?.focus();
+      return;
+    }
     const trustedOnly = newTrustedEffective;
     addTask.mutate(
       {
@@ -713,7 +766,7 @@ export function Manage() {
           <div className="flex flex-col gap-2.5">
             {claimedTasks.map((t) => {
               const when = withWait(
-                formatWhen(t.slotDate ?? null, t.slotTime ?? null),
+                formatWhen(t.slotDate ?? null, t.slotTime ?? null, t.flexibility),
                 t.liftWaitMode,
               );
               return (
@@ -823,11 +876,35 @@ export function Manage() {
                   Time
                 </span>
                 <input
+                  ref={newTimeRef}
                   type="time"
                   value={newTime}
-                  onChange={(e) => setNewTime(e.target.value)}
+                  /* A change means the browser parsed something, so whatever
+                     was half-typed no longer is. Note that a box going FROM
+                     half-typed fires no change event at all — that is the
+                     whole reason the guard reads validity rather than value. */
+                  onChange={(e) => {
+                    setNewTime(e.target.value);
+                    setNewTimePartial(false);
+                  }}
+                  /* Blur is the earliest honest moment to say so: they have
+                     finished with the field. The guard on save says it again
+                     for anyone who goes straight from the box to the button. */
+                  onBlur={(e) => setNewTimePartial(isPartialTime(e.currentTarget))}
+                  aria-invalid={newTimePartial || undefined}
+                  aria-describedby={newTimePartial ? "add-task-time-help" : undefined}
                   className="w-full rounded-[0.7rem] border border-[#e0d6c8] bg-[#faf7f2] px-3 py-2.5 text-[0.95rem] text-[#2c2c2c] focus:border-[#2d6a4f] focus:outline-none"
                 />
+                {/* Row #144 — beside the box, never in a form-level strip. */}
+                {newTimePartial && (
+                  <span
+                    id="add-task-time-help"
+                    data-testid="add-task-time-help"
+                    className="mt-1.5 block text-[0.84rem] leading-snug text-[#c0563a]"
+                  >
+                    {PARTIAL_TIME_MESSAGE}
+                  </span>
+                )}
               </label>
             </div>
 
@@ -1030,7 +1107,7 @@ export function Manage() {
           <div className="flex flex-col gap-2.5">
             {allTasks.map((t) => {
               const when = withWait(
-                formatWhen(t.slotDate ?? null, t.slotTime ?? null),
+                formatWhen(t.slotDate ?? null, t.slotTime ?? null, t.flexibility),
                 t.liftWaitMode,
               );
               return (
@@ -2062,11 +2139,31 @@ export function Manage() {
                 <label className="flex flex-1 flex-col gap-1.5">
                   <span className="text-[0.85rem] font-semibold text-foreground">Time</span>
                   <input
+                    ref={editTimeRef}
                     type="time"
                     value={editForm.slotTime}
-                    onChange={(e) => setEditForm((f) => ({ ...f, slotTime: e.target.value }))}
+                    /* A change means the browser parsed something. A box
+                       BECOMING half-typed fires no change event at all, which
+                       is why the guard reads validity rather than value. */
+                    onChange={(e) => {
+                      setEditForm((f) => ({ ...f, slotTime: e.target.value }));
+                      setEditTimePartial(false);
+                    }}
+                    onBlur={(e) => setEditTimePartial(isPartialTime(e.currentTarget))}
+                    aria-invalid={editTimePartial || undefined}
+                    aria-describedby={editTimePartial ? "edit-task-time-help" : undefined}
                     className="w-full rounded-[0.7rem] border border-border bg-background px-3 py-2.5 text-[0.97rem] text-foreground focus:border-primary focus:outline-none"
                   />
+                  {/* Row #144 — beside the box, never in a form-level strip. */}
+                  {editTimePartial && (
+                    <span
+                      id="edit-task-time-help"
+                      data-testid="edit-task-time-help"
+                      className="text-[0.84rem] leading-snug text-[#c0563a]"
+                    >
+                      {PARTIAL_TIME_MESSAGE}
+                    </span>
+                  )}
                 </label>
               </div>
 

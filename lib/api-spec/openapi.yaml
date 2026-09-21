@@ -1187,6 +1187,14 @@ components:
         slotTime:
           type: string
           nullable: true
+        flexibility:
+          allOf:
+            - $ref: "#/components/schemas/SlotFlexibility"
+          description: >-
+            Row #145. Whether the time can move. The helper-facing card reads
+            "around 4:00pm" when this is `flexible` and a plain "4:00pm" when it
+            is `fixed`, so a helper can tell a meal they may nudge from a school
+            run they may not. Always sent — every slot row carries it.
         liftWaitMode:
           $ref: "#/components/schemas/LiftWaitMode"
         notes:
@@ -1238,6 +1246,7 @@ components:
         - id
         - pageId
         - slotType
+        - flexibility
         - isClaimed
         - createdAt
 

@@ -43,6 +43,7 @@
  */
 import { firstName } from "./names";
 import { taskLabel, whenClause } from "./item17Copy";
+import type { SlotFlexibility } from "@workspace/task-copy";
 
 /** Is this page's register the gentler one? The same test the shipped copy uses. */
 export function isBereavement(occasion: string | null | undefined): boolean {
@@ -80,6 +81,8 @@ export interface HelperClosureParams {
   customLabel: string | null;
   slotDate: string | null;
   slotTime: string | null;
+  /** Row #145 — the closure message names the task's time in the same words. */
+  flexibility: SlotFlexibility;
   occasion: string | null;
   /** The optional box. Empty, whitespace or null all mean "nothing was added". */
   note: string | null;
@@ -103,7 +106,7 @@ export function helperClosureMessage(params: HelperClosureParams): string {
   const helperFirst = firstName(params.helperName ?? "there");
   const recipientFirst = firstName(params.recipientName);
   const task = taskLabel(params.slotType, params.customLabel);
-  const when = whenClause(params.slotDate, params.slotTime);
+  const when = whenClause(params.slotDate, params.slotTime, params.flexibility);
   const opening = closedClause(params.closerFirst, recipientFirst);
 
   // (a) THE FIXED FACT. Always present, in both registers, and it names THIS

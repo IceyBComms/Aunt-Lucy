@@ -173,7 +173,7 @@ export default function ReleaseSlot() {
   // Row #139 — one format, card form: "Saturday 15 August · 3:00pm". An undated
   // slot is a flexible offer and reads "Whenever suits"; a dated slot with no
   // time reads "Any time that day" (row #143).
-  const when = taskWhenCard(slot.slotDate, slot.slotTime);
+  const when = taskWhenCard(slot.slotDate, slot.slotTime, slot.flexibility);
   // Bug #033. Null renders nothing at all.
   const waitMode = asLiftWaitMode(slot.liftWaitMode);
 

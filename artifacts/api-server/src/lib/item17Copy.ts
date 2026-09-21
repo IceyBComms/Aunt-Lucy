@@ -39,12 +39,21 @@ export const taskName = taskShortNoun;
 /** How a task is named in a message, with its article: "the school run". */
 export const taskLabel = taskNoun;
 
-/** "6:00pm" — lower-case, no space. */
+/**
+ * "6:00pm" — lower-case, no space, and NO "around".
+ *
+ * ⚠️ Row #145 deliberately does NOT reach this one. Its only caller is the
+ * recipient's message after a helper has MOVED a flexible task, which reads
+ * "…will bring the meal closer to 6:00pm now" — "closer to" already says the
+ * time can move, and "closer to around 6:00pm" is not a sentence. Every place
+ * that states a task's own time goes through taskTimeLabel / taskWhen* instead.
+ */
 export const timeLabel = formatTaskTime;
 
 /**
- * "Friday 8 August", "Friday 8 August at 3:00pm", "Friday 8 August, any time
- * that day" (row #143), or "whenever suits" for an undated offer.
+ * "Friday 8 August at 3:00pm", "Friday 8 August at around 3:00pm" when the time
+ * can move (row #145), "Friday 8 August, any time that day" (row #143), or
+ * "whenever suits" for an undated offer.
  */
 export const whenLabel = taskWhenSentence;
 

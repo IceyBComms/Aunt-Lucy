@@ -449,6 +449,7 @@ router.post("/internal/dispatch-claim-notifications", async (req, res) => {
       customLabel: s.customLabel,
       slotDate: s.slotDate,
       slotTime: s.slotTime,
+      flexibility: s.flexibility,
       note: s.claimedNote,
     }));
 
