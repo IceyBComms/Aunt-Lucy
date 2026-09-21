@@ -632,6 +632,27 @@ export interface UpdateDetailsRequest {
 }
 
 /**
+ * A new task on a running page (Part C). Validated by the same function the setup wizard uses (api-server lib/newTaskInput), so the rules are identical on both doors: a dated task always; a lift must say whether the helper waits and must carry a time; meal detail is meal-only; and a school run or minding the kids is trusted-only whatever is sent.
+ */
+export interface AddTaskRequest {
+  slotType: SlotType;
+  /** YYYY-MM-DD. Required. */
+  slotDate: string;
+  /** HH:MM (24h). Required for a lift (a dated errand). */
+  slotTime?: string | null;
+  liftWaitMode?: LiftWaitMode | null;
+  customLabel?: string | null;
+  notes?: string | null;
+  /** Ignored when the type is school_pickup or child_care — those are always trusted-only. */
+  trustedHelpersOnly?: boolean;
+  /** Meal tasks only; ignored on other types. */
+  dietaryNotes?: string | null;
+  /** Meal tasks only; ignored on other types. */
+  headcount?: number | null;
+  flexibility?: SlotFlexibility;
+}
+
+/**
  * Item 17 — the family editing a task's time / date / details, and optionally flipping its flexible/fixed flag. Every field is optional; only those present are changed. Sensitivity (trustedHelpersOnly) is deliberately not editable here.
  */
 export interface EditTaskRequest {

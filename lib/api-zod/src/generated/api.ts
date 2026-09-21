@@ -1251,6 +1251,64 @@ export const SubmitPageFeedbackBody = zod
   );
 
 /**
+ * Adds a task to a running page. Recipient and manager grants alike, with no account. A closed page refuses with 410 before this runs. SENDS NOTHING — no invite, no SMS, no email, no notification of any kind, including for a trusted-only task. Adding a task puts a line on the page; the asking is a separate, deliberate act through the invite flow. school_pickup and child_care are always trusted-only whatever is sent.
+ * @summary Add a task to a page that is already live (Part C)
+ */
+export const AddTaskParams = zod.object({
+  token: zod.coerce.string(),
+});
+
+export const AddTaskBody = zod
+  .object({
+    slotType: zod.enum([
+      "meal",
+      "school_pickup",
+      "child_care",
+      "errand",
+      "dog_walking",
+      "shopping",
+      "visit",
+      "other",
+    ]),
+    slotDate: zod.string().describe("YYYY-MM-DD. Required."),
+    slotTime: zod
+      .string()
+      .nullish()
+      .describe("HH:MM (24h). Required for a lift (a dated errand)."),
+    liftWaitMode: zod
+      .enum(["drop_off", "wait", "pick_up"])
+      .nullish()
+      .describe(
+        'Bug #033 — for a LIFT, whether the helper drops off, waits and brings them home, or collects. \"Drop off\" is a twenty-minute favour; \"wait\" can be half a day, and nothing used to say which.\nNULL IS MEANINGFUL AND IS THE COMMON CASE: it means \"not a lift, or nobody has said yet\", and every surface renders nothing at all for it. A dated \"pick up a prescription\" errand is null and must look untouched.\nThe presence of this field is also what marks a task as a lift — there is no \'lift\' slot type. See migration 0011.',
+      ),
+    customLabel: zod.string().nullish(),
+    notes: zod.string().nullish(),
+    trustedHelpersOnly: zod
+      .boolean()
+      .optional()
+      .describe(
+        "Ignored when the type is school_pickup or child_care — those are always trusted-only.",
+      ),
+    dietaryNotes: zod
+      .string()
+      .nullish()
+      .describe("Meal tasks only; ignored on other types."),
+    headcount: zod
+      .number()
+      .nullish()
+      .describe("Meal tasks only; ignored on other types."),
+    flexibility: zod
+      .enum(["flexible", "fixed"])
+      .optional()
+      .describe(
+        "Whether the time of a task is the helper's to nudge (flexible) or the family's fact (fixed). Item 17.",
+      ),
+  })
+  .describe(
+    "A new task on a running page (Part C). Validated by the same function the setup wizard uses (api-server lib\/newTaskInput), so the rules are identical on both doors: a dated task always; a lift must say whether the helper waits and must carry a time; meal detail is meal-only; and a school run or minding the kids is trusted-only whatever is sent.",
+  );
+
+/**
  * Edits time, date or details of a task and can flip its flexible/fixed flag. If the task is claimed the claim stands and the helper is always told (with a one-tap "can't any more" out). Sensitivity is not editable here.
  * @summary Edit a task's time / date / details (Item 17)
  */

@@ -15,8 +15,36 @@ interface PageSummary {
   status: string;
   privacy: string;
   createdAt: string;
+  closedAt: string | null;
   slotCount: number;
   claimedCount: number;
+}
+
+/**
+ * The counts on a card, in words rather than jargon (Part A).
+ *
+ * "3 slots · 1 claimed" was the database talking. A slot is a row; what the
+ * person wants to know is how much of it is covered. Zero is the case that
+ * matters most and the one a number reads worst — "0 have someone" lands as a
+ * failure, "nobody yet" as a fact about a page that has only just started.
+ */
+function taskCountLabel(n: number): string {
+  return `${n} ${n === 1 ? "task" : "tasks"}`;
+}
+
+function coveredLabel(n: number): string {
+  if (n === 0) return "nobody yet";
+  return `${n} ${n === 1 ? "has" : "have"} someone`;
+}
+
+/** "Tuesday, 12 August 2026" — the same en-AU form /manage uses. */
+function longDate(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-AU", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
 }
 
 const STATUS_LABELS: Record<string, { label: string; colour: string }> = {
@@ -39,9 +67,42 @@ export default function OrganiseDashboard() {
    * itself; what makes it safe to lose is that nothing has gone out yet. Both
    * halves are in the copy, so the person can decide rather than guess.
    */
+  /**
+   * PART A — the dashboard's door into /manage.
+   *
+   * /manage is reached by a grant token, and a grant token only ever arrives
+   * by message. Signed in and looking straight at their own page, the
+   * organiser had no way in unless they still had the text — and on a CLOSED
+   * page no controls at all, so it could not even be reopened. The token is
+   * fetched on CLICK, never with the page list, so one dashboard response
+   * cannot spill a credential for every page at once.
+   */
+  const [openingId, setOpeningId] = useState<string | null>(null);
+  const [openError, setOpenError] = useState<{ pageId: string; message: string } | null>(null);
+
   const [pendingDelete, setPendingDelete] = useState<PageSummary | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  async function openManage(page: PageSummary) {
+    setOpeningId(page.id);
+    setOpenError(null);
+    try {
+      const res = await apiFetch<{ url: string }>(
+        `/organiser/pages/${page.id}/manage-link`,
+        { token: token! },
+      );
+      // Same tab: this is the person going to their own page, not opening a
+      // reference alongside it.
+      window.location.href = res.url;
+    } catch (err: any) {
+      setOpenError({
+        pageId: page.id,
+        message: err?.message ?? "That page couldn't be opened. Please try again.",
+      });
+      setOpeningId(null);
+    }
+  }
 
   async function confirmDelete() {
     if (!pendingDelete) return;
@@ -96,7 +157,7 @@ export default function OrganiseDashboard() {
         <div className="max-w-lg mx-auto">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="font-serif text-2xl font-bold">My dashboard</h1>
+              <h1 className="font-serif text-2xl font-bold text-white">My dashboard</h1>
               <p className="text-white/70 text-sm mt-1">{organiser?.email}</p>
             </div>
             <button
@@ -124,26 +185,58 @@ export default function OrganiseDashboard() {
 
         <div className="flex items-center justify-between mb-6">
           <h2 className="font-serif text-xl font-semibold text-foreground">Support pages</h2>
-          <Button
-            variant="accent"
-            size="sm"
-            onClick={() => setLocation("/organise/create")}
-            className="font-serif"
-          >
-            <Plus className="w-4 h-4 mr-1.5" />
-            New page
-          </Button>
+          {/*
+            PART B (Kate, 21 September 2026) — admin only.
+            Signing in is passwordless and unverified, so this button offered
+            anyone who typed any address an unlimited supply of free pages,
+            straight around the $59 gift. Paid pages arrive through the
+            purchase; free ones through /hardest-times. The real lock is the
+            403 on POST /organiser/pages — this only stops it being offered.
+          */}
+          {organiser?.isAdmin && (
+            <Button
+              variant="accent"
+              size="sm"
+              onClick={() => setLocation("/organise/create")}
+              className="font-serif"
+            >
+              <Plus className="w-4 h-4 mr-1.5" />
+              New page
+            </Button>
+          )}
         </div>
 
         {pages.length === 0 ? (
           <div className="text-center py-16">
-            <p className="text-muted-foreground mb-2">You haven't created any support pages yet.</p>
-            <p className="text-sm text-muted-foreground mb-6">
-              When someone you know needs help, create a page and share the link.
-            </p>
-            <Button onClick={() => setLocation("/organise/create")} className="font-serif">
-              Create your first page
-            </Button>
+            {/*
+              PART B again. An admin still gets the old invitation to create
+              one. Everybody else is told plainly that there is nothing here
+              and pointed at the front door — because for them a page is
+              something that ARRIVES (a gift, or the crisis form), not
+              something this screen makes. This state is rare: a crisis
+              organiser is dropped straight into setup and always has a page.
+            */}
+            {organiser?.isAdmin ? (
+              <>
+                <p className="text-muted-foreground mb-2">You haven't created any support pages yet.</p>
+                <p className="text-sm text-muted-foreground mb-6">
+                  When someone you know needs help, create a page and share the link.
+                </p>
+                <Button onClick={() => setLocation("/organise/create")} className="font-serif">
+                  Create your first page
+                </Button>
+              </>
+            ) : (
+              <>
+                <p className="text-muted-foreground mb-2">Nothing here yet.</p>
+                <a
+                  href={`${BASE}/`}
+                  className="text-sm text-primary font-medium underline underline-offset-4"
+                >
+                  Start from the Aunt Lucy home page
+                </a>
+              </>
+            )}
           </div>
         ) : (
           <div className="space-y-4">
@@ -179,34 +272,94 @@ export default function OrganiseDashboard() {
                   <div className="flex items-center gap-4 mb-4">
                     <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
                       <Users className="w-4 h-4" />
-                      <span>{page.slotCount} slots</span>
+                      <span>{taskCountLabel(page.slotCount)}</span>
                     </div>
                     <div className="flex items-center gap-1.5 text-sm text-primary font-medium">
                       <Check className="w-4 h-4" />
-                      <span>{page.claimedCount} claimed</span>
+                      <span>{coveredLabel(page.claimedCount)}</span>
                     </div>
                   </div>
 
+                  {/*
+                    Row #130 — two drafts for the same person were identical
+                    cards. The date is what tells them apart, and "Not live
+                    yet" says the thing a "Draft" pill only implies.
+                  */}
+                  {page.status === "draft" && (
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Not live yet · started {longDate(page.createdAt)}
+                    </p>
+                  )}
+
+                  {page.status === "closed" && page.closedAt && (
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Closed on {longDate(page.closedAt)}
+                    </p>
+                  )}
+
                   {page.status === "active" && (
-                    <div className="flex gap-2">
+                    <div className="flex flex-col gap-2">
+                      {/*
+                        The primary action, full width. Everything a running
+                        page needs — adding a task, inviting someone, closing
+                        it — lives behind this one door, so it outranks the two
+                        share controls rather than sitting beside them.
+                      */}
                       <button
-                        onClick={() => {
-                          navigator.clipboard.writeText(pageUrl);
-                        }}
-                        className="flex-1 text-sm text-center py-2 px-3 rounded-xl bg-secondary/50 hover:bg-secondary/80 text-foreground/80 transition-colors"
+                        onClick={() => openManage(page)}
+                        disabled={openingId === page.id}
+                        className="w-full flex items-center justify-center gap-1.5 text-sm font-medium py-2.5 px-3 rounded-xl bg-primary text-white hover:bg-primary/90 transition-colors disabled:opacity-60"
                       >
-                        Copy link
+                        {openingId === page.id ? "Opening…" : "Make changes"}
+                        <ArrowRight className="w-3.5 h-3.5" />
                       </button>
-                      <a
-                        href={`${BASE}/s/${page.slug}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="flex items-center gap-1.5 text-sm py-2 px-3 rounded-xl bg-secondary/50 hover:bg-secondary/80 text-foreground/80 transition-colors"
-                      >
-                        <ExternalLink className="w-3.5 h-3.5" />
-                        View
-                      </a>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(pageUrl);
+                          }}
+                          className="flex-1 text-sm text-center py-2 px-3 rounded-xl bg-secondary/50 hover:bg-secondary/80 text-foreground/80 transition-colors"
+                        >
+                          Copy link
+                        </button>
+                        {/*
+                          Renamed from "View": it opens the PUBLIC page, which
+                          is a different thing from the page you manage, and
+                          the old label did not say which one you were about
+                          to get.
+                        */}
+                        <a
+                          href={`${BASE}/s/${page.slug}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="flex items-center gap-1.5 text-sm py-2 px-3 rounded-xl bg-secondary/50 hover:bg-secondary/80 text-foreground/80 transition-colors"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" />
+                          View as a helper
+                        </a>
+                      </div>
                     </div>
+                  )}
+
+                  {/*
+                    A CLOSED page had no controls whatsoever — it was a card
+                    you could read and nothing else, and closing was therefore
+                    a one-way door from here even though /manage has offered
+                    reopening since #090. Same button, same door.
+                  */}
+                  {page.status === "closed" && (
+                    <button
+                      onClick={() => openManage(page)}
+                      disabled={openingId === page.id}
+                      className="w-full flex items-center justify-center gap-1.5 text-sm font-medium py-2.5 px-3 rounded-xl bg-secondary/50 hover:bg-secondary/80 text-foreground/80 transition-colors disabled:opacity-60"
+                    >
+                      {openingId === page.id ? "Opening…" : "Make changes"}
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+
+                  {openError?.pageId === page.id && (
+                    <p className="mt-2 text-sm text-destructive">{openError.message}</p>
                   )}
 
                   {/*

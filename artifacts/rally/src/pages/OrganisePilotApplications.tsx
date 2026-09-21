@@ -72,7 +72,7 @@ export default function OrganisePilotApplications() {
         <div className="max-w-2xl mx-auto">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="font-serif text-2xl font-bold">Pilot applications</h1>
+              <h1 className="font-serif text-2xl font-bold text-white">Pilot applications</h1>
               <p className="text-white/70 text-sm mt-1">
                 {applications.length} {applications.length === 1 ? "application" : "applications"}
               </p>

@@ -54,6 +54,7 @@ import {
   helperEmailSubject,
 } from "../lib/item17Copy";
 import { type SlotFlexibility } from "../lib/slotFlexibility";
+import { validateNewTask } from "../lib/newTaskInput";
 import {
   feedbackBlockState,
   feedbackRateLimitKey,
@@ -1090,6 +1091,71 @@ function parseHeadcountValue(value: unknown): number | null {
   if (rounded < 1) return null;
   return Math.min(rounded, 100);
 }
+
+/**
+ * POST /manage/:token/tasks — add a task to a page that is already live
+ * (Part C, 21 September 2026).
+ *
+ * WHO CAN DO THIS
+ * Recipient and manager grants alike, with no account of any kind. Until now a
+ * task could only be added during setup, by the account holder — so the moment
+ * the page went live the list of what was needed was frozen, and the one person
+ * it was all for could not add "someone to sit with me on Thursday". A closed
+ * page still refuses: requireManagementToken answers 410 before this runs.
+ *
+ * 🛑 IT SENDS NOTHING. Kate's ruling, and it is the whole shape of the screen:
+ * no invite, no SMS, no email, no notification, for any task type, INCLUDING a
+ * trusted-only one. Adding a task is not asking anybody for anything — it puts
+ * a line on the page, and the asking is a separate, deliberate act through the
+ * invite flow further down this file. The UI says so in as many words ("Adding
+ * a task doesn't send anyone a message. It just appears on the page.") and
+ * there is a test that spies every send path in this module to keep it true.
+ *
+ * VALIDATION IS SHARED, NOT COPIED. lib/newTaskInput is the same function the
+ * setup wizard calls, so a school run added here is trusted-only for the same
+ * reason and with the same words as one added there. A second copy would drift,
+ * and the drifted one is the one a family hits.
+ */
+router.post("/manage/:token/tasks", requireManagementToken as any, async (req, res) => {
+  const { pageId } = req as unknown as ManagementRequest;
+
+  const parsed = validateNewTask(req.body ?? {});
+  if (!parsed.ok) {
+    res.status(400).json({ error: parsed.error });
+    return;
+  }
+  const values = parsed.values;
+
+  const [slot] = await db
+    .insert(slotsTable)
+    .values({
+      pageId,
+      ...values,
+      slotType: values.slotType as any,
+    })
+    .returning();
+
+  // Same shape as a task in GET /manage/:token, so the screen can drop it
+  // straight into the list it already renders.
+  res.status(201).json({
+    id: slot.id,
+    slotType: slot.slotType,
+    label: taskName(slot.slotType, slot.customLabel),
+    customLabel: slot.customLabel,
+    notes: slot.notes ?? null,
+    flexibility: slot.flexibility,
+    trustedHelpersOnly: slot.trustedHelpersOnly,
+    isClaimed: slot.isClaimed,
+    claimedByName: slot.claimedByName,
+    claimedNote: slot.claimedNote ?? null,
+    claimedAt: slot.claimedAt?.toISOString() ?? null,
+    slotDate: slot.slotDate,
+    slotTime: slot.slotTime,
+    liftWaitMode: slot.liftWaitMode,
+    dietaryNotes: slot.dietaryNotes,
+    headcount: slot.headcount,
+  });
+});
 
 /**
  * PATCH /manage/:token/tasks/:slotId — edit a task's time / date / details, and

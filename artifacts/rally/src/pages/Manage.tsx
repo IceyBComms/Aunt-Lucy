@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { useRoute } from "wouter";
+import { useRoute, Link } from "wouter";
 import {
+  ArrowLeft,
   ArrowRight,
   Check,
   Copy,
@@ -10,6 +11,7 @@ import {
   Trash2,
   Clock,
   Pencil,
+  Plus,
   Lock,
   RotateCcw,
 } from "lucide-react";
@@ -28,6 +30,7 @@ import {
   useRevokeManager,
   useGrantRecipientAccess,
   useSubmitPageFeedback,
+  useAddTask,
   useClosePage,
   useReopenPage,
   useGetClosurePreview,
@@ -35,6 +38,8 @@ import {
   ApiError,
   type InvitePreview,
   type ManageTaskSummary,
+  type AddTaskRequest,
+  type SlotFlexibility,
   type ManageInviteStatus,
   type BabyStage,
   type RecipientPronouns,
@@ -60,6 +65,8 @@ import {
   type LiftWaitMode,
 } from "@/lib/liftWaitMode";
 import { SiteFooter } from "@/components/SiteFooter";
+import { SLOT_TYPES } from "@/pages/OrganiseAddSlots";
+import { useOptionalAuth } from "@/contexts/AuthContext";
 
 /**
  * What each invite state is called on the recipient's own page.
@@ -121,7 +128,30 @@ function withWait(when: string, liftWaitMode: unknown): string {
   return mode ? `${when} · ${LIFT_WAIT_MODE_TILE_LINES[mode]}` : when;
 }
 
+/**
+ * The two task types that hand a helper a child. Trusted-only always, whatever
+ * anyone ticks — forced here for the explanation and again on the server
+ * (lib/newTaskInput) for the rule.
+ */
+const SENSITIVE_SLOT_TYPES = new Set(["school_pickup", "child_care"]);
+
+const SENSITIVE_TYPE_REASON: Record<string, string> = {
+  school_pickup:
+    "A school run is always trusted-only — it means handing someone your children, so it can’t be opened up to anyone.",
+  child_care:
+    "Looking after the kids is always trusted-only — it means handing someone your children, so it can’t be opened up to anyone.",
+};
+
+/** "Does the time matter?" — the two answers, in the order they are shown. */
+const FLEXIBILITY_CHOICES: ReadonlyArray<readonly [SlotFlexibility, string]> = [
+  ["fixed", "Yes, that time"],
+  ["flexible", "Roughly then is fine"],
+];
+
 export function Manage() {
+  // Null unless this viewer is signed in with an ORGANISER account — the only
+  // person on this screen who has a dashboard (Part A).
+  const organiser = useOptionalAuth()?.organiser ?? null;
   const [, params] = useRoute("/manage/:token");
   const token = params?.token ?? "";
   const queryClient = useQueryClient();
@@ -132,6 +162,7 @@ export function Manage() {
     query: { queryKey: getGetManageStateQueryKey(token), enabled: !!token, retry: false },
   });
 
+  const addTask = useAddTask({ mutation: { onSuccess: invalidate } });
   const addContact = useAddContact({ mutation: { onSuccess: invalidate } });
   const deleteContact = useDeleteContact({ mutation: { onSuccess: invalidate } });
   const preview = usePreviewInvites();
@@ -255,6 +286,81 @@ export function Manage() {
       },
     );
   };
+
+  // ── PART C: adding a task to a live page ───────────────────────────────────
+  //
+  // Sends nothing, and the screen says so. The trusted-only tick is FORCED on
+  // school_pickup and child_care here and again on the server — the UI is the
+  // explanation, lib/newTaskInput is the rule.
+  const [addingTask, setAddingTask] = useState(false);
+  const [newType, setNewType] = useState<string>("meal");
+  const [newDate, setNewDate] = useState("");
+  const [newTime, setNewTime] = useState("");
+  const [newFlexibility, setNewFlexibility] = useState<SlotFlexibility>("fixed");
+  const [newWaitMode, setNewWaitMode] = useState<LiftWaitMode | null>(null);
+  const [newNotes, setNewNotes] = useState("");
+  const [newTrusted, setNewTrusted] = useState(false);
+  const [newDietary, setNewDietary] = useState("");
+  const [newHeadcount, setNewHeadcount] = useState("");
+  // Shown after a save, and only when the task that was saved is trusted-only.
+  const [addedTrustedOnly, setAddedTrustedOnly] = useState(false);
+
+  const newTypeIsSensitive = SENSITIVE_SLOT_TYPES.has(newType);
+  const newTrustedEffective = newTypeIsSensitive || newTrusted;
+  const newIsMeal = newType === "meal";
+  // One definition of a lift, shared with the wizard and the server: a DATED
+  // errand. Every task added here is dated, so the second argument is true.
+  const newIsLift = isLiftCandidate(newType, true);
+
+  function openAddTask() {
+    setAddingTask(true);
+    setAddedTrustedOnly(false);
+    setNewType("meal");
+    setNewDate("");
+    setNewTime("");
+    setNewFlexibility("fixed");
+    setNewWaitMode(null);
+    setNewNotes("");
+    setNewTrusted(false);
+    setNewDietary("");
+    setNewHeadcount("");
+    addTask.reset();
+  }
+
+  function onAddTask() {
+    const trustedOnly = newTrustedEffective;
+    addTask.mutate(
+      {
+        token,
+        data: {
+          slotType: newType as AddTaskRequest["slotType"],
+          slotDate: newDate,
+          slotTime: newTime || null,
+          liftWaitMode: newIsLift ? newWaitMode : null,
+          notes: newNotes.trim() || null,
+          trustedHelpersOnly: trustedOnly,
+          flexibility: newFlexibility,
+          dietaryNotes: newIsMeal ? newDietary.trim() || null : null,
+          headcount: newIsMeal && newHeadcount.trim() ? Number(newHeadcount) : null,
+        },
+      },
+      {
+        onSuccess: () => {
+          setAddingTask(false);
+          setAddedTrustedOnly(trustedOnly);
+        },
+      },
+    );
+  }
+
+  // The server's own sentence when it has one — the refusals it writes ("A lift
+  // needs a time so the helper knows when to be there") are the approved copy
+  // and say far more than a generic failure line.
+  const addTaskError =
+    addTask.error instanceof ApiError &&
+    typeof (addTask.error.data as { error?: string } | null)?.error === "string"
+      ? (addTask.error.data as { error: string }).error
+      : "That couldn't be added just now. Please try again.";
 
   // New-contact form
   const [name, setName] = useState("");
@@ -380,6 +486,18 @@ export function Manage() {
       : null;
     return (
       <div className="mx-auto max-w-[34rem] px-5 py-10" data-testid="manage-closed">
+        {/* Part A — a CLOSED page is now reachable from the dashboard too, so
+            the way back has to exist here as well; reopening lives below. */}
+        {organiser && (
+          <Link
+            href="/organise/dashboard"
+            className="mb-6 inline-flex items-center gap-1.5 text-[0.88rem] font-semibold text-[#2d6a4f] hover:underline"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" />
+            Back to my dashboard
+          </Link>
+        )}
+
         <header className="mb-8 text-center">
           <p className="text-[0.72rem] font-semibold uppercase tracking-[0.22em] text-[#d15b3e]">
             {data.recipientName}'s page
@@ -481,6 +599,25 @@ export function Manage() {
 
   return (
     <div className="mx-auto max-w-[34rem] px-5 py-10">
+      {/*
+        PART A — the way back, and ONLY for someone who has a dashboard to go
+        back to. Most people on this screen arrived by a link sent to them: a
+        recipient, or a manager the family added. They have no account and no
+        dashboard, and a link promising them "my dashboard" would open on a
+        sign-in form they cannot use. `organiser` is null for every one of
+        them, which is exactly the test — not the grant's role, which a
+        signed-in organiser and a texted recipient can both be.
+      */}
+      {organiser && (
+        <Link
+          href="/organise/dashboard"
+          className="mb-6 inline-flex items-center gap-1.5 text-[0.88rem] font-semibold text-[#2d6a4f] hover:underline"
+        >
+          <ArrowLeft className="h-3.5 w-3.5" />
+          Back to my dashboard
+        </Link>
+      )}
+
       {/* Header */}
       <header className="mb-8 text-center">
         <p className="text-[0.72rem] font-semibold uppercase tracking-[0.22em] text-[#d15b3e]">
@@ -581,6 +718,246 @@ export function Manage() {
               );
             })}
           </div>
+        )}
+      </section>
+
+      {/*
+        PART C — add a task to a page that is already live.
+        Until now the list of what was needed froze the moment the page went
+        live: only the account holder, and only during setup. The one person it
+        is all for could not add "someone to sit with me on Thursday".
+      */}
+      <section className="mb-7">
+        {!addingTask ? (
+          <button
+            type="button"
+            onClick={openAddTask}
+            className="flex w-full items-center justify-center gap-2 rounded-[0.9rem] bg-[#2d6a4f] px-5 py-3 text-[0.95rem] font-semibold text-white hover:bg-[#255a43]"
+          >
+            <Plus className="h-4 w-4" />
+            Add a task
+          </button>
+        ) : (
+          <div className="rounded-[1.1rem] border border-[#e7ddd0] bg-white px-5 py-5">
+            <h2 className="mb-4 font-serif text-[1.15rem] font-semibold text-[#2c2c2c]">
+              Add a task
+            </h2>
+
+            {/* Kind of help — the SAME display lookup the setup wizard uses, so
+                "School Run" (#127) is written down once rather than twice. */}
+            <p className="mb-2 text-[0.9rem] font-semibold text-[#2c2c2c]">
+              What kind of help?
+            </p>
+            <div className="mb-4 flex flex-wrap gap-2">
+              {SLOT_TYPES.map((t) => (
+                <button
+                  key={t.value}
+                  type="button"
+                  onClick={() => setNewType(t.value)}
+                  aria-pressed={newType === t.value}
+                  className={
+                    newType === t.value
+                      ? "rounded-full border border-[#2d6a4f] bg-[#eef4ea] px-3.5 py-2 text-[0.88rem] font-semibold text-[#2d6a4f]"
+                      : "rounded-full border border-[#e0d6c8] bg-[#faf7f2] px-3.5 py-2 text-[0.88rem] text-[#52493f]"
+                  }
+                >
+                  <span aria-hidden="true">{t.icon}</span> {t.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="mb-4 flex gap-3">
+              <label className="flex-1">
+                <span className="mb-1.5 block text-[0.9rem] font-semibold text-[#2c2c2c]">
+                  When
+                </span>
+                <input
+                  type="date"
+                  value={newDate}
+                  onChange={(e) => setNewDate(e.target.value)}
+                  className="w-full rounded-[0.7rem] border border-[#e0d6c8] bg-[#faf7f2] px-3 py-2.5 text-[0.95rem] text-[#2c2c2c] focus:border-[#2d6a4f] focus:outline-none"
+                />
+              </label>
+              <label className="flex-1">
+                <span className="mb-1.5 block text-[0.9rem] font-semibold text-[#2c2c2c]">
+                  Time
+                </span>
+                <input
+                  type="time"
+                  value={newTime}
+                  onChange={(e) => setNewTime(e.target.value)}
+                  className="w-full rounded-[0.7rem] border border-[#e0d6c8] bg-[#faf7f2] px-3 py-2.5 text-[0.95rem] text-[#2c2c2c] focus:border-[#2d6a4f] focus:outline-none"
+                />
+              </label>
+            </div>
+
+            {/* "Does the time matter?" → the existing flexible/fixed flag. */}
+            <p className="mb-2 text-[0.9rem] font-semibold text-[#2c2c2c]">
+              Does the time matter?
+            </p>
+            <div className="mb-4 flex gap-2">
+              {FLEXIBILITY_CHOICES.map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setNewFlexibility(value)}
+                  aria-pressed={newFlexibility === value}
+                  className={
+                    newFlexibility === value
+                      ? "flex-1 rounded-[0.7rem] border border-[#2d6a4f] bg-[#eef4ea] px-3 py-2.5 text-[0.88rem] font-semibold text-[#2d6a4f]"
+                      : "flex-1 rounded-[0.7rem] border border-[#e0d6c8] bg-[#faf7f2] px-3 py-2.5 text-[0.88rem] text-[#52493f]"
+                  }
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {/* Bug #033 — a lift has to say whether the helper waits. Shown on
+                exactly the types the setup wizard shows it on, because both
+                ask isLiftCandidate the same question. */}
+            {newIsLift && (
+              <div className="mb-4">
+                <p className="mb-2 text-[0.9rem] font-semibold text-[#2c2c2c]">
+                  Does the helper wait?
+                </p>
+                <div className="flex flex-col gap-2">
+                  {LIFT_WAIT_MODES.map((mode) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => setNewWaitMode(mode)}
+                      aria-pressed={newWaitMode === mode}
+                      className={
+                        newWaitMode === mode
+                          ? "rounded-[0.7rem] border border-[#2d6a4f] bg-[#eef4ea] px-3.5 py-2.5 text-left text-[0.88rem] font-semibold text-[#2d6a4f]"
+                          : "rounded-[0.7rem] border border-[#e0d6c8] bg-[#faf7f2] px-3.5 py-2.5 text-left text-[0.88rem] text-[#52493f]"
+                      }
+                    >
+                      {LIFT_WAIT_MODE_LABELS[mode]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Bug #006 — meal detail, meal only, same as the wizard. */}
+            {newIsMeal && (
+              <div className="mb-4 flex gap-3">
+                <label className="w-28">
+                  <span className="mb-1.5 block text-[0.9rem] font-semibold text-[#2c2c2c]">
+                    How many?
+                  </span>
+                  <input
+                    type="number"
+                    min={1}
+                    value={newHeadcount}
+                    onChange={(e) => setNewHeadcount(e.target.value)}
+                    className="w-full rounded-[0.7rem] border border-[#e0d6c8] bg-[#faf7f2] px-3 py-2.5 text-[0.95rem] text-[#2c2c2c] focus:border-[#2d6a4f] focus:outline-none"
+                  />
+                </label>
+                <label className="flex-1">
+                  <span className="mb-1.5 block text-[0.9rem] font-semibold text-[#2c2c2c]">
+                    Anything they can't eat?
+                  </span>
+                  <input
+                    type="text"
+                    value={newDietary}
+                    onChange={(e) => setNewDietary(e.target.value)}
+                    className="w-full rounded-[0.7rem] border border-[#e0d6c8] bg-[#faf7f2] px-3 py-2.5 text-[0.95rem] text-[#2c2c2c] focus:border-[#2d6a4f] focus:outline-none"
+                  />
+                </label>
+              </div>
+            )}
+
+            <label className="mb-4 block">
+              <span className="mb-1.5 block text-[0.9rem] font-semibold text-[#2c2c2c]">
+                Anything a helper should know?{" "}
+                <span className="font-normal text-[#8b7e74]">Optional</span>
+              </span>
+              <textarea
+                value={newNotes}
+                rows={2}
+                maxLength={500}
+                onChange={(e) => setNewNotes(e.target.value)}
+                className="w-full rounded-[0.7rem] border border-[#e0d6c8] bg-[#faf7f2] px-3 py-2.5 text-[0.95rem] text-[#2c2c2c] focus:border-[#2d6a4f] focus:outline-none"
+              />
+            </label>
+
+            {/* Sensitivity. Ticked AND locked on the two types that hand a
+                helper a child — with the reason said plainly, because a
+                disabled tickbox and no explanation reads as a glitch. */}
+            <label className="mb-1 flex items-start gap-3">
+              <input
+                type="checkbox"
+                checked={newTrustedEffective}
+                disabled={newTypeIsSensitive}
+                onChange={(e) => setNewTrusted(e.target.checked)}
+                className="mt-0.5 h-4 w-4 flex-none accent-[#2d6a4f] disabled:opacity-60"
+              />
+              <span className="text-[0.9rem] text-[#52493f]">
+                <span className="font-semibold text-[#2c2c2c]">
+                  Only people you trust
+                </span>{" "}
+                — only the people you've marked as trusted will see this one.
+              </span>
+            </label>
+            {newTypeIsSensitive && (
+              <p className="mb-3 ml-7 text-[0.84rem] text-[#8b7e74]">
+                {SENSITIVE_TYPE_REASON[newType]}
+              </p>
+            )}
+
+            {/* The whole point of the screen, said out loud rather than left to
+                be discovered. Kate's ruling: this screen sends nothing. */}
+            <p className="mb-4 mt-3 rounded-[0.7rem] bg-[#f6f1e8] px-3.5 py-2.5 text-[0.86rem] text-[#52493f]">
+              Adding a task doesn't send anyone a message. It just appears on the
+              page.
+            </p>
+
+            {addTask.isError && (
+              <p className="mb-3 text-[0.88rem] text-[#c0563a]">{addTaskError}</p>
+            )}
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={onAddTask}
+                disabled={addTask.isPending}
+                className="flex-1 rounded-[0.8rem] bg-[#2d6a4f] px-4 py-2.5 text-[0.92rem] font-semibold text-white hover:bg-[#255a43] disabled:opacity-60"
+              >
+                {addTask.isPending ? "Adding…" : "Add to the page"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setAddingTask(false)}
+                className="rounded-[0.8rem] border border-[#e0d6c8] px-4 py-2.5 text-[0.92rem] font-semibold text-[#52493f]"
+              >
+                Not now
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* After saving. A trusted-only task is invisible to everybody but the
+            trusted list, which is a surprise unless it is said — and the thing
+            to do about it is one control away, in the people list below. */}
+        {addedTrustedOnly && (
+          <p className="mt-3 rounded-[0.7rem] bg-[#eef4ea] px-3.5 py-2.5 text-[0.88rem] text-[#2d6a4f]">
+            Only people you've marked as trusted can see this one. You can{" "}
+            <button
+              type="button"
+              onClick={() =>
+                document
+                  .getElementById("who-to-ask")
+                  ?.scrollIntoView({ behavior: "smooth", block: "start" })
+              }
+              className="font-semibold underline underline-offset-2"
+            >
+              ask someone about it from your people list
+            </button>
+            .
+          </p>
         )}
       </section>
 
@@ -881,7 +1258,7 @@ export function Manage() {
 
       {/* People list + invite selection */}
       {data.contacts.length > 0 && (
-        <section className="mb-7">
+        <section className="mb-7" id="who-to-ask">
           <h2 className="mb-3 font-serif text-[1.15rem] font-semibold text-[#2c2c2c]">
             Who to ask
           </h2>

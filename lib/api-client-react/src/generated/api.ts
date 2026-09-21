@@ -21,6 +21,7 @@ import type {
   ActivatedPage,
   AddContactRequest,
   AddManagerRequest,
+  AddTaskRequest,
   BereavementGateError,
   ClaimSlotRequest,
   ClosePageRequest,
@@ -2592,6 +2593,94 @@ export const useSubmitPageFeedback = <
   TContext
 > => {
   return useMutation(getSubmitPageFeedbackMutationOptions(options));
+};
+
+/**
+ * Adds a task to a running page. Recipient and manager grants alike, with no account. A closed page refuses with 410 before this runs. SENDS NOTHING — no invite, no SMS, no email, no notification of any kind, including for a trusted-only task. Adding a task puts a line on the page; the asking is a separate, deliberate act through the invite flow. school_pickup and child_care are always trusted-only whatever is sent.
+ * @summary Add a task to a page that is already live (Part C)
+ */
+export const getAddTaskUrl = (token: string) => {
+  return `/api/manage/${token}/tasks`;
+};
+
+export const addTask = async (
+  token: string,
+  addTaskRequest: AddTaskRequest,
+  options?: RequestInit,
+): Promise<ManageTaskSummary> => {
+  return customFetch<ManageTaskSummary>(getAddTaskUrl(token), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(addTaskRequest),
+  });
+};
+
+export const getAddTaskMutationOptions = <
+  TError = ErrorType<ValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof addTask>>,
+    TError,
+    { token: string; data: BodyType<AddTaskRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof addTask>>,
+  TError,
+  { token: string; data: BodyType<AddTaskRequest> },
+  TContext
+> => {
+  const mutationKey = ["addTask"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof addTask>>,
+    { token: string; data: BodyType<AddTaskRequest> }
+  > = (props) => {
+    const { token, data } = props ?? {};
+
+    return addTask(token, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AddTaskMutationResult = NonNullable<
+  Awaited<ReturnType<typeof addTask>>
+>;
+export type AddTaskMutationBody = BodyType<AddTaskRequest>;
+export type AddTaskMutationError = ErrorType<ValidationError>;
+
+/**
+ * @summary Add a task to a page that is already live (Part C)
+ */
+export const useAddTask = <
+  TError = ErrorType<ValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof addTask>>,
+    TError,
+    { token: string; data: BodyType<AddTaskRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof addTask>>,
+  TError,
+  { token: string; data: BodyType<AddTaskRequest> },
+  TContext
+> => {
+  return useMutation(getAddTaskMutationOptions(options));
 };
 
 /**

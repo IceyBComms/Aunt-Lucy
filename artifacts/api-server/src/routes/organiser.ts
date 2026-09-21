@@ -17,34 +17,46 @@ import { releaseHeldInvitesOnGoLive } from "../lib/goLiveInvites";
 import { requireAuth, type AuthRequest } from "../middleware/requireAuth";
 import { isAdminEmail } from "../lib/admin";
 import { uniqueSlug } from "../lib/slug";
-import { defaultFlexibility } from "../lib/slotFlexibility";
-import { asLiftWaitMode, isLiftCandidate } from "../lib/liftWaitMode";
-import { grantRecipientAccess, grantSetupPersonAccess } from "../lib/accessGrants";
+import { validateNewTask } from "../lib/newTaskInput";
+import {
+  grantRecipientAccess,
+  grantSetupPersonAccess,
+  listActiveGrants,
+  manageLinkFor,
+} from "../lib/accessGrants";
 import { logger } from "../lib/logger";
 import { canDeleteDraft } from "../lib/draftDeletion";
 import { canPublish, PUBLISH_REFUSALS } from "../lib/pagePublish";
 
 const router: IRouter = Router();
 
-/**
- * Coerce a client-supplied headcount into a sane positive integer, or null.
- * Accepts a number or a numeric string (a form input often sends the latter).
- * Caps at 100 — a meal train, not a wedding — so a scripted request can't stash
- * an absurd value. Anything non-positive or unparseable becomes null (the field
- * is always optional).
- */
-function parseHeadcount(value: number | string | null | undefined): number | null {
-  if (value === null || value === undefined || value === "") return null;
-  const n = typeof value === "number" ? value : parseInt(value, 10);
-  if (!Number.isFinite(n) || Number.isNaN(n)) return null;
-  const rounded = Math.floor(n);
-  if (rounded < 1) return null;
-  return Math.min(rounded, 100);
-}
-
 // POST /api/organiser/pages — create a new support page (draft)
 router.post("/organiser/pages", requireAuth as any, async (req, res) => {
   const authReq = req as unknown as AuthRequest;
+
+  /**
+   * ADMIN ONLY (Kate's ruling, 21 September 2026 — Part B).
+   *
+   * Signing in is passwordless and unverified by design: type any address and
+   * you have an organiser account. That is right for the people who are meant
+   * to be here, but it meant this route handed anyone who typed anything an
+   * unlimited supply of free support pages — a back door straight around the
+   * $59 gift, with no purchase and no crisis form in the way.
+   *
+   * The two legitimate doors are unchanged and neither comes through here: a
+   * paid page is created by Stripe fulfilment, and a free crisis page by
+   * POST /crisis/pages (which has its own rate limit and is meant to be free).
+   * The setup flow that follows either one uses
+   * POST /organiser/pages/:pageId/slots, which is deliberately NOT gated —
+   * a draft still has to be finishable.
+   *
+   * Hiding the dashboard button is not the lock. This is.
+   */
+  if (!isAdminEmail(authReq.organiserEmail)) {
+    res.status(403).json({ error: "You don't have access to this." });
+    return;
+  }
+
   // `privacy` and `pin` are deliberately NOT read (Kate's ruling, 21 September
   // 2026, bug #129 — the page PIN is dropped). A client still sending them,
   // which a cached bundle will do for a while after deploy, is not refused:
@@ -165,77 +177,23 @@ router.post("/organiser/pages/:pageId/slots", requireAuth as any, async (req, re
     return;
   }
 
-  const { slotType, customLabel, slotDate, slotTime, notes, trustedHelpersOnly, dietaryNotes, headcount, liftWaitMode } = req.body as {
-    slotType?: string;
-    customLabel?: string;
-    slotDate?: string;
-    slotTime?: string | null;
-    notes?: string;
-    trustedHelpersOnly?: boolean;
-    dietaryNotes?: string | null;
-    headcount?: number | string | null;
-    liftWaitMode?: string | null;
-  };
-
-  const validTypes = ["meal", "school_pickup", "child_care", "errand", "dog_walking", "shopping", "visit", "other"];
-  if (!slotType || !validTypes.includes(slotType)) {
-    res.status(400).json({ error: "A valid slot type is required." });
+  // One validator, two doors (Part C, 21 September 2026). The rules that
+  // matter — a school run is always trusted-only, a lift must say whether the
+  // helper waits, meal detail is meal-only — now live in lib/newTaskInput and
+  // are shared verbatim with POST /manage/:token/tasks. A second copy would
+  // drift, and the drifted one is the one a family hits.
+  const parsed = validateNewTask(req.body ?? {});
+  if (!parsed.ok) {
+    res.status(400).json({ error: parsed.error });
     return;
   }
-  if (!slotDate || !/^\d{4}-\d{2}-\d{2}$/.test(slotDate)) {
-    res.status(400).json({ error: "A valid date (YYYY-MM-DD) is required." });
-    return;
-  }
-
-  // Bug #033 — the wait-or-not answer, lift-only. Organiser slots are ALWAYS
-  // dated (the date check above returns 400), so every errand here is a lift
-  // candidate. A mode sent on any other type is dropped, never stored: a
-  // wait-or-not question on a meal is nonsense.
-  const isLift = isLiftCandidate(slotType, true);
-  const waitMode = isLift ? asLiftWaitMode(liftWaitMode) : null;
-
-  // BOTH are REQUIRED on the organiser path, and only here. This is the setup
-  // person or page runner, who knows the details — unlike the recipient's
-  // activation screen, where the same two are strongly prompted but never
-  // block, because someone whose hospital hasn't given them a time yet must
-  // still be able to make their page live.
-  if (isLift && !waitMode) {
-    res.status(400).json({
-      error: "For a lift, say whether the helper waits — it's the difference between a short trip and half a day.",
-    });
-    return;
-  }
-  if (isLift && !slotTime) {
-    res.status(400).json({ error: "A lift needs a time so the helper knows when to be there." });
-    return;
-  }
-
-  const sensitiveTypes = ["school_pickup", "child_care"];
-  const isTrustedOnly = sensitiveTypes.includes(slotType) || trustedHelpersOnly === true;
-
-  // Meal detail fields (bug #006) are meal-only — never persisted on any other
-  // type, so a stray dietary/headcount on a dog walk can't sneak in.
-  const isMeal = slotType === "meal";
-  const dietaryValue = isMeal && typeof dietaryNotes === "string" ? dietaryNotes.trim().slice(0, 500) || null : null;
-  const headcountValue = isMeal ? parseHeadcount(headcount) : null;
-
+  const values = parsed.values;
   const [slot] = await db
     .insert(slotsTable)
     .values({
       pageId,
-      slotType: slotType as any,
-      customLabel: customLabel?.trim() || null,
-      slotDate,
-      slotTime: slotTime || null,
-      liftWaitMode: waitMode,
-      notes: typeof notes === "string" ? notes.trim() || null : null,
-      trustedHelpersOnly: isTrustedOnly,
-      dietaryNotes: dietaryValue,
-      headcount: headcountValue,
-      // Item 17: category default. Organiser slots are always dated, so a dated
-      // errand reads as a lift → fixed; a meal stays flexible regardless. The
-      // page runner can flip it later on /manage.
-      flexibility: defaultFlexibility(slotType, slotDate != null),
+      ...values,
+      slotType: values.slotType as any,
     })
     .returning();
 
@@ -417,10 +375,92 @@ router.get("/organiser/pages", requireAuth as any, async (req, res) => {
       status: p.status,
       privacy: p.privacy,
       createdAt: p.createdAt.toISOString(),
+      // Part A — a closed card now says when it closed, so the dashboard can
+      // tell two closed pages apart. Null-safe: a page closed before migration
+      // 0017 has no date, and the card simply omits the line.
+      closedAt: p.closedAt?.toISOString() ?? null,
       slotCount: p.slots.length,
       claimedCount: p.slots.filter((s) => s.isClaimed).length,
     })),
   );
+});
+
+/**
+ * GET /api/organiser/pages/:pageId/manage-link — "Make changes" (Part A).
+ *
+ * THE PROBLEM THIS SOLVES
+ * /manage is reached by a grant token, and a grant token is only ever delivered
+ * by message. The organiser — the person who set the page up and is signed in
+ * looking straight at it — had no route to their own management screen at all
+ * unless they still had the text. On a CLOSED page they had no controls
+ * whatsoever, so a page could not even be reopened from the dashboard.
+ *
+ * WHAT IT WILL NOT DO
+ * It never returns somebody else's token, and above all never the recipient's.
+ * A grant token IS a credential: handing the organiser the recipient's would
+ * silently give them the recipient's identity in every message the page sends,
+ * and would survive any later revoking. So the match is on THEIR OWN contact
+ * and nothing else, and when there is no such grant a fresh one is minted for
+ * them rather than an existing one borrowed.
+ *
+ * ANY role counts as theirs. On a crisis page someone set up for THEMSELVES,
+ * their own grant is role "recipient" (lib/setupPersonGrant) — that is correct
+ * and must be reused, not duplicated with a manager grant beside it, or the
+ * page would start telling them about themselves in the third person.
+ *
+ * The token is fetched on click and never on the page LIST, so a dashboard
+ * response cannot spill credentials for every page at once.
+ */
+router.get("/organiser/pages/:pageId/manage-link", requireAuth as any, async (req, res) => {
+  const authReq = req as unknown as AuthRequest;
+  const { pageId } = req.params;
+
+  // Not yours is answered exactly as not-a-page: a signed-in stranger learns
+  // nothing about which page ids exist.
+  const page = await db.query.supportPagesTable.findFirst({
+    where: and(
+      eq(supportPagesTable.id, pageId),
+      eq(supportPagesTable.organiserId, authReq.organiserId),
+    ),
+  });
+
+  if (!page) {
+    res.status(404).json({ error: "Page not found." });
+    return;
+  }
+
+  const organiserEmail = (authReq.organiserEmail ?? "").trim();
+  const grants = await listActiveGrants(page.id);
+  const mine = grants.find(
+    (g) =>
+      (g.personContact ?? "").trim().toLowerCase() === organiserEmail.toLowerCase(),
+  );
+
+  if (mine) {
+    res.json({ url: manageLinkFor(mine.token) });
+    return;
+  }
+
+  // No grant of their own yet — a page created before #081, or a gift page
+  // whose access list only ever held the recipient. Mint one. `forSelf: false`
+  // makes it a MANAGER: this is the organiser asking for their own way in, not
+  // a statement that the page is about them. Getting that wrong would flip the
+  // addressee in every claim notification the page sends.
+  const organiser = await db.query.organisersTable.findFirst({
+    where: eq(organisersTable.id, authReq.organiserId),
+  });
+
+  const minted = await grantSetupPersonAccess({
+    pageId: page.id,
+    contact: organiserEmail,
+    name: organiser?.name ?? null,
+    forSelf: false,
+  });
+
+  // Page id only. Never the token, never the email (row #134).
+  logger.info({ pageId: page.id }, "Minted an organiser's own management grant");
+
+  res.json({ url: manageLinkFor(minted.token) });
 });
 
 // GET /api/organiser/pages/:pageId — get a specific page with slots
