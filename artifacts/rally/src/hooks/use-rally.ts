@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { 
   useGetSupportPage, 
@@ -44,36 +44,26 @@ export function supportPage404Reason(error: unknown): SupportPage404Reason | nul
 }
 
 export function useSupportPageFlow(slug: string) {
-  const [pin, setPin] = useState<string | undefined>(undefined);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const [needsPin, setNeedsPin] = useState(false);
-
-  const query = useGetSupportPage(slug, { pin }, {
+  // The page is fetched once, plainly. There is no second attempt carrying a
+  // code, and no 401 to watch for: the PIN was dropped on 21 September 2026
+  // (Kate's ruling, bug #129). The only thing that decides what a visitor sees
+  // is what the server puts in the response.
+  const query = useGetSupportPage(slug, {
     query: {
-      queryKey: getGetSupportPageQueryKey(slug, { pin }),
-      enabled: !!slug && (!needsPin || !!pin),
+      queryKey: getGetSupportPageQueryKey(slug),
+      enabled: !!slug,
       retry: false,
     }
   });
-
-  // Move PIN detection into an effect to avoid setState during render
-  useEffect(() => {
-    if (query.isError) {
-      const error = query.error;
-      const status = error instanceof ApiError ? error.status : undefined;
-      if (status === 401) {
-        setNeedsPin(true);
-      }
-    }
-  }, [query.isError, query.error]);
 
   const claimMutation = useClaimSlot({
     mutation: {
       onSuccess: () => {
         queryClient.invalidateQueries({
-          queryKey: getGetSupportPageQueryKey(slug, { pin })
+          queryKey: getGetSupportPageQueryKey(slug)
         });
       },
       onError: (error) => {
@@ -95,30 +85,25 @@ export function useSupportPageFlow(slug: string) {
     }
   });
 
-  const submitPin = useCallback((newPin: string) => {
-    setPin(newPin);
-  }, []);
-
   const claimSlot = useCallback(async (slotId: string, data: ClaimSlotRequest): Promise<SlotResponse | null> => {
     try {
       // Success is now confirmed by the in-dialog "You're confirmed!" screen
       // (with the calendar link), so the old success toast is gone — it was
       // redundant with the persistent confirmation. Error toasts still fire via
       // claimMutation.onError below.
-      const result = await claimMutation.mutateAsync({ slotId, data: { ...data, pin: pin ?? undefined } });
+      const result = await claimMutation.mutateAsync({ slotId, data });
       // Return the claim response (incl. calendarUrl) so the caller can show the
       // post-claim confirmation with an "Add to your calendar" link. null on failure.
       return result;
     } catch {
       return null;
     }
-  }, [claimMutation, pin]);
+  }, [claimMutation]);
 
   const reason = query.isError ? supportPage404Reason(query.error) : null;
 
   return {
     ...query,
-    needsPin: needsPin && !query.isSuccess,
     // A real page that simply hasn't been switched on yet — told apart from a
     // genuine 404 so the visitor can be asked to hang on to their link rather
     // than be told the page doesn't exist.
@@ -126,7 +111,6 @@ export function useSupportPageFlow(slug: string) {
     // A real page that has been closed. It is over, and the screen says only
     // that — never why (bug #090, ruling 6).
     closed: reason === "closed",
-    submitPin,
     claimSlot,
     isClaiming: claimMutation.isPending
   };

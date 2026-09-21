@@ -5,8 +5,6 @@ import { SlotCard } from "@/components/SlotCard";
 import { ClaimDialog } from "@/components/ClaimDialog";
 import { SiteFooter } from "@/components/SiteFooter";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Heart, MapPin, Loader2, Clock } from "lucide-react";
 import { motion } from "framer-motion";
 import type { SlotResponse, ClaimSlotRequest } from "@workspace/api-client-react";
@@ -15,10 +13,8 @@ export default function SupportPage() {
   const [, params] = useRoute("/s/:slug");
   const slug = params?.slug || "";
   
-  const { data: page, isLoading, isError, notLiveYet, closed, needsPin, submitPin, claimSlot, isClaiming } = useSupportPageFlow(slug);
+  const { data: page, isLoading, isError, notLiveYet, closed, claimSlot, isClaiming } = useSupportPageFlow(slug);
 
-  const [pinInput, setPinInput] = useState("");
-  const [pinSubmitted, setPinSubmitted] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<SlotResponse | null>(null);
   // The claim response once a claim succeeds — carries calendarUrl. Keeps the
   // dialog open on a confirmation view (with the "Add to your calendar" link)
@@ -49,84 +45,19 @@ export default function SupportPage() {
     );
   }
 
-  if (needsPin) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-6">
-        <motion.div 
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="w-full max-w-md bg-card rounded-3xl p-8 shadow-xl border border-border/50 text-center"
-        >
-          {/*
-            Bug #072 — this screen used to read "Protected Page — This support
-            page requires a PIN to view. Please enter it below.": system-shaped
-            language on a page about someone's worst week, and for some helpers
-            the FIRST Aunt Lucy they ever meet. Copy below is Kate's approved
-            wording, verbatim.
-
-            NO NAME IS INTERPOLATED, DELIBERATELY. The page is protected, so the
-            recipient's name may not be available here — and a blank where a
-            name should be reads as a fault, not as discretion.
-
-            THE PICTURE HAD TO AGREE WITH THE WORDS (Kate, 30 Aug; see PATTERN
-            P6). This first shipped as copy-only, leaving a shield-and-alarm
-            icon sitting above "Just checking it's you" — a security motif
-            framing a friend arriving to help as a threat to be screened, and
-            arguing with every word beneath it. The teacup replaces it: for some
-            helpers this screen is the first Aunt Lucy they ever meet, so the
-            mark is doing useful work rather than merely being harmless.
-          */}
-          <img
-            src="/brand/aunt-lucy-mark.svg"
-            alt=""
-            className="w-14 h-14 mx-auto mb-6"
-            onError={(e) => {
-              (e.currentTarget as HTMLImageElement).style.display = "none";
-            }}
-          />
-          <h1 className="text-3xl font-serif font-bold text-foreground mb-3">
-            Just checking it&rsquo;s you
-          </h1>
-          <p className="text-muted-foreground mb-8 leading-relaxed">
-            This page is kept private, so it needs a short code. Whoever sent you the
-            link will have it.
-          </p>
-          <form 
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (pinInput.trim()) {
-                setPinSubmitted(true);
-                submitPin(pinInput.trim());
-              }
-            }}
-            className="space-y-4"
-          >
-            <Label htmlFor="pin" className="sr-only">
-              Your code
-            </Label>
-            <Input
-              id="pin"
-              type="password"
-              placeholder="Your code"
-              aria-label="Your code"
-              value={pinInput}
-              onChange={(e) => { setPinInput(e.target.value); setPinSubmitted(false); }}
-              className={`text-center text-2xl tracking-widest py-4 h-auto${pinSubmitted && isError ? " border-destructive focus-visible:ring-destructive/20" : ""}`}
-              maxLength={8}
-            />
-            {pinSubmitted && isError && (
-              <p className="text-sm text-destructive text-center">
-                That PIN isn't right. Please check with the person who shared this link.
-              </p>
-            )}
-            <Button type="submit" size="lg" className="w-full text-lg font-serif">
-              Open the page
-            </Button>
-          </form>
-        </motion.div>
-      </div>
-    );
-  }
+  // THERE IS NO "Just checking it's you" SCREEN HERE ANY MORE.
+  //
+  // It asked a helper for a short code before it would show them anything, and
+  // was removed on 21 September 2026 with the PIN itself (Kate's ruling, bug
+  // #129). It was real: a live page was locked with a hashed code nobody could
+  // recover, so the people it was made for could neither see it nor offer.
+  //
+  // The copy and the teacup on it were ruled (bug #072) and are not lost —
+  // they are in git history at this line. Nothing replaces the screen: for a
+  // helper arriving on a live page, the page IS the answer. What must stay
+  // private stays private by never reaching this response at all (trusted-only
+  // tasks, filtered server-side), which is the model CLAUDE.md states: the
+  // link is not the lock.
 
   // A page that exists but hasn't been switched on yet. This is checked before
   // the generic branch below so the visitor is told to hang on to their link

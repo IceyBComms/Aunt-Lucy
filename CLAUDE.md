@@ -13,6 +13,7 @@
 This file was substantially updated in July 2026 following an extended design session. If you've read an older version of this file, or code comments reference concepts not in this version, **this file wins.**
 
 **Superseded / replaced:**
+- **The page PIN is gone (21 Sep 2026, bug row #129).** Privacy Requirement #3 used to read "PIN protection. Already built… maintain and improve this." It is WITHDRAWN. A PIN on the public page contradicts "the link is not the lock": what must stay private is kept private by never being in the response (trusted-only tasks are filtered server-side, and their people arrive by invite link), not by a second door. In practice it locked a live page with a hashed code nobody could recover, so helpers could neither see nor claim anything. The create form no longer offers it, the API no longer reads or enforces it, and existing `pin_protected` rows simply open. **Do not reinstate it.** The dead `support_pages.pin` column and the `pin_protected` enum value are left in place on purpose — dropping them is a migration and a separate job.
 - Role model changed from Owner/Contributor/Helper/Carer (with a `page_members` table) to **Setup / Activator / Helper**, plus a first-class **admin** role with access tied to how it was created. See "The three roles" and "The admin role" below. The `page_members` table concept is retired — see "Data model implications."
 - CTA language changed from "Gift an Aunt Lucy page" to **"Gift Aunt Lucy"** — the product is a character who takes care of things, not a page you're gifting.
 - Activation copy changed from "your village will be waiting" to **"Ready when you are"** — "village" tested as too American for an Australian audience.
@@ -151,8 +152,7 @@ Support page and gift links must use a long random token, not sequential IDs. Se
 **2. No sensitive medical data.**
 The product intentionally avoids storing clinical or medical information. The "situation" field is free text and deliberately vague. Do not add fields that would make this a medical record.
 
-**3. PIN protection.**
-Already built for protected support pages — maintain and improve this.
+**3. No page PIN. Withdrawn 21 Sep 2026 (row #129) — the link is not the lock; trusted-only tasks and the trusted invite link do this job.**
 
 **4. Helper-name visibility is opt-in.**
 A helper chooses at the moment of claiming whether their name is shown to other helpers. Never assume it, never default it on, and never surface it retrospectively. The recipient always sees who claimed what regardless — see "Helper visibility — presence vs names" above.

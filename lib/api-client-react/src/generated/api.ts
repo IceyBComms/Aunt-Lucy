@@ -30,7 +30,6 @@ import type {
   CreateGiftRequest,
   CreateGiftResponse,
   EditTaskRequest,
-  GetSupportPageParams,
   GiftExperience,
   GiftReview,
   GiftTier,
@@ -47,7 +46,6 @@ import type {
   NotFoundError,
   OkResponse,
   OrganiserCardView,
-  PinRequiredError,
   ReopenPageResult,
   SealCardResponse,
   SignCardContext,
@@ -149,52 +147,32 @@ export function useHealthCheck<
 }
 
 /**
- * Returns page details and all slots. For PIN-protected pages, requires the PIN to be passed as a query parameter.
+ * Returns page details and all slots. Open to anyone holding the link — there is no PIN (dropped 21 Sep 2026, bug #129). Tasks marked trusted-only are filtered out of this response entirely; their people reach them through their own invite link.
  * @summary Get a support page by slug
  */
-export const getGetSupportPageUrl = (
-  slug: string,
-  params?: GetSupportPageParams,
-) => {
-  const normalizedParams = new URLSearchParams();
-
-  Object.entries(params || {}).forEach(([key, value]) => {
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? "null" : value.toString());
-    }
-  });
-
-  const stringifiedParams = normalizedParams.toString();
-
-  return stringifiedParams.length > 0
-    ? `/api/pages/${slug}?${stringifiedParams}`
-    : `/api/pages/${slug}`;
+export const getGetSupportPageUrl = (slug: string) => {
+  return `/api/pages/${slug}`;
 };
 
 export const getSupportPage = async (
   slug: string,
-  params?: GetSupportPageParams,
   options?: RequestInit,
 ): Promise<SupportPageWithSlots> => {
-  return customFetch<SupportPageWithSlots>(getGetSupportPageUrl(slug, params), {
+  return customFetch<SupportPageWithSlots>(getGetSupportPageUrl(slug), {
     ...options,
     method: "GET",
   });
 };
 
-export const getGetSupportPageQueryKey = (
-  slug: string,
-  params?: GetSupportPageParams,
-) => {
-  return [`/api/pages/${slug}`, ...(params ? [params] : [])] as const;
+export const getGetSupportPageQueryKey = (slug: string) => {
+  return [`/api/pages/${slug}`] as const;
 };
 
 export const getGetSupportPageQueryOptions = <
   TData = Awaited<ReturnType<typeof getSupportPage>>,
-  TError = ErrorType<PinRequiredError | NotFoundError>,
+  TError = ErrorType<NotFoundError>,
 >(
   slug: string,
-  params?: GetSupportPageParams,
   options?: {
     query?: UseQueryOptions<
       Awaited<ReturnType<typeof getSupportPage>>,
@@ -206,12 +184,11 @@ export const getGetSupportPageQueryOptions = <
 ) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey =
-    queryOptions?.queryKey ?? getGetSupportPageQueryKey(slug, params);
+  const queryKey = queryOptions?.queryKey ?? getGetSupportPageQueryKey(slug);
 
   const queryFn: QueryFunction<Awaited<ReturnType<typeof getSupportPage>>> = ({
     signal,
-  }) => getSupportPage(slug, params, { signal, ...requestOptions });
+  }) => getSupportPage(slug, { signal, ...requestOptions });
 
   return {
     queryKey,
@@ -228,9 +205,7 @@ export const getGetSupportPageQueryOptions = <
 export type GetSupportPageQueryResult = NonNullable<
   Awaited<ReturnType<typeof getSupportPage>>
 >;
-export type GetSupportPageQueryError = ErrorType<
-  PinRequiredError | NotFoundError
->;
+export type GetSupportPageQueryError = ErrorType<NotFoundError>;
 
 /**
  * @summary Get a support page by slug
@@ -238,10 +213,9 @@ export type GetSupportPageQueryError = ErrorType<
 
 export function useGetSupportPage<
   TData = Awaited<ReturnType<typeof getSupportPage>>,
-  TError = ErrorType<PinRequiredError | NotFoundError>,
+  TError = ErrorType<NotFoundError>,
 >(
   slug: string,
-  params?: GetSupportPageParams,
   options?: {
     query?: UseQueryOptions<
       Awaited<ReturnType<typeof getSupportPage>>,
@@ -251,7 +225,7 @@ export function useGetSupportPage<
     request?: SecondParameter<typeof customFetch>;
   },
 ): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
-  const queryOptions = getGetSupportPageQueryOptions(slug, params, options);
+  const queryOptions = getGetSupportPageQueryOptions(slug, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;
@@ -282,7 +256,7 @@ export const claimSlot = async (
 };
 
 export const getClaimSlotMutationOptions = <
-  TError = ErrorType<PinRequiredError | NotFoundError | ConflictError>,
+  TError = ErrorType<NotFoundError | ConflictError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -323,15 +297,13 @@ export type ClaimSlotMutationResult = NonNullable<
   Awaited<ReturnType<typeof claimSlot>>
 >;
 export type ClaimSlotMutationBody = BodyType<ClaimSlotRequest>;
-export type ClaimSlotMutationError = ErrorType<
-  PinRequiredError | NotFoundError | ConflictError
->;
+export type ClaimSlotMutationError = ErrorType<NotFoundError | ConflictError>;
 
 /**
  * @summary Claim a slot
  */
 export const useClaimSlot = <
-  TError = ErrorType<PinRequiredError | NotFoundError | ConflictError>,
+  TError = ErrorType<NotFoundError | ConflictError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<

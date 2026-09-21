@@ -15,7 +15,6 @@ import { eq, and, desc, count } from "drizzle-orm";
 import { sendQueuedInvites } from "../lib/queuedInviteSender";
 import { releaseHeldInvitesOnGoLive } from "../lib/goLiveInvites";
 import { requireAuth, type AuthRequest } from "../middleware/requireAuth";
-import { hashPin } from "../lib/pin";
 import { isAdminEmail } from "../lib/admin";
 import { uniqueSlug } from "../lib/slug";
 import { defaultFlexibility } from "../lib/slotFlexibility";
@@ -46,28 +45,20 @@ function parseHeadcount(value: number | string | null | undefined): number | nul
 // POST /api/organiser/pages — create a new support page (draft)
 router.post("/organiser/pages", requireAuth as any, async (req, res) => {
   const authReq = req as unknown as AuthRequest;
-  const { recipientName, situationDescription, location, privacy, pin } = req.body as {
+  // `privacy` and `pin` are deliberately NOT read (Kate's ruling, 21 September
+  // 2026, bug #129 — the page PIN is dropped). A client still sending them,
+  // which a cached bundle will do for a while after deploy, is not refused:
+  // the fields are ignored and the page comes out open, like every other one.
+  const { recipientName, situationDescription, location } = req.body as {
     recipientName?: string;
     situationDescription?: string;
     location?: string;
-    privacy?: string;
-    pin?: string;
   };
 
   const nameTrimmed = typeof recipientName === "string" ? recipientName.trim() : "";
   if (!nameTrimmed) {
     res.status(400).json({ error: "Recipient name is required." });
     return;
-  }
-
-  let hashedPin: string | null = null;
-  if (privacy === "pin_protected") {
-    const pinTrimmed = typeof pin === "string" ? pin.trim() : "";
-    if (!pinTrimmed || !/^\d{4,8}$/.test(pinTrimmed)) {
-      res.status(400).json({ error: "A 4–8 digit PIN is required for PIN-protected pages." });
-      return;
-    }
-    hashedPin = await hashPin(pinTrimmed);
   }
 
   const slug = await uniqueSlug();
@@ -80,8 +71,12 @@ router.post("/organiser/pages", requireAuth as any, async (req, res) => {
       recipientName: nameTrimmed,
       situationDescription: typeof situationDescription === "string" ? situationDescription.trim() || null : null,
       location: typeof location === "string" ? location.trim() || null : null,
-      privacy: (privacy === "pin_protected" ? "pin_protected" : "open") as "open" | "pin_protected",
-      pin: hashedPin,
+      // Every page is open. This is the ONLY place that ever wrote anything
+      // else (crisis.ts takes the column default, gifts.ts writes "open"), so
+      // with this line no new pin_protected row can be created. Written
+      // explicitly rather than left to the default so the intent is readable.
+      privacy: "open" as const,
+      pin: null,
       status: "draft",
       // Ledger marker (Item 14): a wizard-built page, distinct from a
       // crisis-free or gift-redeemed page. Additive — not the paid path.

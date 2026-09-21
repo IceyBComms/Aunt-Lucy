@@ -22,15 +22,11 @@ export const HealthCheckResponse = zod.object({
 });
 
 /**
- * Returns page details and all slots. For PIN-protected pages, requires the PIN to be passed as a query parameter.
+ * Returns page details and all slots. Open to anyone holding the link — there is no PIN (dropped 21 Sep 2026, bug #129). Tasks marked trusted-only are filtered out of this response entirely; their people reach them through their own invite link.
  * @summary Get a support page by slug
  */
 export const GetSupportPageParams = zod.object({
   slug: zod.coerce.string(),
-});
-
-export const GetSupportPageQueryParams = zod.object({
-  pin: zod.coerce.string().optional(),
 });
 
 export const GetSupportPageResponse = zod.object({
@@ -40,7 +36,11 @@ export const GetSupportPageResponse = zod.object({
   situationDescription: zod.string().nullish(),
   location: zod.string().nullish(),
   status: zod.enum(["draft", "pending_approval", "active", "closed"]),
-  privacy: zod.enum(["open", "pin_protected"]),
+  privacy: zod
+    .enum(["open", "pin_protected"])
+    .describe(
+      'The stored flag, still returned because the column still exists. NOTHING READS IT AND NOTHING NEW CAN BE \"pin_protected\": the PIN was dropped 21 Sep 2026 (bug #129) and every page is created open. Old rows keep their value and open regardless. Dropping the column and the enum value is a migration, deliberately a separate job.',
+    ),
   goodToKnow: zod
     .string()
     .nullish()
@@ -125,10 +125,6 @@ export const ClaimSlotBody = zod.object({
     .describe(
       "The helper's opt-in choice: when true, their name is shown to other helpers on the public page; when false or omitted, only the recipient sees it (the public page shows an ambient count instead). Defaults to false — hidden by default, never surprised into being shown.",
     ),
-  pin: zod
-    .string()
-    .nullish()
-    .describe("Required when claiming a slot on a PIN-protected page."),
 });
 
 export const ClaimSlotResponse = zod.object({
