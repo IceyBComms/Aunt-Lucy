@@ -798,7 +798,10 @@ export function Manage() {
                 no line, no gap. Same line, from the same place, as the setup
                 wizard's. */}
             {taskPickerHint(newType) && (
-              <p className="-mt-2 mb-4 text-[0.82rem] leading-snug text-[#8b7e74]">
+              <p
+                data-testid="task-type-hint"
+                className="-mt-2 mb-4 text-[0.82rem] leading-snug text-[#8b7e74]"
+              >
                 {taskPickerHint(newType)}
               </p>
             )}

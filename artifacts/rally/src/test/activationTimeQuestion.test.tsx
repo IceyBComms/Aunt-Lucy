@@ -221,6 +221,12 @@ describe("the errand hint on the setup wizard", () => {
       [...picker.querySelectorAll("option")].map((o) => o.textContent),
     ).toContain("Errand");
     expect(screen.queryByText(HINT)).toBeNull();
+
+    // ⚠️ THE ELEMENT, not just its words. Found by sabotage: an ungated
+    // `{true && <p>{hint}</p>}` renders an EMPTY paragraph when the hint is
+    // null — no text, so a text-only check stays green while the form grows
+    // the gap this hint was written not to leave.
+    expect(screen.queryByTestId("task-type-hint")).toBeNull();
   });
 
   it("APPEARS when Errand is chosen", () => {
@@ -251,6 +257,7 @@ describe("the errand hint on the setup wizard", () => {
 
     fireEvent.change(picker, { target: { value: "meal" } });
     expect(screen.queryByText(HINT)).toBeNull();
+    expect(screen.queryByTestId("task-type-hint")).toBeNull();
   });
 
   it("it is the SAME line both doors show — one string, not two", () => {

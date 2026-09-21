@@ -340,6 +340,12 @@ describe("the errand hint on /manage", () => {
     // so the missing hint is a decision rather than an empty page.
     expect(screen.getByRole("button", { name: /Errand/ })).toBeTruthy();
     expect(screen.queryByText(/Includes lifts/)).toBeNull();
+
+    // ⚠️ THE ELEMENT, not just its words. Found by sabotage: an ungated
+    // `{true && <p>{hint}</p>}` renders an EMPTY paragraph when the hint is
+    // null — no text, so a text-only check stays green while the form grows
+    // the gap this hint was written not to leave.
+    expect(screen.queryByTestId("task-type-hint")).toBeNull();
   });
 
   it("APPEARS when Errand is chosen", async () => {
@@ -370,6 +376,7 @@ describe("the errand hint on /manage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /School run/ }));
     expect(screen.queryByText(/Includes lifts/)).toBeNull();
+    expect(screen.queryByTestId("task-type-hint")).toBeNull();
   });
 });
 

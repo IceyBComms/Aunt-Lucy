@@ -1288,7 +1288,10 @@ function AddTaskForm({
           every other type and renders nothing — no line, no gap. Same line,
           from the same place, as /manage's. */}
       {taskPickerHint(slotType) && (
-        <p className="-mt-1.5 text-[0.8rem] leading-snug text-[#8b7e74]">
+        <p
+          data-testid="task-type-hint"
+          className="-mt-1.5 text-[0.8rem] leading-snug text-[#8b7e74]"
+        >
           {taskPickerHint(slotType)}
         </p>
       )}
