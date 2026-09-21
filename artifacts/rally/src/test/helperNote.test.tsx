@@ -79,16 +79,18 @@ describe("leaving a note on a fixed task", () => {
     expect(screen.queryByRole("button", { name: "Pass it on" })).toBeNull();
   });
 
-  // The inline name comes from ReleaseSlot's own SLOT_TYPE_LABELS, lower-cased.
-  // It reads "school run" from 21 Sep 2026 (#127, Kate's ruling) — the rename
-  // is display text only; the slot_type enum key is unchanged.
-  it("after sending: 'You're still down for school run' AND the task is still claimed", async () => {
+  // ROW #136, 21 Sep 2026. The inline name is now the MID-SENTENCE form, with
+  // its article, from @workspace/task-copy: "the school run". It used to
+  // lower-case the heading, which gave "still down for school run" — a bare
+  // count noun mid-sentence, the same fault as "still down for meal" and
+  // "still down for errand". The slot_type enum key is unchanged.
+  it("after sending: 'You're still down for the school run' AND the task is still claimed", async () => {
     renderRelease();
     fireEvent.change(await screen.findByRole("textbox"), { target: { value: "Ill be 25min late" } });
     fireEvent.click(screen.getByRole("button", { name: "Send my note to Kate" }));
 
     expect(
-      await screen.findByText("Sent — Kate has your note. You're still down for school run."),
+      await screen.findByText("Sent — Kate has your note. You're still down for the school run."),
     ).toBeTruthy();
     // Positive control: the note really went to the server…
     expect(server.calls.filter((c) => c.method === "POST")).toEqual([
@@ -103,14 +105,14 @@ describe("leaving a note on a fixed task", () => {
 });
 
 describe("a task with no set type (Kate's ruling, 16 Sep 2026)", () => {
-  it("reads 'You're still down for this task.', not 'for help.'", async () => {
+  it("reads 'You're still down for the task.', not 'for help.'", async () => {
     server.slot.slotType = "other";
     renderRelease();
     fireEvent.change(await screen.findByRole("textbox"), { target: { value: "Running late" } });
     fireEvent.click(screen.getByRole("button", { name: "Send my note to Kate" }));
 
     expect(
-      await screen.findByText("Sent — Kate has your note. You're still down for this task."),
+      await screen.findByText("Sent — Kate has your note. You're still down for the task."),
     ).toBeTruthy();
     expect(document.body.textContent).not.toContain("still down for help");
     expect(server.slot.isClaimed).toBe(true);

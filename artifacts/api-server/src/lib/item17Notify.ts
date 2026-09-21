@@ -30,7 +30,7 @@ import { sendItem17Email } from "./email";
 import { getAppBaseUrl } from "./appUrl";
 import { logger } from "./logger";
 import { notifyFailed, notifySkipped } from "./notifyOutcome";
-import type { SlotFlexibility } from "./slotFlexibility";
+import type { SlotFlexibility } from "@workspace/task-copy";
 import type { RecipientMessage } from "./item17Copy";
 import { soonDay } from "./australianDay";
 import type { NotifyTarget } from "./notifyTargets";

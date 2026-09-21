@@ -1,12 +1,8 @@
 import { useEffect, useState } from "react";
 import { useParams } from "wouter";
-import { format, parseISO } from "date-fns";
 import { CarFront, CheckCircle2, Clock, Loader2, MapPin } from "lucide-react";
-import {
-  LIFT_WAIT_MODE_TILE_LINES,
-  TIME_TBC,
-  asLiftWaitMode,
-} from "@/lib/liftWaitMode";
+import { LIFT_WAIT_MODE_TILE_LINES, asLiftWaitMode } from "@/lib/liftWaitMode";
+import { taskLabel, taskNoun, taskWhenCard } from "@workspace/task-copy";
 import { Button } from "@/components/ui/button";
 import { TeacupMark } from "@/components/TeacupMark";
 import { apiFetch } from "@/lib/api";
@@ -38,23 +34,18 @@ interface ReleaseDetails {
   };
 }
 
-const SLOT_TYPE_LABELS: Record<string, { icon: string; label: string }> = {
-  meal: { icon: "🍲", label: "Meal" },
-  school_pickup: { icon: "🚗", label: "School run" },
-  child_care: { icon: "👶", label: "Child care" },
-  errand: { icon: "🧺", label: "Errand" },
-  dog_walking: { icon: "🐕", label: "Dog walking" },
-  shopping: { icon: "🛒", label: "Shopping" },
-  visit: { icon: "☕", label: "Visit" },
-  other: { icon: "💛", label: "Help" },
+// Icons stay here — they are a rally concern. The NAMES come from
+// @workspace/task-copy, which api-server imports too (row #136).
+const SLOT_ICONS: Record<string, string> = {
+  meal: "🍲",
+  school_pickup: "🚗",
+  child_care: "👶",
+  errand: "🧺",
+  dog_walking: "🐕",
+  shopping: "🛒",
+  visit: "☕",
+  other: "💛",
 };
-
-function formatTime(timeStr: string): string {
-  const [h, min] = timeStr.split(":").map(Number);
-  const ampm = h >= 12 ? "pm" : "am";
-  const h12 = h % 12 || 12;
-  return `${h12}:${String(min).padStart(2, "0")} ${ampm}`;
-}
 
 export default function ReleaseSlot() {
   const { token } = useParams<{ token: string }>();
@@ -169,24 +160,20 @@ export default function ReleaseSlot() {
   }
 
   const { slot, page } = details;
-  const slotMeta = SLOT_TYPE_LABELS[slot.slotType] ?? SLOT_TYPE_LABELS.other;
-  const slotLabel = slot.customLabel || slotMeta.label;
-  // The same name mid-sentence ("You're still down for school pickup."): the
-  // family's own wording as written, a default lower-cased. Never the raw key.
-  // A task with no set type reads "this task" (Kate's ruling, 16 Sep 2026) —
-  // "You're still down for help." didn't make sense.
-  const slotLabelInline =
-    slot.customLabel ||
-    (slot.slotType in SLOT_TYPE_LABELS && slot.slotType !== "other"
-      ? slotMeta.label.toLowerCase()
-      : "this task");
+  const slotIcon = SLOT_ICONS[slot.slotType] ?? SLOT_ICONS.other;
+  // Heading form for the card heading (row #136).
+  const slotLabel = taskLabel(slot.slotType, slot.customLabel);
+  // The SAME task, mid-sentence, WITH its article: "You're still down for the
+  // school run.", "Plans changed and you can't do the school run?". This used
+  // to lower-case the heading, which gave "still down for meal" on the four
+  // count nouns and "you can't do School run?" where it didn't lower-case at
+  // all. Lower-casing is not a grammar — the mid-sentence form is written down.
+  const slotNoun = taskNoun(slot.slotType, slot.customLabel);
   const recipientFirstName = page.recipientName.split(/\s+/)[0] || page.recipientName;
-  // Undated slots are flexible offers — show words, not a fabricated date.
-  // Australian format: "Saturday 15 August" (day before month), not US month-first.
-  const formattedDate = slot.slotDate
-    ? format(parseISO(slot.slotDate), "EEEE d MMMM")
-    : null;
-  const formattedTime = slot.slotDate && slot.slotTime ? formatTime(slot.slotTime) : null;
+  // Row #139 — one format, card form: "Saturday 15 August · 3:00pm". An undated
+  // slot is a flexible offer and reads "Whenever suits"; a dated slot with no
+  // time reads "Any time that day" (row #143).
+  const when = taskWhenCard(slot.slotDate, slot.slotTime);
   // Bug #033. Null renders nothing at all.
   const waitMode = asLiftWaitMode(slot.liftWaitMode);
 
@@ -260,7 +247,7 @@ export default function ReleaseSlot() {
         <div className="bg-card rounded-3xl border border-border/50 shadow-sm p-5">
           <div className="flex items-center gap-3 mb-4">
             <span className="w-12 h-12 rounded-2xl bg-secondary/80 flex items-center justify-center text-2xl">
-              {slotMeta.icon}
+              {slotIcon}
             </span>
             <div>
               <h2 className="font-serif font-semibold text-foreground text-lg">
@@ -268,12 +255,7 @@ export default function ReleaseSlot() {
               </h2>
               <p className="text-sm text-muted-foreground flex items-center gap-1.5">
                 <Clock className="w-3.5 h-3.5" />
-                {formattedDate ?? "Whenever suits"}
-                {formattedTime
-                  ? `, ${formattedTime}`
-                  : slot.slotDate
-                    ? `, ${TIME_TBC}`
-                    : ""}
+                {when}
               </p>
               {waitMode && (
                 <p className="text-sm text-muted-foreground flex items-center gap-1.5">
@@ -313,7 +295,7 @@ export default function ReleaseSlot() {
             </div>
             <p className="font-serif text-lg font-semibold text-foreground">
               {slot.flexibility === "fixed"
-                ? copy.fixedNote.sent(recipientFirstName, slotLabelInline)
+                ? copy.fixedNote.sent(recipientFirstName, slotNoun)
                 : copy.confirmation}
             </p>
           </div>
@@ -405,7 +387,7 @@ export default function ReleaseSlot() {
                   {copy.fixedNote.cancelHeading}
                 </h3>
                 <p className="text-xs text-muted-foreground leading-relaxed">
-                  {copy.fixedNote.cancelBlurb(slotLabel, recipientFirstName)}
+                  {copy.fixedNote.cancelBlurb(slotNoun, recipientFirstName)}
                 </p>
               </>
             )}

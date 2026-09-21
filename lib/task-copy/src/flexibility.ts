@@ -1,10 +1,19 @@
 /**
  * Item 17 — the flexible/fixed default for a task, by category.
  *
+ * MOVED HERE 21 Sep 2026 (row #136). It used to live in api-server, with a
+ * hand-kept MIRROR in rally, because the /manage "Add a task" form has to show
+ * an answer to "Does it need to be at that time?" before anything is sent, and
+ * it has to be the answer the server would have chosen — otherwise the form
+ * quietly argues with the wizard, and the same meal comes out flexible from one
+ * door and fixed from the other. A drift test read one file from the other and
+ * failed if they disagreed. Both the mirror and the drift test are deleted: one
+ * source has nothing to drift from.
+ *
  * FLEXIBLE means a helper may nudge the time of day themselves (a meal, a
  * grocery run). FIXED means the time is the family's fact and a helper never
- * edits it (a school pickup, a lift to an appointment) — they can leave a note
- * or bow out instead.
+ * edits it (a school run, a lift to an appointment) — they can leave a note or
+ * cancel instead.
  *
  * The mapping follows the brief's category rules. Two readings were made where
  * the brief was ambiguous, both toward the conservative FIXED:
@@ -43,4 +52,13 @@ export function defaultFlexibility(
     default:
       return "fixed";
   }
+}
+
+/**
+ * The default for a DATED task of this type — what the two add-a-task forms
+ * seed their answer from. Both doors only ever create dated tasks, so the
+ * undated branch above can't be reached from either.
+ */
+export function defaultFlexibilityForType(slotType: string): SlotFlexibility {
+  return defaultFlexibility(slotType, true);
 }

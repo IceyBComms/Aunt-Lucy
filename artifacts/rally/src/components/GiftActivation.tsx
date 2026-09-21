@@ -36,6 +36,16 @@ import {
   isLiftCandidate,
   type LiftWaitMode,
 } from "@/lib/liftWaitMode";
+import {
+  ANY_TIME_THAT_DAY,
+  SLOT_TYPES,
+  defaultFlexibilityForType,
+  formatTaskDate,
+  formatTaskTime,
+  taskLabel,
+  taskPickerHint,
+  type SlotFlexibility,
+} from "@workspace/task-copy";
 
 /** A task as the recipient is currently steering it, before activation. */
 interface DraftTask {
@@ -73,6 +83,17 @@ interface DraftTask {
    * that needs a date says so.
    */
   wantsDate: boolean;
+  /**
+   * Row #143 — the answer to "Does it need to be at that time?", asked ONLY
+   * once a time has been entered.
+   *
+   * Seeded from the task type's own default, the same one the server would
+   * have chosen (@workspace/task-copy), so a meal starts on "Around then is
+   * fine" and a school run starts fixed. There is no "follows the type until
+   * you answer" dance here, unlike /manage: a task's TYPE cannot be changed
+   * once it is on the list, so the seed is only ever read once.
+   */
+  flexibility: SlotFlexibility;
   /** Meal-only detail (bug #006). Null on every other type. */
   dietaryNotes: string | null;
   headcount: number | null;
@@ -81,16 +102,15 @@ interface DraftTask {
   kept: boolean;
 }
 
-const SLOT_TYPE_OPTIONS: { value: SuggestedTask["slotType"]; label: string }[] = [
-  { value: "meal", label: "A meal" },
-  { value: "shopping", label: "Shopping" },
-  { value: "errand", label: "An errand or lift" },
-  { value: "visit", label: "A visit" },
-  { value: "dog_walking", label: "The dog" },
-  { value: "school_pickup", label: "School run" },
-  { value: "child_care", label: "Looking after the kids" },
-  { value: "other", label: "Something else" },
-];
+// The picker's options. The NAMES are @workspace/task-copy's — the eighth of
+// the eight tables row #136 counted lived here, and it disagreed with the other
+// door's picker on three of the eight ("A meal"/"Meal", "Looking after the
+// kids"/"Child Care", "Something else"/"Other").
+const SLOT_TYPE_OPTIONS: { value: SuggestedTask["slotType"]; label: string }[] =
+  SLOT_TYPES.map((value) => ({
+    value: value as SuggestedTask["slotType"],
+    label: taskLabel(value),
+  }));
 
 /**
  * Mirrors the server rule: these two are always trusted-only and the toggle is
@@ -104,27 +124,27 @@ const ALWAYS_TRUSTED = ["school_pickup", "child_care"];
  * both spots where the checkbox is actually a choice — never on the read-only
  * badge, which is a summary rather than a decision.
  */
+/**
+ * "Does it need to be at that time?" — the two answers, in the order shown.
+ *
+ * ROW #143, Kate's ruling 21 Sep 2026. Word-for-word the same as the /manage
+ * add-task form's, because they are the same question on two doors and a
+ * family who sees both should not have to notice they are different screens.
+ */
+const FLEXIBILITY_CHOICES: ReadonlyArray<readonly [SlotFlexibility, string]> = [
+  ["fixed", "Yes, at that time"],
+  ["flexible", "Around then is fine"],
+];
+
 const TRUSTED_ONLY_HINT =
   "Only the people you tick as trusted will see this one — for things like pickups or minding the kids.";
 
-function prettyDate(iso: string): string {
-  const d = new Date(iso + "T00:00:00");
-  return d.toLocaleDateString("en-AU", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-  });
-}
+/** Row #139 — one format, shared with every screen and message. */
+const prettyDate = formatTaskDate;
 
 /** "15:00" → "3:00 PM". Tolerant of a stored HH:MM:SS. */
-function prettyTime(hhmm: string): string {
-  const [hStr, mStr] = hhmm.split(":");
-  const h = parseInt(hStr, 10);
-  if (Number.isNaN(h)) return hhmm;
-  const ampm = h >= 12 ? "PM" : "AM";
-  const h12 = h % 12 || 12;
-  return `${h12}:${(mStr ?? "00").padStart(2, "0")} ${ampm}`;
-}
+/** Row #139 — "3:00pm", lower case, no space. One formatter, everywhere. */
+const prettyTime = formatTaskTime;
 
 function todayIso(): string {
   const d = new Date();
@@ -210,6 +230,7 @@ export function GiftActivation({ token }: { token: string }) {
           // inventing one, because there is no sensible default date for
           // someone else's appointment.
           wantsDate: s.dated,
+          flexibility: defaultFlexibilityForType(s.slotType),
           dietaryNotes: null,
           headcount: null,
           trustedHelpersOnly: s.trustedHelpersOnly,
@@ -688,6 +709,38 @@ export function GiftActivation({ token }: { token: string }) {
                             ? LIFT_TIME_PROMPT
                             : "So your helper knows exactly when to be there."}
                         </p>
+
+                        {/* Row #143 — asked ONLY once there is a time. With no
+                            time there is nothing for "yes, at that time" to
+                            point at, and the task is stored flexible whatever
+                            the form said (the server enforces that too). The
+                            same question, in the same words, as /manage. */}
+                        {task.slotTime && (
+                          <div className="mt-1 flex flex-col gap-1.5">
+                            <label className="text-[0.82rem] font-medium text-[#52493f]">
+                              Does it need to be at that time?
+                            </label>
+                            <div className="flex gap-2">
+                              {FLEXIBILITY_CHOICES.map(([value, choiceLabel]) => (
+                                <button
+                                  key={value}
+                                  type="button"
+                                  aria-pressed={task.flexibility === value}
+                                  onClick={() =>
+                                    update(task.key, { flexibility: value })
+                                  }
+                                  className={
+                                    task.flexibility === value
+                                      ? "flex-1 rounded-[0.7rem] border border-[#2d6a4f] bg-[#eef4ea] px-3 py-2 text-[0.85rem] font-semibold text-[#2d6a4f]"
+                                      : "flex-1 rounded-[0.7rem] border border-[#e0d6c8] bg-[#faf7f2] px-3 py-2 text-[0.85rem] text-[#52493f]"
+                                  }
+                                >
+                                  {choiceLabel}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
 
@@ -845,7 +898,7 @@ export function GiftActivation({ token }: { token: string }) {
                         {task.slotDate && !task.slotTime && (
                           <span className="inline-flex items-center gap-1 text-[0.78rem] text-[#8b7e74]">
                             <Clock className="h-3.5 w-3.5" />
-                            Time to be confirmed
+                            {ANY_TIME_THAT_DAY}
                           </span>
                         )}
                         {task.liftWaitMode && (
@@ -1130,6 +1183,11 @@ export function GiftActivation({ token }: { token: string }) {
                     // even un-gating the input would not have fixed anything.
                     // The server keeps a time only where it makes sense.
                     slotTime: t.slotTime,
+                    // Row #143 — the recipient's own answer to "Does it need to
+                    // be at that time?". Sent only when there IS a time: with
+                    // no time the question was never asked, and the server
+                    // stores flexible regardless.
+                    flexibility: t.slotTime ? t.flexibility : undefined,
                     // Lift-only; the server drops it on anything that isn't a
                     // dated errand, so a stale answer can never leak onto a task
                     // whose date was later cleared.
@@ -1224,6 +1282,19 @@ function AddTaskForm({
           </option>
         ))}
       </select>
+      {/* A line for a name that does more than it says: there is no "lift"
+          task type, because this codebase models a lift as a DATED ERRAND.
+          Someone looking for one would not find it in these choices. Null on
+          every other type and renders nothing — no line, no gap. Same line,
+          from the same place, as /manage's. */}
+      {taskPickerHint(slotType) && (
+        <p
+          data-testid="task-type-hint"
+          className="-mt-1.5 text-[0.8rem] leading-snug text-[#8b7e74]"
+        >
+          {taskPickerHint(slotType)}
+        </p>
+      )}
       <div className="flex flex-col gap-1">
         <label className="flex items-center gap-2.5 text-[0.9rem] text-[#52493f]">
           <input
@@ -1256,6 +1327,7 @@ function AddTaskForm({
               trustedHelpersOnly: locked || trusted,
               liftWaitMode: null,
               wantsDate: false,
+              flexibility: defaultFlexibilityForType(slotType),
               kept: true,
             })
           }

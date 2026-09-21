@@ -1,12 +1,16 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "wouter";
-import { format, parseISO } from "date-fns";
 import {
   LIFT_WAIT_MODE_HELPER_LINES,
   LIFT_WAIT_MODE_TILE_LINES,
-  TIME_TBC,
   asLiftWaitMode,
 } from "@/lib/liftWaitMode";
+import {
+  taskLabel,
+  taskNoun,
+  taskWhenCard,
+  taskWhenClause,
+} from "@workspace/task-copy";
 import { CarFront, CheckCircle2, Clock, Loader2, XCircle, MapPin, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { apiFetch } from "@/lib/api";
@@ -59,23 +63,18 @@ interface InviteDetails {
   };
 }
 
-const SLOT_TYPE_LABELS: Record<string, { icon: string; label: string }> = {
-  meal: { icon: "🍲", label: "Meal" },
-  school_pickup: { icon: "🚗", label: "School Run" },
-  child_care: { icon: "👶", label: "Child Care" },
-  errand: { icon: "🧺", label: "Errand" },
-  dog_walking: { icon: "🐕", label: "Dog Walking" },
-  shopping: { icon: "🛒", label: "Shopping" },
-  visit: { icon: "☕", label: "Visit" },
-  other: { icon: "💛", label: "Help" },
+// Icons stay here — they are a rally concern. The NAMES come from
+// @workspace/task-copy, which api-server imports too (row #136).
+const SLOT_ICONS: Record<string, string> = {
+  meal: "🍲",
+  school_pickup: "🚗",
+  child_care: "👶",
+  errand: "🧺",
+  dog_walking: "🐕",
+  shopping: "🛒",
+  visit: "☕",
+  other: "💛",
 };
-
-function formatTime(timeStr: string): string {
-  const [h, min] = timeStr.split(":").map(Number);
-  const ampm = h >= 12 ? "PM" : "AM";
-  const h12 = h % 12 || 12;
-  return `${h12}:${String(min).padStart(2, "0")} ${ampm}`;
-}
 
 export default function InviteClaim() {
   const { token } = useParams<{ token: string }>();
@@ -211,12 +210,14 @@ export default function InviteClaim() {
   }
 
   const { slot, page } = details;
-  const slotMeta =
-    SLOT_TYPE_LABELS[slot.slotType] ?? SLOT_TYPE_LABELS.other;
-  const slotLabel = slot.customLabel || slotMeta.label;
-  const dateObj = parseISO(slot.slotDate);
-  const formattedDate = format(dateObj, "EEEE, MMMM d");
-  const formattedTime = slot.slotTime ? formatTime(slot.slotTime) : null;
+  const slotIcon = SLOT_ICONS[slot.slotType] ?? SLOT_ICONS.other;
+  // Heading form for the card, mid-sentence form (with its article) for the
+  // confirmation sentence — row #136. Lower-casing a heading is not a grammar.
+  const slotLabel = taskLabel(slot.slotType, slot.customLabel);
+  const slotNoun = taskNoun(slot.slotType, slot.customLabel);
+  // Row #139 — one format. The card takes the "·" join, the sentence takes "at".
+  const whenCard = taskWhenCard(slot.slotDate, slot.slotTime ?? null);
+  const whenSentence = taskWhenClause(slot.slotDate, slot.slotTime ?? null);
   // Bug #033. Null renders nothing at all — no line, no empty space.
   const waitMode = asLiftWaitMode(slot.liftWaitMode);
 
@@ -233,9 +234,8 @@ export default function InviteClaim() {
             </h1>
             <p className="text-muted-foreground leading-relaxed mb-2">
               Thank you, {details.helperName}. You're helping{" "}
-              <strong>{page.recipientName}</strong> with a{" "}
-              <strong>{slotLabel}</strong> on <strong>{formattedDate}</strong>
-              {formattedTime ? ` at ${formattedTime}` : ""}.
+              <strong>{page.recipientName}</strong> with{" "}
+              <strong>{slotNoun}</strong> {whenSentence}.
               {waitMode ? ` ${LIFT_WAIT_MODE_HELPER_LINES[waitMode]}` : ""}
             </p>
             <p className="text-muted-foreground text-sm leading-relaxed">
@@ -324,7 +324,7 @@ export default function InviteClaim() {
         <div className="bg-card rounded-3xl border border-border/50 shadow-sm p-5">
           <div className="flex items-center gap-3 mb-4">
             <span className="w-12 h-12 rounded-2xl bg-secondary/80 flex items-center justify-center text-2xl">
-              {slotMeta.icon}
+              {slotIcon}
             </span>
             <div>
               <h2 className="font-serif font-semibold text-foreground text-lg">
@@ -332,8 +332,7 @@ export default function InviteClaim() {
               </h2>
               <p className="text-sm text-muted-foreground flex items-center gap-1.5">
                 <Clock className="w-3.5 h-3.5" />
-                {formattedDate}
-                {formattedTime ? ` • ${formattedTime}` : ` • ${TIME_TBC}`}
+                {whenCard}
               </p>
               {waitMode && (
                 <p className="text-sm text-muted-foreground flex items-center gap-1.5">

@@ -45,8 +45,8 @@ export function asLiftWaitMode(value: unknown): LiftWaitMode | null {
  *
  * A dated errand. That is not a guess — it is the convention the codebase
  * already runs on: there is no 'lift' slot type, the occasion pre-fill models
- * "A lift to an appointment" as a dated errand, and slotFlexibility.ts already
- * reads a dated errand as a lift (fixed) and an undated one as laundry
+ * "A lift to an appointment" as a dated errand, and the shared flexibility
+ * rule already reads a dated errand as a lift (fixed), an undated one as laundry
  * (flexible). This reuses that reading rather than adding a second, competing
  * definition of what a lift is.
  *

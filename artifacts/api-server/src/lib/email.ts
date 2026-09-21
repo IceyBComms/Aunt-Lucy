@@ -1,7 +1,7 @@
 import { Resend } from "resend";
 import { logger } from "./logger";
 import { claimAddressee } from "./claimNotifyCopy";
-import { TIME_TBC_CLAUSE } from "./timeTbc";
+import { taskInstruction, taskWhenSentence } from "@workspace/task-copy";
 import { LIFT_WAIT_MODE_HELPER_LINES, type LiftWaitMode } from "./liftWaitMode";
 import { getAppBaseUrl } from "./appUrl";
 import { formatMoney, gstRateLabel, type GstBreakdown } from "./gst";
@@ -22,44 +22,8 @@ const resend =
 
 const FROM_ADDRESS = "Aunt Lucy <noreply@auntlucy.com.au>";
 
-const SLOT_TYPE_LABELS: Record<string, string> = {
-  meal: "Dropping off a meal",
-  school_pickup: "School run",
-  child_care: "Looking after the kids",
-  errand: "Running an errand",
-  dog_walking: "Dog walking",
-  shopping: "Shopping",
-  visit: "Visiting",
-  other: "Helping out",
-};
-
 function isEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
-}
-
-// A slot with no date is a flexible offer rather than an appointment, so it
-// gets words instead of a date. Callers pair this with formatTime only when a
-// real date exists — "Whenever suits you at 3:00 PM" would be nonsense.
-function formatDate(dateStr: string | null): string {
-  if (!dateStr) return "Whenever suits you";
-  const date = new Date(dateStr + "T00:00:00");
-  return date.toLocaleDateString("en-AU", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
-}
-
-function formatTime(timeStr: string): string {
-  const [hours, minutes] = timeStr.split(":").map(Number);
-  const date = new Date();
-  date.setHours(hours, minutes, 0, 0);
-  return date.toLocaleTimeString("en-AU", {
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-  });
 }
 
 export interface ClaimEmailParams {
@@ -112,13 +76,11 @@ export function buildHtml(params: ClaimEmailParams): string {
     calendarUrl,
   } = params;
 
-  const typeLabel = customLabel || SLOT_TYPE_LABELS[slotType] || "Helping out";
-  const dateFormatted = formatDate(slotDate);
-  // Only pair a time with a real date — an undated task has no clock.
-  const timeFormatted = slotDate && slotTime ? formatTime(slotTime) : null;
-  const dateTimeLine = timeFormatted
-    ? `${dateFormatted} at ${timeFormatted}`
-    : dateFormatted;
+  const typeLabel = taskInstruction(slotType, customLabel);
+  // Row #139 — the ONE format, in its sentence form: "Tuesday 22 September at
+  // 3:00pm", or ", any time that day" when no time is set (row #143). Emails
+  // never take the card's "·" join.
+  const dateTimeLine = taskWhenSentence(slotDate, slotTime);
 
   // "Add to your calendar" — rendered only for dated tasks (the caller passes
   // calendarUrl only then). Approved copy, bug #037.
@@ -234,13 +196,11 @@ export function buildPlainText(params: ClaimEmailParams): string {
     calendarUrl,
   } = params;
 
-  const typeLabel = customLabel || SLOT_TYPE_LABELS[slotType] || "Helping out";
-  const dateFormatted = formatDate(slotDate);
-  // Only pair a time with a real date — an undated task has no clock.
-  const timeFormatted = slotDate && slotTime ? formatTime(slotTime) : null;
-  const dateTimeLine = timeFormatted
-    ? `${dateFormatted} at ${timeFormatted}`
-    : dateFormatted;
+  const typeLabel = taskInstruction(slotType, customLabel);
+  // Row #139 — the ONE format, in its sentence form: "Tuesday 22 September at
+  // 3:00pm", or ", any time that day" when no time is set (row #143). Emails
+  // never take the card's "·" join.
+  const dateTimeLine = taskWhenSentence(slotDate, slotTime);
 
   let text = `Hi ${helperFirstName},\n\n`;
   text += `Thank you so much for stepping up to help ${recipientName}. It really does make a difference.\n\n`;
@@ -710,17 +670,8 @@ export interface RecipientClaimNotificationParams {
   occasion?: string | null;
 }
 
-/** "Dropping off a meal, Friday 1 August at 3:00 PM" / "…, whenever suits you". */
-function claimWhenLabel(slotDate: string | null, slotTime: string | null): string {
-  const dateFormatted = formatDate(slotDate);
-  const timeFormatted = slotDate && slotTime ? formatTime(slotTime) : null;
-  if (timeFormatted) return `${dateFormatted} at ${timeFormatted}`;
-  // Bug #082 — a DATED task with no time says so, rather than trailing off after
-  // the date and letting the reader fill the silence with "any time is fine".
-  // An UNDATED task already reads "Whenever suits you" and has no clock to
-  // confirm, so it is left alone.
-  return slotDate ? `${dateFormatted}, ${TIME_TBC_CLAUSE}` : dateFormatted;
-}
+/** "Friday 1 August at 3:00pm" / "…, any time that day" / "whenever suits". */
+const claimWhenLabel = taskWhenSentence;
 
 export function buildRecipientClaimNotificationEmail(
   params: RecipientClaimNotificationParams,
@@ -758,7 +709,7 @@ export function buildRecipientClaimNotificationEmail(
   const opener = bereavement ? "A gentle note — " : "A little good news — ";
 
   const lineFor = (c: RecipientClaimItem) => {
-    const task = c.customLabel || SLOT_TYPE_LABELS[c.slotType] || "Helping out";
+    const task = taskInstruction(c.slotType, c.customLabel);
     const when = claimWhenLabel(c.slotDate, c.slotTime);
     const noteBit = c.note ? ` · "${c.note}"` : "";
     return { task, when, noteBit, helper: c.helperName };

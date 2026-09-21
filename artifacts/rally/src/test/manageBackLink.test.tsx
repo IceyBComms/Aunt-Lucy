@@ -171,14 +171,26 @@ describe("Part C — the add-a-task door", () => {
   });
 });
 
-describe('Part C — "Does the time matter?" starts from the task type', () => {
+describe('Part C — "Does it need to be at that time?" starts from the task type', () => {
+  const YES = "Yes, at that time";
+  const AROUND = "Around then is fine";
+
   /** The answer currently showing, read off the pressed state of the two pills. */
   function chosenAnswer(): string | null {
-    for (const label of ["Yes, that time", "Roughly then is fine"]) {
+    for (const label of [YES, AROUND]) {
       const btn = screen.queryByRole("button", { name: label });
       if (btn?.getAttribute("aria-pressed") === "true") return label;
     }
     return null;
+  }
+
+  /**
+   * Row #143 — the question only exists once a time has been entered, so every
+   * test about the ANSWER has to put one in first. The tests about whether the
+   * question appears at all are in the describe below.
+   */
+  function enterATime() {
+    fireEvent.change(screen.getByLabelText("Time"), { target: { value: "15:00" } });
   }
 
   async function openForm() {
@@ -192,53 +204,179 @@ describe('Part C — "Does the time matter?" starts from the task type', () => {
 
   it("a MEAL is flexible by default — the same answer the wizard gives it", async () => {
     await openForm();
+    enterATime();
 
     // The form opens on Meal, and a meal's time is the helper's to nudge.
-    // Before this, the form always opened on "Yes, that time", so the identical
-    // meal came out fixed from /manage and flexible from setup.
-    expect(chosenAnswer()).toBe("Roughly then is fine");
+    // Before this, the form always opened on "yes" — so the identical meal came
+    // out fixed from /manage and flexible from setup.
+    expect(chosenAnswer()).toBe(AROUND);
   });
 
   it("choosing a SCHOOL RUN moves the answer to fixed", async () => {
     await openForm();
-    expect(chosenAnswer()).toBe("Roughly then is fine");
+    enterATime();
+    expect(chosenAnswer()).toBe(AROUND);
 
-    fireEvent.click(screen.getByRole("button", { name: /School Run/ }));
+    fireEvent.click(screen.getByRole("button", { name: /School run/ }));
 
     // A school run's time is the family's fact, not a helper's to shift.
-    expect(chosenAnswer()).toBe("Yes, that time");
+    expect(chosenAnswer()).toBe(YES);
   });
 
   it("a dated ERRAND — a lift — is fixed", async () => {
     await openForm();
+    enterATime();
     fireEvent.click(screen.getByRole("button", { name: /Errand/ }));
 
-    expect(chosenAnswer()).toBe("Yes, that time");
+    expect(chosenAnswer()).toBe(YES);
   });
 
   it("once the person answers it themselves, changing the type does NOT overwrite them", async () => {
     await openForm();
+    enterATime();
 
     // They deliberately say the time matters for this meal.
-    fireEvent.click(screen.getByRole("button", { name: "Yes, that time" }));
-    expect(chosenAnswer()).toBe("Yes, that time");
+    fireEvent.click(screen.getByRole("button", { name: YES }));
+    expect(chosenAnswer()).toBe(YES);
 
     // Now they change their mind about the KIND of task. Shopping's default is
     // flexible — and it must not silently undo what they just said.
     fireEvent.click(screen.getByRole("button", { name: /Shopping/ }));
-    expect(chosenAnswer()).toBe("Yes, that time");
+    expect(chosenAnswer()).toBe(YES);
   });
 
   it("reopening the form starts from the default again", async () => {
     await openForm();
-    fireEvent.click(screen.getByRole("button", { name: "Yes, that time" }));
-    expect(chosenAnswer()).toBe("Yes, that time");
+    enterATime();
+    fireEvent.click(screen.getByRole("button", { name: YES }));
+    expect(chosenAnswer()).toBe(YES);
 
     fireEvent.click(screen.getByRole("button", { name: "Not now" }));
     fireEvent.click(await screen.findByRole("button", { name: /Add a task/ }));
+    enterATime();
 
     // A new task is a new question — the last one's answer is not carried over.
-    expect(chosenAnswer()).toBe("Roughly then is fine");
+    expect(chosenAnswer()).toBe(AROUND);
+  });
+});
+
+
+/**
+ * ROW #143 — the question is not asked until there is a time to ask about.
+ *
+ * Kate, testing the add-task form on 21 September 2026: she left the time
+ * empty, and the form still asked "Does the time matter?" with "Roughly then is
+ * fine" selected — roughly WHEN? The question only means something once a time
+ * exists, so it only appears once one does.
+ */
+describe("Row #143 — the time question only appears once a time is entered", () => {
+  const QUESTION = "Does it need to be at that time?";
+
+  async function openForm() {
+    renderManage();
+    fireEvent.click(await screen.findByRole("button", { name: /Add a task/ }));
+    // Positive control: the form is really on screen, so an absent question
+    // below means "not rendered", not "nothing rendered".
+    expect(await screen.findByText("What kind of help?")).toBeTruthy();
+  }
+
+  it("is ABSENT with no time — and so are both of its answers", async () => {
+    await openForm();
+
+    expect(screen.queryByText(QUESTION)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Yes, at that time" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Around then is fine" })).toBeNull();
+  });
+
+  it("APPEARS the moment a time is entered", async () => {
+    await openForm();
+    fireEvent.change(screen.getByLabelText("Time"), { target: { value: "15:00" } });
+
+    expect(screen.getByText(QUESTION)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Yes, at that time" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Around then is fine" })).toBeTruthy();
+  });
+
+  it("goes again if the time is cleared", async () => {
+    await openForm();
+    const time = screen.getByLabelText("Time");
+    fireEvent.change(time, { target: { value: "15:00" } });
+    expect(screen.getByText(QUESTION)).toBeTruthy();
+
+    fireEvent.change(time, { target: { value: "" } });
+    expect(screen.queryByText(QUESTION)).toBeNull();
+  });
+
+  it("the old wording is gone from the screen entirely", async () => {
+    await openForm();
+    fireEvent.change(screen.getByLabelText("Time"), { target: { value: "15:00" } });
+
+    expect(document.body.textContent).not.toContain("Does the time matter?");
+    expect(document.body.textContent).not.toContain("Roughly then is fine");
+  });
+});
+
+
+/**
+ * The errand hint — the same line, from the same place, on both doors.
+ *
+ * There is no `lift` slot type: this codebase models a lift as a DATED ERRAND,
+ * which is also why a dated errand defaults to fixed and why the wait-or-not
+ * question appears on one. Someone scanning the choices for "lift" would not
+ * find it, and "Errand" on its own does not say so. Kate's ruling, 21 Sep 2026:
+ * the LABEL stays "Errand"; a line under the choices does the explaining.
+ */
+describe("the errand hint on /manage", () => {
+  async function openForm() {
+    renderManage();
+    fireEvent.click(await screen.findByRole("button", { name: /Add a task/ }));
+    expect(await screen.findByText("What kind of help?")).toBeTruthy();
+  }
+
+  it("is ABSENT on the form's own opening type, Meal", async () => {
+    await openForm();
+
+    // Positive control from the same render: the Errand choice IS on screen,
+    // so the missing hint is a decision rather than an empty page.
+    expect(screen.getByRole("button", { name: /Errand/ })).toBeTruthy();
+    expect(screen.queryByText(/Includes lifts/)).toBeNull();
+
+    // ⚠️ THE ELEMENT, not just its words. Found by sabotage: an ungated
+    // `{true && <p>{hint}</p>}` renders an EMPTY paragraph when the hint is
+    // null — no text, so a text-only check stays green while the form grows
+    // the gap this hint was written not to leave.
+    expect(screen.queryByTestId("task-type-hint")).toBeNull();
+  });
+
+  it("APPEARS when Errand is chosen", async () => {
+    await openForm();
+    fireEvent.click(screen.getByRole("button", { name: /Errand/ }));
+
+    expect(
+      screen.getByText(
+        "Includes lifts — to appointments, the station, wherever they're needed.",
+      ),
+    ).toBeTruthy();
+  });
+
+  it("the LABEL is still 'Errand' — the hint explains, it does not rename", async () => {
+    await openForm();
+    fireEvent.click(screen.getByRole("button", { name: /Errand/ }));
+
+    const chosen = screen.getByRole("button", { name: /Errand/ });
+    expect(chosen.getAttribute("aria-pressed")).toBe("true");
+    expect(chosen.textContent).toContain("Errand");
+    expect(chosen.textContent).not.toContain("lift");
+  });
+
+  it("goes again when another type is chosen", async () => {
+    await openForm();
+    fireEvent.click(screen.getByRole("button", { name: /Errand/ }));
+    expect(screen.getByText(/Includes lifts/)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: /School run/ }));
+    expect(screen.queryByText(/Includes lifts/)).toBeNull();
+    expect(screen.queryByTestId("task-type-hint")).toBeNull();
   });
 });
 
@@ -266,5 +404,8 @@ describe('Part C — "Does the time matter?" starts from the task type', () => {
  *      → "once the person answers it themselves…" FAILS.
  * 6. rally's DATED_SLOT_FLEXIBILITY drifts from the server (meal → fixed)
  *      → api-server's slotFlexibilityDrift FAILS on two counts, which is the
- *        whole reason that cross-package test exists.
+ *        whole reason that cross-package test existed. ⚠️ NO LONGER POSSIBLE,
+ *        and deliberately so: rally's mirror and that drift test are both
+ *        DELETED (row #136, 21 Sep 2026). There is one table, in
+ *        @workspace/task-copy, which both packages import — nothing to drift.
  */

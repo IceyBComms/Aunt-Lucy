@@ -19,7 +19,6 @@ import { describe, expect, it } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 import { LIFT_WAIT_MODE_MINUTES } from "./liftWaitMode";
-import { TIME_TBC } from "./timeTbc";
 
 const RALLY_SOURCE = path.resolve(__dirname, "../../../rally/src/lib/liftWaitMode.ts");
 
@@ -55,19 +54,11 @@ describe("lift wait durations", () => {
   });
 });
 
-/**
- * Bug #082 — the same duplication problem as the minutes above, so the same
- * guard. #033 decided this wording and put it in rally; the server needed its
- * own copy because the two packages cannot import from each other. If they ever
- * diverge, the task tile and the email about that same task would describe an
- * unset time with two different phrases — a smaller version of the very bug
- * being fixed, which was the tile saying one thing and the email nothing.
+/*
+ * DELETED 21 September 2026, rows #139/#143. A third describe here guarded the
+ * wording "Time to be confirmed", which the server and rally each held a copy
+ * of because the two packages could not import from each other. Both the
+ * wording and the duplication are gone: a dated task with no time now reads
+ * "Any time that day", it is written down once in @workspace/task-copy, and
+ * both packages import it. There is nothing left to drift.
  */
-describe("the 'time to be confirmed' wording", () => {
-  it("matches rally's copy exactly", () => {
-    const src = fs.readFileSync(RALLY_SOURCE, "utf8");
-    const m = src.match(/export const TIME_TBC = "([^"]*)";/);
-    if (!m) throw new Error("TIME_TBC not found in rally's liftWaitMode.ts");
-    expect(m[1]).toBe(TIME_TBC);
-  });
-});

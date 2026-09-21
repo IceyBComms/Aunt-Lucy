@@ -1,5 +1,5 @@
 import twilio from "twilio";
-import { TIME_TBC_CLAUSE } from "./timeTbc";
+import { taskWhenClause } from "@workspace/task-copy";
 import { logger } from "./logger";
 import { measureSms } from "./smsSegments";
 import { notifyFailed, notifySent, notifySkipped } from "./notifyOutcome";
@@ -98,17 +98,12 @@ export function buildInviteSmsBody({
   helperName: string;
   inviteUrl: string;
 }): string {
-  // An undated task takes "whenever suits" in place of "on <date>", so the
-  // sentence stays a sentence rather than reading "on whenever suits".
-  // Bug #082 — a DATED task with no time names it rather than trailing off,
-  // because silence there reads as "any time is fine".
-  const timeStr =
-    slotDate && slotTime
-      ? ` at ${formatTime(slotTime)}`
-      : slotDate
-        ? `, ${TIME_TBC_CLAUSE}`
-        : "";
-  const whenStr = slotDate ? `on ${formatDate(slotDate)}${timeStr}` : formatDate(null);
+  // Row #139 — the ONE format, SENTENCE form. An SMS may never take the card
+  // form: "·" is not in GSM-7 and one of them doubles the cost of the text.
+  // An undated task takes "whenever suits" in place of "on <date>", and a dated
+  // task with no time reads ", any time that day" (row #143) rather than
+  // trailing off, because silence there reads as "any time is fine".
+  const whenStr = taskWhenClause(slotDate, slotTime);
   return (
     `Hi ${helperName}, you've been personally invited to help ${recipientName} with a ${slotTypeLabel} ${whenStr}. ` +
     `Tap to confirm: ${inviteUrl}`
@@ -155,21 +150,3 @@ export async function sendInviteSms({
   }
 }
 
-// Undated slots are flexible offers — see the note in email.ts.
-function formatDate(dateStr: string | null): string {
-  if (!dateStr) return "whenever suits";
-  const [y, m, d] = dateStr.split("-").map(Number);
-  const date = new Date(y, m - 1, d);
-  return date.toLocaleDateString("en-AU", {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-  });
-}
-
-function formatTime(timeStr: string): string {
-  const [h, min] = timeStr.split(":").map(Number);
-  const ampm = h >= 12 ? "pm" : "am";
-  const h12 = h % 12 || 12;
-  return `${h12}:${String(min).padStart(2, "0")}${ampm}`;
-}

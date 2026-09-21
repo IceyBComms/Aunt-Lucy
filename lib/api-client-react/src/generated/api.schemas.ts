@@ -284,13 +284,26 @@ export interface GiftReview {
   suggestions: SuggestedTask[];
 }
 
+/**
+ * Whether the time of a task is the helper's to nudge (flexible) or the family's fact (fixed). Item 17.
+ */
+export type SlotFlexibility =
+  (typeof SlotFlexibility)[keyof typeof SlotFlexibility];
+
+export const SlotFlexibility = {
+  flexible: "flexible",
+  fixed: "fixed",
+} as const;
+
 export interface ActivateGiftTask {
   slotType: SlotType;
   label: string;
   /** Omit or null for a flexible, undated task. */
   slotDate?: string | null;
-  /** Time of day (HH:MM), on the existing slot_time column. Offered on EVERY dated task (bug #033) — it began as school-pickup-only (bug #005), but the column was always generic and the activation screen was the only place that gated it. Optional and never blocking: a dated task with no time renders "Time to be confirmed" rather than an empty space, because optional means "she has not said yet", not "no time matters". */
+  /** Time of day (HH:MM), on the existing slot_time column. Offered on EVERY dated task (bug #033) — it began as school-pickup-only (bug #005), but the column was always generic and the activation screen was the only place that gated it. Optional and never blocking: a dated task with no time renders "Any time that day" rather than an empty space (row #143 — it used to say "Time to be confirmed", which promised a confirmation nobody was going to send). */
   slotTime?: string | null;
+  /** Row #143. The recipient's answer to "Does it need to be at that time?", asked on the activation screen ONLY once a time has been entered. Omit it and the task type's own default stands, exactly as before this field existed. A task saved with no time is stored flexible regardless of what is sent: with no time there is no fact to hold a helper to. */
+  flexibility?: SlotFlexibility;
   liftWaitMode?: LiftWaitMode | null;
   notes?: string | null;
   /** Meal tasks only (bug #006): allergies / dietary preferences. Ignored server-side for non-meal types. */
@@ -390,17 +403,6 @@ export type InviteChannel = (typeof InviteChannel)[keyof typeof InviteChannel];
 export const InviteChannel = {
   sms: "sms",
   email: "email",
-} as const;
-
-/**
- * Whether the time of a task is the helper's to nudge (flexible) or the family's fact (fixed). Item 17.
- */
-export type SlotFlexibility =
-  (typeof SlotFlexibility)[keyof typeof SlotFlexibility];
-
-export const SlotFlexibility = {
-  flexible: "flexible",
-  fixed: "fixed",
 } as const;
 
 export interface ManageTaskSummary {

@@ -513,8 +513,9 @@ describe("Part C — adding a task to a live page", () => {
     expect(created.slotType).toBe("meal");
     expect(created.headcount).toBe(4);
     expect(created.trustedHelpersOnly).toBe(false);
-    // The display name, not the raw enum key (#127).
-    expect(created.label).toBe("meal");
+    // The display name, not the raw enum key (#127) — and in its HEADING form
+    // (row #136), because this is what heads the task on the family's list.
+    expect(created.label).toBe("Meal");
   });
 
   it("a recipient grant can add one too — no account anywhere", async () => {
@@ -595,7 +596,33 @@ describe("Part C — adding a task to a live page", () => {
     expect(totalSends()).toBe(0);
   });
 
-  it("the answer to \"does the time matter?\" is stored", async () => {
+  it("the answer to \"does it need to be at that time?\" is stored", async () => {
+    asManager();
+
+    const created = (await (
+      await addTask({
+        slotType: "meal",
+        slotDate: "2026-10-02",
+        slotTime: "18:00",
+        flexibility: "fixed",
+      })
+    ).json()) as Row;
+
+    // A meal defaults to flexible, so this proves the answer was read rather
+    // than the default happening to agree.
+    expect(created.flexibility).toBe("fixed");
+  });
+
+  /**
+   * ROW #143 — a task with NO TIME is stored FLEXIBLE, whatever arrives.
+   *
+   * "Fixed" means the time is the family's fact and a helper may not move it.
+   * With no time there is no fact, and a fixed timeless task would text the
+   * family about a change to a time nobody ever set. The form no longer asks
+   * the question until a time is entered; this is the same rule where it is
+   * stored, so a hand-made request cannot get round it either.
+   */
+  it("a task with NO TIME is flexible, even when the request says fixed", async () => {
     asManager();
 
     const created = (await (
@@ -606,9 +633,20 @@ describe("Part C — adding a task to a live page", () => {
       })
     ).json()) as Row;
 
-    // A meal defaults to flexible, so this proves the answer was read rather
-    // than the default happening to agree.
-    expect(created.flexibility).toBe("fixed");
+    expect(created.flexibility).toBe("flexible");
+  });
+
+  it("…and a VISIT with no time too, whose own default is fixed", async () => {
+    asManager();
+
+    // Positive control on the rule rather than on the request: a visit sends no
+    // answer at all, and its category default is fixed. Without the row #143
+    // rule this would come back "fixed".
+    const created = (await (
+      await addTask({ slotType: "visit", slotDate: "2026-10-02" })
+    ).json()) as Row;
+
+    expect(created.flexibility).toBe("flexible");
   });
 });
 

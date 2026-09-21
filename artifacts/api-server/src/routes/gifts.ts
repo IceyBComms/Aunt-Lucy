@@ -12,7 +12,7 @@ import {
 } from "../lib/inviteCopy";
 import { TIERS, sellableTier } from "../lib/giftPricing";
 import { uniqueToken } from "../lib/token";
-import { defaultFlexibility } from "../lib/slotFlexibility";
+import { defaultFlexibility, type SlotFlexibility } from "@workspace/task-copy";
 import { asLiftWaitMode, isLiftCandidate } from "../lib/liftWaitMode";
 import { logger } from "../lib/logger";
 import { sendQueuedInvites } from "../lib/queuedInviteSender";
@@ -526,6 +526,20 @@ router.post("/gifts/:redemptionToken/activate", async (req, res) => {
         ? asLiftWaitMode(t.liftWaitMode)
         : null;
 
+      // Row #143 — the recipient's own answer to "Does it need to be at that
+      // time?", which the activation screen asks ONLY once a time is entered.
+      // With no time there is nothing to hold a helper to, so it is FLEXIBLE
+      // whatever arrives; with a time and no answer, the task type's own
+      // default stands, exactly as it did before the question existed.
+      const slotTime = asSlotTime(t.slotTime);
+      const answered =
+        t.flexibility === "flexible" || t.flexibility === "fixed"
+          ? (t.flexibility as SlotFlexibility)
+          : null;
+      const flexibility: SlotFlexibility = !slotTime
+        ? "flexible"
+        : (answered ?? defaultFlexibility(slotType, slotDate != null));
+
       return {
         slotType,
         // The label carries the recipient's own wording, so it goes in
@@ -533,11 +547,12 @@ router.post("/gifts/:redemptionToken/activate", async (req, res) => {
         // not a generic enum name.
         customLabel: label.slice(0, 120),
         slotDate,
+        flexibility,
         // A time on the existing slot_time column (#005). Kept even when the
         // task is undated — an undated slot with a time reads as "whenever
         // suits, but pickup is at 3pm"; the display layer only pairs a clock
         // with a real date, so a stray time never renders oddly.
-        slotTime: asSlotTime(t.slotTime),
+        slotTime,
         liftWaitMode,
         notes: trimmed(t.notes).slice(0, 500) || null,
         dietaryNotes: isMeal ? trimmed(t.dietaryNotes).slice(0, 500) || null : null,
@@ -594,9 +609,10 @@ router.post("/gifts/:redemptionToken/activate", async (req, res) => {
           dietaryNotes: t.dietaryNotes,
           headcount: t.headcount,
           trustedHelpersOnly: t.trustedHelpersOnly,
-          // Item 17: default the flexible/fixed flag by category. The page
-          // runner can flip it later per task; the recipient is never asked.
-          flexibility: defaultFlexibility(t.slotType, t.slotDate != null),
+          // Item 17 + row #143: the recipient's own answer when the activation
+          // screen asked for one, the category default when it didn't, and
+          // always flexible on a task with no time. Decided above, in one place.
+          flexibility: t.flexibility,
         })),
       );
     }

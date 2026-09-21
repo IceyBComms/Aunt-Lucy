@@ -9,94 +9,44 @@
  *
  * The FAMILY-SIDE and HELPER-SIDE *screen* microcopy (buttons, confirm dialogs,
  * error text) is UI, so it lives in the frontend's own single copy module
- * (rally/src/lib/item17Copy.ts). The frontend/backend package boundary is why
- * the copy is split across exactly two files rather than one — a literal single
- * module would need a new shared package for the sake of a handful of strings.
+ * (rally/src/lib/item17Copy.ts). The message bodies and the screen microcopy
+ * are different jobs, so they stay in two files — but the TASK NAMES and DATE
+ * FORMATS both of them use are now one shared package, @workspace/task-copy
+ * (row #136).
  *
  * Australian English throughout. 💛 in warm microcopy is intentional.
  */
-import { TIME_TBC_CLAUSE } from "./timeTbc";
 import { soonDay, type SoonDay } from "./australianDay";
+import {
+  formatTaskTime,
+  taskNoun,
+  taskShortNoun,
+  taskWhenClause as sharedWhenClause,
+  taskWhenSentence,
+} from "@workspace/task-copy";
 
-
-// KATE'S RULING, 21 Sep 2026 (#127): slot type school_pickup displays as
-// "school run", NOT "school pickup". A pickup sounds like collecting them at
-// the end of the day; the real task is getting them there and home again.
-// The ENUM KEY school_pickup does not change — this is display text only.
+// ─── Names and dates now come from @workspace/task-copy ──────────────────────
 //
-// Short, mid-sentence noun phrases for a task with no custom label. The
-// recipient's own wording (customLabel) is always preferred when present — it's
-// what they wrote and what shows on the live page.
-const TASK_NOUNS: Record<string, string> = {
-  meal: "a meal",
-  school_pickup: "the school run",
-  child_care: "looking after the kids",
-  errand: "an errand",
-  dog_walking: "walking the dog",
-  shopping: "the shopping",
-  visit: "a visit",
-  other: "the task",
-};
+// TWO task-name tables used to live in this file (TASK_NOUNS and TASK_NAMES)
+// and six more lived elsewhere — row #136, and the reason four spellings of one
+// task were live at once. They are gone; the names are in the shared package
+// that rally imports too. These are the names this module's callers already
+// use, kept as thin aliases so the copy below reads the way it always has.
+
+/** A task's bare display name, no article: the recipient's wording, else a default. */
+export const taskName = taskShortNoun;
+
+/** How a task is named in a message, with its article: "the school run". */
+export const taskLabel = taskNoun;
+
+/** "6:00pm" — lower-case, no space. */
+export const timeLabel = formatTaskTime;
 
 /**
- * The same tasks as bare display names, for where an article can't go — "A note
- * about tomorrow's school run", not "tomorrow's the school run". These are
- * the names the helper's own screen already shows (rally ReleaseSlot.tsx
- * SLOT_TYPE_LABELS), lower-cased mid-sentence. Never a raw key like
- * school_pickup.
+ * "Friday 8 August", "Friday 8 August at 3:00pm", "Friday 8 August, any time
+ * that day" (row #143), or "whenever suits" for an undated offer.
  */
-const TASK_NAMES: Record<string, string> = {
-  meal: "meal",
-  school_pickup: "school run",
-  child_care: "child care",
-  errand: "errand",
-  dog_walking: "dog walking",
-  shopping: "shopping",
-  visit: "visit",
-  // Not "help": "A note about tomorrow's help" reads wrong (Kate, 16 Sep 2026).
-  other: "task",
-};
-
-/** A task's bare display name: the recipient's wording, else a default. */
-export function taskName(slotType: string, customLabel: string | null): string {
-  const label = customLabel?.trim();
-  return label || TASK_NAMES[slotType] || "task";
-}
-
-/** How a task is named in a message: the recipient's wording, else a default. */
-export function taskLabel(slotType: string, customLabel: string | null): string {
-  const label = customLabel?.trim();
-  return label || TASK_NOUNS[slotType] || "the task";
-}
-
-/** "6:00pm" — lower-case, matching the invite SMS style. */
-export function timeLabel(timeStr: string): string {
-  const [h, min] = timeStr.split(":").map(Number);
-  const ampm = h >= 12 ? "pm" : "am";
-  const h12 = h % 12 || 12;
-  return `${h12}:${String(min).padStart(2, "0")}${ampm}`;
-}
-
-/**
- * "Friday 8 August", "Friday 8 August at 3:00pm", or "whenever suits" for an
- * undated (flexible) offer. Pinned to Australia/Sydney so a late-evening UTC
- * server date never prints as the previous day for the reader. A time is only
- * ever paired with a real date — an undated task has no clock.
- */
-export function whenLabel(slotDate: string | null, slotTime: string | null): string {
-  if (!slotDate) return "whenever suits";
-  const date = new Date(slotDate + "T00:00:00");
-  const dateStr = date.toLocaleDateString("en-AU", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    timeZone: "Australia/Sydney",
-  });
-  // Bug #082 — name the missing time instead of trailing off after the date.
-  return slotTime
-    ? `${dateStr} at ${timeLabel(slotTime)}`
-    : `${dateStr}, ${TIME_TBC_CLAUSE}`;
-}
+export const whenLabel = taskWhenSentence;
 
 // ─── Messages to the HELPER (their invite channel) ───────────────────────────
 
@@ -152,10 +102,7 @@ export function helperClaimConfirmed(params: {
  * an undated one is already a phrase ("whenever suits") and takes no "on", or
  * the sentence would read "on whenever suits".
  */
-export function whenClause(slotDate: string | null, slotTime: string | null): string {
-  const when = whenLabel(slotDate, slotTime);
-  return slotDate ? `on ${when}` : when;
-}
+export const whenClause = sharedWhenClause;
 
 /**
  * The family edited a task the helper has claimed. The claim STANDS; this is a

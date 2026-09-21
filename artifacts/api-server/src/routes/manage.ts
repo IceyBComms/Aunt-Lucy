@@ -46,14 +46,16 @@ import {
 } from "../lib/item17Notify";
 import {
   taskLabel,
-  taskName,
   whenLabel,
   helperTaskChanged,
   helperTaskCancelledStandard,
   helperTaskCancelledBereavement,
   helperEmailSubject,
 } from "../lib/item17Copy";
-import { type SlotFlexibility } from "../lib/slotFlexibility";
+import {
+  taskLabel as manageTaskName,
+  type SlotFlexibility,
+} from "@workspace/task-copy";
 import { validateNewTask } from "../lib/newTaskInput";
 import {
   feedbackBlockState,
@@ -335,10 +337,13 @@ router.get("/manage/:token", requireManagementTokenAllowingClosed as any, async 
       slotType: s.slotType,
       // #127 — NEVER `?? s.slotType`. That fallback put the raw enum key
       // ("dog_walking", "errand") on the family's own screen in six places,
-      // while the claim email for the same task said "Dog walking". taskName()
-      // is the shared lookup the sent messages already use, so a rename lands
-      // in one file (see item17Copy.ts).
-      label: taskName(s.slotType, s.customLabel),
+      // while the claim email for the same task said "Dog walking".
+      //
+      // Row #136 — this is a HEADING on the family's task list, so it takes the
+      // heading form ("School run"), not the bare mid-sentence one ("school
+      // run") it used to take. The screen builds its own sentences from
+      // slotType + customLabel, which it carries below.
+      label: manageTaskName(s.slotType, s.customLabel),
       // Raw fields the family edit form needs (label above is the display value).
       customLabel: s.customLabel,
       notes: s.notes ?? null,
@@ -1140,7 +1145,7 @@ router.post("/manage/:token/tasks", requireManagementToken as any, async (req, r
   res.status(201).json({
     id: slot.id,
     slotType: slot.slotType,
-    label: taskName(slot.slotType, slot.customLabel),
+    label: manageTaskName(slot.slotType, slot.customLabel),
     customLabel: slot.customLabel,
     notes: slot.notes ?? null,
     flexibility: slot.flexibility,
@@ -1305,7 +1310,7 @@ router.patch(
       // #127, the same fault as the GET payload above: without this the raw
       // key comes BACK on every edit, so a fixed screen breaks again the
       // moment the family touches a task.
-      label: taskName(updated.slotType, updated.customLabel),
+      label: manageTaskName(updated.slotType, updated.customLabel),
       customLabel: updated.customLabel,
       notes: updated.notes ?? null,
       flexibility: updated.flexibility,

@@ -62,7 +62,7 @@ const LIFT_SLOT = {
   createdAt: "2026-08-23T00:00:00.000Z",
 };
 
-// The SAME task with no time yet — proves "Time to be confirmed" rather than a
+// The SAME task with no time yet — proves "Any time that day" rather than a
 // blank, which is the second half of the bug.
 const LIFT_NO_TIME = {
   ...LIFT_SLOT,

@@ -109,3 +109,10 @@ Thumbs.db
 # that it is uncommitted and must stay that way; they are point-in-time audits,
 # superseded by the next run, and the bug record in build/ is the durable one.
 /RECONCILIATION_*.md
+
+# "Claude outputs/" — where notes and hand-offs from a session get dropped. Not
+# source, and never part of a change. It sat untracked in the working tree for
+# weeks until a `git add -A` on 21 September 2026 swept it into a branch, where
+# it had nothing to do with the three rows that PR was for. Ignored by name so
+# that cannot happen again; the folder itself stays on disk.
+Claude outputs/
