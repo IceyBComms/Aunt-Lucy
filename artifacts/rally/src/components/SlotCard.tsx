@@ -1,12 +1,8 @@
 import type { SlotResponse } from "@workspace/api-client-react";
 import { Button } from "./ui/button";
-import { format, parseISO } from "date-fns";
 import { CarFront, CheckCircle2, Clock, ClipboardList, Users, Utensils } from "lucide-react";
-import {
-  liftWaitTileLine,
-  TIME_TBC,
-  asLiftWaitMode,
-} from "@/lib/liftWaitMode";
+import { liftWaitTileLine, asLiftWaitMode } from "@/lib/liftWaitMode";
+import { taskLabel, taskWhenCard } from "@workspace/task-copy";
 import { motion } from "framer-motion";
 
 interface SlotCardProps {
@@ -15,22 +11,24 @@ interface SlotCardProps {
   index: number;
 }
 
-const getSlotDetails = (type: string) => {
-  const map: Record<string, { icon: string; label: string }> = {
-    meal: { icon: "🍲", label: "Meal" },
-    school_pickup: { icon: "🚗", label: "School Run" },
-    child_care: { icon: "👶", label: "Child Care" },
-    errand: { icon: "🧺", label: "Errand" },
-    dog_walking: { icon: "🐕", label: "Dog Walking" },
-    shopping: { icon: "🛒", label: "Shopping" },
-    visit: { icon: "☕", label: "Visit" },
-    other: { icon: "💛", label: "Other" },
-  };
-  return map[type] || map.other;
+// Icons stay here — they are a rally concern. The NAMES come from
+// @workspace/task-copy, which api-server imports too (row #136).
+const SLOT_ICONS: Record<string, string> = {
+  meal: "🍲",
+  school_pickup: "🚗",
+  child_care: "👶",
+  errand: "🧺",
+  dog_walking: "🐕",
+  shopping: "🛒",
+  visit: "☕",
+  other: "💛",
 };
 
+const slotIcon = (type: string) => SLOT_ICONS[type] ?? SLOT_ICONS.other;
+
 export function SlotCard({ slot, onClaim, index }: SlotCardProps) {
-  const details = getSlotDetails(slot.slotType);
+  const icon = slotIcon(slot.slotType);
+  const label = taskLabel(slot.slotType, slot.customLabel);
   // Meal detail a helper needs before cooking (bug #006). Meal-only; null on
   // everything else, so the pills simply don't render.
   const hasMealDetail =
@@ -67,25 +65,12 @@ export function SlotCard({ slot, onClaim, index }: SlotCardProps) {
       )}
     </div>
   ) : null;
-  // A slot with no date is a flexible offer — the helper picks the day when
-  // they claim it. Say so in words rather than showing an empty "when".
-  const formattedDate = slot.slotDate
-    ? format(parseISO(slot.slotDate), "EEEE, MMMM d")
-    : "Whenever suits";
-
-  // A DATED task whose time nobody has set yet says so out loud (bug #033).
-  // Showing nothing here read as "any time is fine", which is the opposite of
-  // the truth: optional means "she hasn't said yet", not "no time matters".
-  // Only ever for a dated task — an undated offer already says "Whenever suits"
-  // and has no clock to confirm.
-  let formattedTime = slot.slotDate ? TIME_TBC : "";
-  if (slot.slotDate && slot.slotTime) {
-    const [hours, minutes] = slot.slotTime.split(":");
-    const h = parseInt(hours, 10);
-    const ampm = h >= 12 ? "PM" : "AM";
-    const h12 = h % 12 || 12;
-    formattedTime = `${h12}:${minutes} ${ampm}`;
-  }
+  // Row #139 — the ONE when, in its card form: "Tuesday 22 September · 3:00pm",
+  // the year added only when it isn't this year. A slot with no date is a
+  // flexible offer and reads "Whenever suits"; a DATED slot with no time reads
+  // "Any time that day" (row #143), which replaces "Time to be confirmed" —
+  // those words promised a confirmation nobody was going to send.
+  const when = taskWhenCard(slot.slotDate ?? null, slot.slotTime ?? null);
 
   if (slot.isClaimed) {
     return (
@@ -101,15 +86,15 @@ export function SlotCard({ slot, onClaim, index }: SlotCardProps) {
         
         <div className="flex items-center gap-3 mb-4 opacity-70">
           <span className="flex items-center justify-center w-12 h-12 rounded-2xl bg-background shadow-sm text-2xl saturate-50">
-            {details.icon}
+            {icon}
           </span>
           <div>
             <h3 className="font-serif font-semibold text-foreground text-lg">
-              {slot.customLabel || details.label}
+              {label}
             </h3>
             <p className="text-sm text-muted-foreground flex items-center gap-1.5">
               <Clock className="w-3.5 h-3.5" />
-              {formattedDate} {formattedTime && `• ${formattedTime}`}
+              {when}
             </p>
           </div>
         </div>
@@ -135,15 +120,15 @@ export function SlotCard({ slot, onClaim, index }: SlotCardProps) {
     >
       <div className="flex items-center gap-3 mb-4">
         <span className="flex items-center justify-center w-12 h-12 rounded-2xl bg-secondary/80 text-2xl">
-          {details.icon}
+          {icon}
         </span>
         <div>
           <h3 className="font-serif font-semibold text-foreground text-lg">
-            {slot.customLabel || details.label}
+            {label}
           </h3>
           <p className="text-sm text-muted-foreground flex items-center gap-1.5">
             <Clock className="w-3.5 h-3.5" />
-            {formattedDate} {formattedTime && `• ${formattedTime}`}
+            {when}
           </p>
         </div>
       </div>

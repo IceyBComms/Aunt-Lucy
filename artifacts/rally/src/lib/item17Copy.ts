@@ -30,7 +30,15 @@ export const family = {
     confirm: "Take it off",
   },
 
-  /** Confirm dialog — cancelling a task a helper has claimed. */
+  /**
+   * Confirm dialog — cancelling a task a helper has claimed.
+   *
+   * ROW #136. {task} is the MID-SENTENCE form, with its article: "Cancel the
+   * school run?", "Cancel a meal?". It used to be handed the bare heading, so
+   * this read "Cancel errand?" — better than #127's "Cancel dog_walking?", and
+   * still not a sentence. A bare noun is right for a card heading and wrong
+   * inside a sentence, and the same string was being used for both.
+   */
   cancelClaimed: {
     title: (task: string) => `Cancel ${task}?`,
     body: (helper: string) =>
@@ -80,7 +88,13 @@ export const helper = {
   /** Fixed tasks: leave a note (the time is not the helper's to move). */
   fixedNote: {
     lead: "Plans shifting? Leave a note and Aunt Lucy will pass it on.",
-    /** Shown near the cancel control on a fixed task — the time is sensitive. */
+    /**
+     * Shown near the cancel control on a fixed task — the time is sensitive.
+     *
+     * ROW #136: {task} is the mid-sentence form WITH its article. This used to
+     * be handed the heading, uncorrected, so it read "you can't do School
+     * run?" — capitalised mid-sentence and missing its article.
+     */
     cancelBlurb: (task: string, recipientFirstName: string) =>
       `Plans changed and you can't do ${task}? This one's time sensitive so the sooner you cancel the better — Aunt Lucy will text ${recipientFirstName} straight away, so they've got time to make another plan.`,
     /**
@@ -91,7 +105,11 @@ export const helper = {
     buttonBusy: "Sending…",
     /**
      * After the note goes. ✅ Kate's ruling, 16 Sep 2026. {task} is the task's
-     * DISPLAY name, never a raw key like school_pickup.
+     * MID-SENTENCE name with its article (row #136) — "You're still down for
+     * the school run." It used to be the heading, lower-cased, which read fine
+     * on the mass and gerund nouns by luck and wrong on every count noun:
+     * "still down for meal", "still down for errand", "still down for visit".
+     * Lower-casing is not a grammar. Never a raw key like school_pickup.
      */
     sent: (recipientFirstName: string, task: string) =>
       `Sent — ${recipientFirstName} has your note. You're still down for ${task}.`,

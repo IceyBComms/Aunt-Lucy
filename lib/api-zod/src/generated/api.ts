@@ -417,7 +417,16 @@ export const ActivateGiftBody = zod.object({
           .string()
           .nullish()
           .describe(
-            'Time of day (HH:MM), on the existing slot_time column. Offered on EVERY dated task (bug #033) — it began as school-pickup-only (bug #005), but the column was always generic and the activation screen was the only place that gated it. Optional and never blocking: a dated task with no time renders \"Time to be confirmed\" rather than an empty space, because optional means \"she has not said yet\", not \"no time matters\".',
+            'Time of day (HH:MM), on the existing slot_time column. Offered on EVERY dated task (bug #033) — it began as school-pickup-only (bug #005), but the column was always generic and the activation screen was the only place that gated it. Optional and never blocking: a dated task with no time renders \"Any time that day\" rather than an empty space (row #143 — it used to say \"Time to be confirmed\", which promised a confirmation nobody was going to send).',
+          ),
+        flexibility: zod
+          .enum(["flexible", "fixed"])
+          .describe(
+            "Whether the time of a task is the helper's to nudge (flexible) or the family's fact (fixed). Item 17.",
+          )
+          .optional()
+          .describe(
+            "Row #143. The recipient's answer to \"Does it need to be at that time?\", asked on the activation screen ONLY once a time has been entered. Omit it and the task type's own default stands, exactly as before this field existed. A task saved with no time is stored flexible regardless of what is sent: with no time there is no fact to hold a helper to.",
           ),
         liftWaitMode: zod
           .enum(["drop_off", "wait", "pick_up"])

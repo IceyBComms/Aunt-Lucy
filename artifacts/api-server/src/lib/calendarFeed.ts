@@ -25,7 +25,7 @@
 
 import ical, { ICalEventStatus, ICalCalendarMethod } from "ical-generator";
 import { getAppBaseUrl } from "./appUrl";
-import { taskLabel } from "./item17Copy";
+import { ANY_TIME_THAT_DAY, taskNoun } from "@workspace/task-copy";
 import {
   LIFT_WAIT_MODE_HELPER_LINES,
   liftWaitMinutes,
@@ -96,7 +96,7 @@ export function buildClaimIcs(data: CalendarClaimData): string {
 
   // Only a dated task is an appointment; an undated offer gets an empty calendar.
   if (data.slotDate) {
-    const label = taskLabel(data.slotType, data.customLabel);
+    const label = taskNoun(data.slotType, data.customLabel);
     const timed = !!data.slotTime;
     const waitSuffix = liftWaitSummarySuffix(data.liftWaitMode);
     const start = floatingInstant(data.slotDate, data.slotTime);
@@ -135,8 +135,14 @@ export function buildClaimIcs(data: CalendarClaimData): string {
     // Bug #033 — the full sentence in the event body, so a helper who opens the
     // entry gets the reason the block is that long. Set only for an answered
     // lift; every other event carries no description at all, exactly as before.
+    //
+    // Row #143 — a dated task with NO time is an all-day event, and the body
+    // says so in the same words every other surface uses. An answered lift
+    // always has a time, so the two can never contend for the description.
     if (data.liftWaitMode) {
       event.description(LIFT_WAIT_MODE_HELPER_LINES[data.liftWaitMode]);
+    } else if (!timed) {
+      event.description(ANY_TIME_THAT_DAY + ".");
     }
 
     // Location is page-level free text, already emailed to this same helper, so

@@ -16,6 +16,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { apiFetch } from "@/lib/api";
+import {
+  SLOT_TYPES as TASK_SLOT_TYPES,
+  taskLabel,
+} from "@workspace/task-copy";
 import { useAuth } from "@/contexts/AuthContext";
 import { format, addDays, parseISO } from "date-fns";
 import {
@@ -28,16 +32,29 @@ import {
 import { SiteFooter } from "@/components/SiteFooter";
 import { SETUP_PUBLISH_COPY } from "@/lib/setupPublishCopy";
 
-export const SLOT_TYPES = [
-  { value: "meal", icon: "🍲", label: "Meal", trusted: false },
-  { value: "school_pickup", icon: "🚗", label: "School Run", trusted: true },
-  { value: "child_care", icon: "👶", label: "Child Care", trusted: true },
-  { value: "errand", icon: "🧺", label: "Errand", trusted: false },
-  { value: "dog_walking", icon: "🐕", label: "Dog Walking", trusted: false },
-  { value: "shopping", icon: "🛒", label: "Shopping", trusted: false },
-  { value: "visit", icon: "☕", label: "Visit", trusted: false },
-  { value: "other", icon: "💛", label: "Other", trusted: false },
-];
+// The icons and the trusted-by-default flag stay here — the icons are a rally
+// concern and the flag is the access model's, not the copy's. The NAMES come
+// from @workspace/task-copy, which api-server imports too (row #136).
+const SLOT_ICONS: Record<string, string> = {
+  meal: "🍲",
+  school_pickup: "🚗",
+  child_care: "👶",
+  errand: "🧺",
+  dog_walking: "🐕",
+  shopping: "🛒",
+  visit: "☕",
+  other: "💛",
+};
+
+/** Always trusted-only: it means handing someone your children. */
+const ALWAYS_TRUSTED = new Set(["school_pickup", "child_care"]);
+
+export const SLOT_TYPES = TASK_SLOT_TYPES.map((value) => ({
+  value,
+  icon: SLOT_ICONS[value],
+  label: taskLabel(value),
+  trusted: ALWAYS_TRUSTED.has(value),
+}));
 
 const SENSITIVE_TYPES = new Set(["school_pickup", "child_care"]);
 

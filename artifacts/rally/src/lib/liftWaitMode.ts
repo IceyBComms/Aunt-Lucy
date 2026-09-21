@@ -177,17 +177,14 @@ export const LIFT_WAIT_MODE_HELPER_LINES: Record<LiftWaitMode, string> = {
 
 // ─── Shared fallbacks ────────────────────────────────────────────────────────
 
-/**
- * Bug #033, second half: a dated task whose time nobody has set yet.
+/*
+ * TIME_TBC was here, and is DELETED (row #143, Kate's ruling 21 Sep 2026).
  *
- * Optional means "she hasn't said yet", not "no time matters" — so a dated task
- * with no time says so out loud rather than showing an empty space a helper
- * reads as "any time is fine".
- *
- * ⚠️ Only ever shown for a task that HAS a date. An undated task is a flexible
- * "whenever suits" offer and has no clock to confirm.
+ * The words it held promised a confirmation nobody was going to send — neither
+ * the family nor the helper knew it was them. A dated task with no time now
+ * reads ANY_TIME_THAT_DAY, which is a fact rather than a promise, and it lives
+ * in @workspace/task-copy so the server says the same words as the screen.
  */
-export const TIME_TBC = "Time to be confirmed";
 
 /**
  * The nudge shown on the recipient's activation screen when a lift has no time.

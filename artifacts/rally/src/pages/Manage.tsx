@@ -59,14 +59,20 @@ import {
   LIFT_WAIT_MODES,
   LIFT_WAIT_MODE_LABELS,
   LIFT_WAIT_MODE_TILE_LINES,
-  TIME_TBC,
   asLiftWaitMode,
   isLiftCandidate,
   type LiftWaitMode,
 } from "@/lib/liftWaitMode";
 import { SiteFooter } from "@/components/SiteFooter";
 import { SLOT_TYPES } from "@/pages/OrganiseAddSlots";
-import { defaultFlexibilityForType } from "@/lib/slotFlexibility";
+import {
+  ANY_TIME_THAT_DAY,
+  defaultFlexibilityForType,
+  formatShortDate,
+  taskLabel,
+  taskNoun,
+  taskWhenCard,
+} from "@workspace/task-copy";
 import { useOptionalAuth } from "@/contexts/AuthContext";
 
 /**
@@ -97,27 +103,14 @@ interface Selection {
   slotId: string | null;
 }
 
-/** "Friday, 1 August" / "Friday, 1 August · 3:00 pm" / "" when undated. */
+/**
+ * "Friday 1 August · 3:00pm" / "Friday 1 August · Any time that day" / "" when
+ * undated. Row #139 — the one formatter, in its card form; an undated task
+ * shows nothing here rather than "Whenever suits", because this screen already
+ * says so elsewhere and a blank when-line is what the list has always shown.
+ */
 function formatWhen(slotDate: string | null, slotTime: string | null): string {
-  if (!slotDate) return "";
-  const [y, m, d] = slotDate.split("-").map(Number);
-  const date = new Date(y, m - 1, d);
-  let out = date.toLocaleDateString("en-AU", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-  });
-  if (slotTime) {
-    const [h, min] = slotTime.split(":").map(Number);
-    const ampm = h >= 12 ? "pm" : "am";
-    const h12 = h % 12 || 12;
-    out += ` · ${h12}:${String(min).padStart(2, "0")}${ampm}`;
-  } else {
-    // Bug #033 — a dated task with no time yet says so here too, so the
-    // recipient can see at a glance which of her tasks still need a time.
-    out += ` · ${TIME_TBC}`;
-  }
-  return out;
+  return slotDate ? taskWhenCard(slotDate, slotTime) : "";
 }
 
 /**
@@ -143,10 +136,17 @@ const SENSITIVE_TYPE_REASON: Record<string, string> = {
     "Looking after the kids is always trusted-only — it means handing someone your children, so it can’t be opened up to anyone.",
 };
 
-/** "Does the time matter?" — the two answers, in the order they are shown. */
+/**
+ * "Does it need to be at that time?" — the two answers, in the order shown.
+ *
+ * ROW #143, Kate's ruling 21 Sep 2026. The question used to be "Does the time
+ * matter?" with "Roughly then is fine", and it was asked even when no time had
+ * been entered — roughly WHEN? It is now asked only once there is a time, and
+ * both it and its answers name that time instead of gesturing at it.
+ */
 const FLEXIBILITY_CHOICES: ReadonlyArray<readonly [SlotFlexibility, string]> = [
-  ["fixed", "Yes, that time"],
-  ["flexible", "Roughly then is fine"],
+  ["fixed", "Yes, at that time"],
+  ["flexible", "Around then is fine"],
 ];
 
 export function Manage() {
@@ -298,10 +298,11 @@ export function Manage() {
   const [newDate, setNewDate] = useState("");
   const [newTime, setNewTime] = useState("");
   /**
-   * "Does the time matter?" — seeded from the TASK TYPE's own default, the
-   * same one the server would have chosen (lib/slotFlexibility, kept honest by
-   * api-server's slotFlexibilityDrift test). A meal starts on "Roughly then is
-   * fine" exactly as it does in the setup wizard; a school run starts fixed.
+   * "Does it need to be at that time?" — seeded from the TASK TYPE's own
+   * default, the same one the server uses. There is no second copy of the rule
+   * to keep honest any more: both doors and the server import it from
+   * @workspace/task-copy (row #136). A meal starts on "Around then is fine"
+   * exactly as it does in the setup wizard; a school run starts fixed.
    *
    * The second piece of state is why this is not one. The answer FOLLOWS the
    * task type while it is still the default — change your mind from Meal to
@@ -814,9 +815,14 @@ export function Manage() {
               </label>
             </div>
 
-            {/* "Does the time matter?" → the existing flexible/fixed flag. */}
+            {/* Row #143 — the question appears ONLY once a time is entered.
+                With no time there is nothing for "yes, at that time" to point
+                at, and the task is stored flexible regardless (the server
+                enforces the same rule, in lib/newTaskInput). */}
+            {newTime && (
+              <>
             <p className="mb-2 text-[0.9rem] font-semibold text-[#2c2c2c]">
-              Does the time matter?
+              Does it need to be at that time?
             </p>
             <div className="mb-4 flex gap-2">
               {FLEXIBILITY_CHOICES.map(([value, label]) => (
@@ -838,6 +844,8 @@ export function Manage() {
                 </button>
               ))}
             </div>
+              </>
+            )}
 
             {/* Bug #033 — a lift has to say whether the helper waits. Shown on
                 exactly the types the setup wizard shows it on, because both
@@ -2181,7 +2189,9 @@ export function Manage() {
             <DialogHeader>
               <DialogTitle>
                 {cancelling.isClaimed
-                  ? copy.cancelClaimed.title(cancelling.label)
+                  ? copy.cancelClaimed.title(
+                      taskNoun(cancelling.slotType, cancelling.customLabel),
+                    )
                   : copy.cancelUnclaimed.title}
               </DialogTitle>
               <DialogDescription>

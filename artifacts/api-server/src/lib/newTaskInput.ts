@@ -27,7 +27,7 @@
  * field optional, sensitivity deliberately not editable — and stays where it
  * is, in the PATCH handler.
  */
-import { defaultFlexibility, type SlotFlexibility } from "./slotFlexibility";
+import { defaultFlexibility, type SlotFlexibility } from "@workspace/task-copy";
 import { asLiftWaitMode, isLiftCandidate, type LiftWaitMode } from "./liftWaitMode";
 
 /** Every slot type a task may be. The enum's own values, in the DB's order. */
@@ -188,8 +188,16 @@ export function validateNewTask(input: NewTaskInput): NewTaskResult {
       // stands. A created task is always dated, so a dated errand reads as a
       // lift → fixed; a meal stays flexible regardless. The page runner can
       // flip it later on /manage either way.
-      flexibility:
-        input.flexibility === "flexible" || input.flexibility === "fixed"
+      //
+      // ⚠️ ROW #143 — A TASK WITH NO TIME IS ALWAYS FLEXIBLE, whatever the form
+      // said. "Fixed" means the time is the family's fact and a helper may not
+      // move it; with no time there is no fact to hold anyone to, and a fixed
+      // timeless task would text the family about a change to a time that was
+      // never set. The form no longer even asks the question until a time is
+      // entered, and this is the same rule enforced where it is stored.
+      flexibility: !slotTime
+        ? "flexible"
+        : input.flexibility === "flexible" || input.flexibility === "fixed"
           ? input.flexibility
           : defaultFlexibility(slotType, true),
     },

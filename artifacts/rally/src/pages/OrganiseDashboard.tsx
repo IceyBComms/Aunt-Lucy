@@ -6,6 +6,7 @@ import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { motion } from "framer-motion";
 import { SiteFooter } from "@/components/SiteFooter";
+import { formatShortDate } from "@workspace/task-copy";
 
 interface PageSummary {
   id: string;
@@ -50,18 +51,13 @@ function coveredLabel(n: number): string {
  * ONE function, used by the draft line AND the closed line, deliberately. They
  * sit on adjacent cards in the same list, so two formats would be visible side
  * by side — and row #139 is open precisely because dates are written several
- * different ways across the product. A second helper here is how a third way
- * would start.
+ * different ways across the product.
+ *
+ * It is now the SHARED short form (@workspace/task-copy) rather than a helper
+ * local to this screen — row #139's own note said not to import this one from
+ * anywhere else, but to replace it when the real formatter existed. It does.
  */
-function cardDate(iso: string): string {
-  const d = new Date(iso);
-  const thisYear = d.getFullYear() === new Date().getFullYear();
-  return d.toLocaleDateString("en-AU", {
-    day: "numeric",
-    month: "long",
-    ...(thisYear ? {} : { year: "numeric" }),
-  });
-}
+const cardDate = formatShortDate;
 
 const STATUS_LABELS: Record<string, { label: string; colour: string }> = {
   active: { label: "Active", colour: "bg-primary/10 text-primary" },

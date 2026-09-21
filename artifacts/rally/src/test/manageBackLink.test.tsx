@@ -171,14 +171,26 @@ describe("Part C — the add-a-task door", () => {
   });
 });
 
-describe('Part C — "Does the time matter?" starts from the task type', () => {
+describe('Part C — "Does it need to be at that time?" starts from the task type', () => {
+  const YES = "Yes, at that time";
+  const AROUND = "Around then is fine";
+
   /** The answer currently showing, read off the pressed state of the two pills. */
   function chosenAnswer(): string | null {
-    for (const label of ["Yes, that time", "Roughly then is fine"]) {
+    for (const label of [YES, AROUND]) {
       const btn = screen.queryByRole("button", { name: label });
       if (btn?.getAttribute("aria-pressed") === "true") return label;
     }
     return null;
+  }
+
+  /**
+   * Row #143 — the question only exists once a time has been entered, so every
+   * test about the ANSWER has to put one in first. The tests about whether the
+   * question appears at all are in the describe below.
+   */
+  function enterATime() {
+    fireEvent.change(screen.getByLabelText("Time"), { target: { value: "15:00" } });
   }
 
   async function openForm() {
@@ -192,53 +204,59 @@ describe('Part C — "Does the time matter?" starts from the task type', () => {
 
   it("a MEAL is flexible by default — the same answer the wizard gives it", async () => {
     await openForm();
+    enterATime();
 
     // The form opens on Meal, and a meal's time is the helper's to nudge.
-    // Before this, the form always opened on "Yes, that time", so the identical
-    // meal came out fixed from /manage and flexible from setup.
-    expect(chosenAnswer()).toBe("Roughly then is fine");
+    // Before this, the form always opened on "yes" — so the identical meal came
+    // out fixed from /manage and flexible from setup.
+    expect(chosenAnswer()).toBe(AROUND);
   });
 
   it("choosing a SCHOOL RUN moves the answer to fixed", async () => {
     await openForm();
-    expect(chosenAnswer()).toBe("Roughly then is fine");
+    enterATime();
+    expect(chosenAnswer()).toBe(AROUND);
 
-    fireEvent.click(screen.getByRole("button", { name: /School Run/ }));
+    fireEvent.click(screen.getByRole("button", { name: /School run/ }));
 
     // A school run's time is the family's fact, not a helper's to shift.
-    expect(chosenAnswer()).toBe("Yes, that time");
+    expect(chosenAnswer()).toBe(YES);
   });
 
   it("a dated ERRAND — a lift — is fixed", async () => {
     await openForm();
+    enterATime();
     fireEvent.click(screen.getByRole("button", { name: /Errand/ }));
 
-    expect(chosenAnswer()).toBe("Yes, that time");
+    expect(chosenAnswer()).toBe(YES);
   });
 
   it("once the person answers it themselves, changing the type does NOT overwrite them", async () => {
     await openForm();
+    enterATime();
 
     // They deliberately say the time matters for this meal.
-    fireEvent.click(screen.getByRole("button", { name: "Yes, that time" }));
-    expect(chosenAnswer()).toBe("Yes, that time");
+    fireEvent.click(screen.getByRole("button", { name: YES }));
+    expect(chosenAnswer()).toBe(YES);
 
     // Now they change their mind about the KIND of task. Shopping's default is
     // flexible — and it must not silently undo what they just said.
     fireEvent.click(screen.getByRole("button", { name: /Shopping/ }));
-    expect(chosenAnswer()).toBe("Yes, that time");
+    expect(chosenAnswer()).toBe(YES);
   });
 
   it("reopening the form starts from the default again", async () => {
     await openForm();
-    fireEvent.click(screen.getByRole("button", { name: "Yes, that time" }));
-    expect(chosenAnswer()).toBe("Yes, that time");
+    enterATime();
+    fireEvent.click(screen.getByRole("button", { name: YES }));
+    expect(chosenAnswer()).toBe(YES);
 
     fireEvent.click(screen.getByRole("button", { name: "Not now" }));
     fireEvent.click(await screen.findByRole("button", { name: /Add a task/ }));
+    enterATime();
 
     // A new task is a new question — the last one's answer is not carried over.
-    expect(chosenAnswer()).toBe("Roughly then is fine");
+    expect(chosenAnswer()).toBe(AROUND);
   });
 });
 
@@ -266,5 +284,8 @@ describe('Part C — "Does the time matter?" starts from the task type', () => {
  *      → "once the person answers it themselves…" FAILS.
  * 6. rally's DATED_SLOT_FLEXIBILITY drifts from the server (meal → fixed)
  *      → api-server's slotFlexibilityDrift FAILS on two counts, which is the
- *        whole reason that cross-package test exists.
+ *        whole reason that cross-package test existed. ⚠️ NO LONGER POSSIBLE,
+ *        and deliberately so: rally's mirror and that drift test are both
+ *        DELETED (row #136, 21 Sep 2026). There is one table, in
+ *        @workspace/task-copy, which both packages import — nothing to drift.
  */

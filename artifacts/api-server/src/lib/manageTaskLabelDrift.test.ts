@@ -1,9 +1,7 @@
 /**
- * routes/manage.ts really calls the lookup, in BOTH places (#127) — and no
- * display table anywhere still says "School pickup" (Kate's ruling, 21 Sep
- * 2026; see the consolidation row #136).
+ * routes/manage.ts really calls the shared lookup, in all three places (#127).
  *
- * The unit test beside this one proves taskName() returns a human name. It
+ * The unit test beside this one proves the lookup returns a human name. It
  * cannot prove the route uses it — and the route is where the bug lived. So
  * this reads manage.ts as text, the same shape as pageClosureDrift.test.ts and
  * legalEntityDrift.test.ts.
@@ -33,29 +31,32 @@ describe("the raw-key fallback is gone from routes/manage.ts", () => {
     expect(manage).not.toMatch(/label:\s*\S+\.customLabel\s*\?\?\s*\S+\.slotType/);
   });
 
-  it("every TASK label site goes through taskName()", () => {
+  it("every TASK label site goes through the shared lookup", () => {
     // Only lines that name a task. manage.ts also carries a `label:` on a log
     // line (inviteSms:…), which is a metric name no human ever reads — sweeping
     // it in here is how this test would start failing for reasons that have
     // nothing to do with #127.
     const taskLabelLines = lines
       .filter((line) => /^\s*label:/.test(line))
-      .filter((line) => /customLabel|slotType|taskName\(/.test(line));
+      .filter((line) => /customLabel|slotType|manageTaskName\(/.test(line));
 
     // Three, and exactly three: the GET payload, the PATCH response, and the
     // POST /manage/:token/tasks response added in Part C (21 September 2026).
     // A FOURTH would be a new place for the raw key to escape from — this
     // count is the guard, so it goes up only alongside a site that has been
-    // read and shown to call taskName().
+    // read and shown to call it.
     expect(taskLabelLines).toHaveLength(3);
     for (const line of taskLabelLines) {
-      expect(line).toContain("taskName(");
+      expect(line).toContain("manageTaskName(");
     }
   });
 
-  it("taskName is imported rather than re-implemented locally", () => {
-    expect(manage).toMatch(/^\s*taskName,$/m);
-    expect(manage).toContain('from "../lib/item17Copy"');
+  it("the name is imported rather than re-implemented locally", () => {
+    // Row #136 — it now comes from the shared package both artifacts import,
+    // in its HEADING form, because these three sites are a heading on the
+    // family's task list.
+    expect(manage).toMatch(/^\s*taskLabel as manageTaskName,$/m);
+    expect(manage).toContain('from "@workspace/task-copy"');
 
     // A display-name table copied into the route would defeat the whole point
     // of a single lookup, so no CODE line here may name a task. Comment lines
@@ -68,78 +69,24 @@ describe("the raw-key fallback is gone from routes/manage.ts", () => {
   });
 });
 
-/**
- * EVERY PLACE THAT NAMES slot type school_pickup FOR A HUMAN.
+/*
+ * ── DELETED 21 SEPTEMBER 2026 (row #136) ─────────────────────────────────────
  *
- * ⚠️ THIS LIST IS THE EVIDENCE FOR ROW #136. Seven files hold eight separate
- * task-name tables, which is exactly how "School pickup", "School Pickup" and
- * the raw enum key all ended up live at the same time — three spellings and a
- * database key, on four screens, for one task. Consolidating them into a single
- * shared lookup is its own job and is NOT done here; until it is, this test is
- * what stops them drifting apart again.
+ * A second half of this file listed the NINE places that named a task for a
+ * human — eight display tables in seven files, plus two seeded labels — and
+ * asserted that none of them had drifted back to "School pickup". It was the
+ * interim guard row #136 asked for, and row #136 also said it should be DELETED
+ * by the consolidation job rather than kept beside it.
  *
- * Capitalisation deliberately varies: each table follows its OWN siblings
- * ("Child Care" next door means "School Run", "Child care" means "School run").
- * Unifying that is part of the consolidation job, not of a rename.
+ * This is that job. The eight tables are gone. Every task name in the product
+ * now comes from @workspace/task-copy, which api-server and rally both import,
+ * and the test that replaces this one lives there: it asserts the package
+ * covers every slot_type enum value, that every form of every name is
+ * non-empty, and that every label is sentence case. A table cannot drift from
+ * itself.
+ *
+ * The describe ABOVE stays. It is a different guard, for a different bug: it
+ * proves routes/manage.ts calls the shared lookup instead of falling back to
+ * the raw enum key (#127), which is about the ROUTE, not about how many tables
+ * exist.
  */
-const DISPLAY_TABLES: { file: string; expected: string }[] = [
-  // api-server
-  { file: "./email.ts", expected: '"School run"' },
-  { file: "./item17Copy.ts", expected: '"school run"' },
-  { file: "./occasionSuggestions.ts", expected: '"School run for the big kids"' },
-  // rally
-  { file: "../../../rally/src/components/SlotCard.tsx", expected: '"School Run"' },
-  { file: "../../../rally/src/pages/InviteClaim.tsx", expected: '"School Run"' },
-  { file: "../../../rally/src/pages/ReleaseSlot.tsx", expected: '"School run"' },
-  { file: "../../../rally/src/components/GiftActivation.tsx", expected: '"School run"' },
-  { file: "../../../rally/src/pages/OrganiseAddSlots.tsx", expected: '"School Run"' },
-  { file: "../../../rally/src/preview035.tsx", expected: '"School run for the big kids"' },
-];
-
-/**
- * The display strings only: lines that assign a label, with comment lines
- * dropped. The comments in these files legitimately quote "school pickup" as
- * the name that USED to be there (#127's own history, #058's reasoning), and a
- * test that forbade the words outright would force us to delete the record of
- * why the rename happened.
- */
-const displayLines = (source: string) =>
-  source
-    .split(/\r?\n/)
-    .filter((line) => !/^\s*(\/\/|\*|\/\*)/.test(line))
-    .filter((line) => /label:|school_pickup:/.test(line));
-
-describe('no display table says "School pickup" any more', () => {
-  for (const { file, expected } of DISPLAY_TABLES) {
-    it(`${file.split("/").pop()} names it "school run"`, () => {
-      const labels = displayLines(read(file));
-
-      // Positive control: this file really does still carry display labels.
-      // Without it, a file that lost its table entirely would pass silently.
-      expect(labels.length).toBeGreaterThan(0);
-      expect(labels.join("\n")).toContain(expected);
-
-      // The ruling, on every label line in the file — not just the school one,
-      // because a second table could be added below the first.
-      for (const line of labels) {
-        expect(line).not.toMatch(/school\s*pickup/i);
-      }
-    });
-  }
-
-  it("the ENUM KEY is untouched in every one of them", () => {
-    // Display text only. If a rename had reached the key, stored rows would
-    // stop matching their own table and every task would fall back to "task".
-    for (const { file } of DISPLAY_TABLES) {
-      expect(read(file)).toContain("school_pickup");
-    }
-  });
-
-  it("the tables listed here are all of them — a new one must be added above", () => {
-    // A cheap guard against the list going stale: nine entries, seven of which
-    // hold a slot-type table and two of which hold a seeded label. If someone
-    // adds a tenth place that names tasks, this number is the reminder to put
-    // it in DISPLAY_TABLES rather than let it drift.
-    expect(DISPLAY_TABLES).toHaveLength(9);
-  });
-});
