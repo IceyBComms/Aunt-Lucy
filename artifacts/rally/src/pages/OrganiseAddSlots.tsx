@@ -30,7 +30,7 @@ import { SETUP_PUBLISH_COPY } from "@/lib/setupPublishCopy";
 
 export const SLOT_TYPES = [
   { value: "meal", icon: "🍲", label: "Meal", trusted: false },
-  { value: "school_pickup", icon: "🚗", label: "School Pickup", trusted: true },
+  { value: "school_pickup", icon: "🚗", label: "School Run", trusted: true },
   { value: "child_care", icon: "👶", label: "Child Care", trusted: true },
   { value: "errand", icon: "🧺", label: "Errand", trusted: false },
   { value: "dog_walking", icon: "🐕", label: "Dog Walking", trusted: false },
@@ -1016,7 +1016,7 @@ export default function OrganiseAddSlots() {
           <p className="text-muted-foreground leading-relaxed">
             {isResuming
               ? "Nothing has been sent yet. Here's what you'd already added — add more if you'd like, or carry on to publish."
-              : "Each slot is one task a helper can claim. School pickups and child care require a personal invitation for safety."}
+              : "Each slot is one task a helper can claim. School runs and child care require a personal invitation for safety."}
           </p>
           {/*
             Bug #084 — say it once, plainly. Someone who has just lost a task by

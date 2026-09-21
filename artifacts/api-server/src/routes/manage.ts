@@ -46,6 +46,7 @@ import {
 } from "../lib/item17Notify";
 import {
   taskLabel,
+  taskName,
   whenLabel,
   helperTaskChanged,
   helperTaskCancelledStandard,
@@ -331,7 +332,12 @@ router.get("/manage/:token", requireManagementTokenAllowingClosed as any, async 
     tasks: page.slots.map((s) => ({
       id: s.id,
       slotType: s.slotType,
-      label: s.customLabel ?? s.slotType,
+      // #127 — NEVER `?? s.slotType`. That fallback put the raw enum key
+      // ("dog_walking", "errand") on the family's own screen in six places,
+      // while the claim email for the same task said "Dog walking". taskName()
+      // is the shared lookup the sent messages already use, so a rename lands
+      // in one file (see item17Copy.ts).
+      label: taskName(s.slotType, s.customLabel),
       // Raw fields the family edit form needs (label above is the display value).
       customLabel: s.customLabel,
       notes: s.notes ?? null,
@@ -1230,7 +1236,10 @@ router.patch(
     res.json({
       id: updated.id,
       slotType: updated.slotType,
-      label: updated.customLabel ?? updated.slotType,
+      // #127, the same fault as the GET payload above: without this the raw
+      // key comes BACK on every edit, so a fixed screen breaks again the
+      // moment the family touches a task.
+      label: taskName(updated.slotType, updated.customLabel),
       customLabel: updated.customLabel,
       notes: updated.notes ?? null,
       flexibility: updated.flexibility,

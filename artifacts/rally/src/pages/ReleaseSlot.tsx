@@ -40,7 +40,7 @@ interface ReleaseDetails {
 
 const SLOT_TYPE_LABELS: Record<string, { icon: string; label: string }> = {
   meal: { icon: "🍲", label: "Meal" },
-  school_pickup: { icon: "🚗", label: "School pickup" },
+  school_pickup: { icon: "🚗", label: "School run" },
   child_care: { icon: "👶", label: "Child care" },
   errand: { icon: "🧺", label: "Errand" },
   dog_walking: { icon: "🐕", label: "Dog walking" },

@@ -87,7 +87,7 @@ const SLOT_TYPE_OPTIONS: { value: SuggestedTask["slotType"]; label: string }[] =
   { value: "errand", label: "An errand or lift" },
   { value: "visit", label: "A visit" },
   { value: "dog_walking", label: "The dog" },
-  { value: "school_pickup", label: "School pickup" },
+  { value: "school_pickup", label: "School run" },
   { value: "child_care", label: "Looking after the kids" },
   { value: "other", label: "Something else" },
 ];

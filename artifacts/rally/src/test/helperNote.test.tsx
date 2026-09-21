@@ -79,13 +79,16 @@ describe("leaving a note on a fixed task", () => {
     expect(screen.queryByRole("button", { name: "Pass it on" })).toBeNull();
   });
 
-  it("after sending: 'You're still down for school pickup' AND the task is still claimed", async () => {
+  // The inline name comes from ReleaseSlot's own SLOT_TYPE_LABELS, lower-cased.
+  // It reads "school run" from 21 Sep 2026 (#127, Kate's ruling) — the rename
+  // is display text only; the slot_type enum key is unchanged.
+  it("after sending: 'You're still down for school run' AND the task is still claimed", async () => {
     renderRelease();
     fireEvent.change(await screen.findByRole("textbox"), { target: { value: "Ill be 25min late" } });
     fireEvent.click(screen.getByRole("button", { name: "Send my note to Kate" }));
 
     expect(
-      await screen.findByText("Sent — Kate has your note. You're still down for school pickup."),
+      await screen.findByText("Sent — Kate has your note. You're still down for school run."),
     ).toBeTruthy();
     // Positive control: the note really went to the server…
     expect(server.calls.filter((c) => c.method === "POST")).toEqual([

@@ -19,12 +19,17 @@ import { TIME_TBC_CLAUSE } from "./timeTbc";
 import { soonDay, type SoonDay } from "./australianDay";
 
 
+// KATE'S RULING, 21 Sep 2026 (#127): slot type school_pickup displays as
+// "school run", NOT "school pickup". A pickup sounds like collecting them at
+// the end of the day; the real task is getting them there and home again.
+// The ENUM KEY school_pickup does not change — this is display text only.
+//
 // Short, mid-sentence noun phrases for a task with no custom label. The
 // recipient's own wording (customLabel) is always preferred when present — it's
 // what they wrote and what shows on the live page.
 const TASK_NOUNS: Record<string, string> = {
   meal: "a meal",
-  school_pickup: "the school pickup",
+  school_pickup: "the school run",
   child_care: "looking after the kids",
   errand: "an errand",
   dog_walking: "walking the dog",
@@ -35,14 +40,14 @@ const TASK_NOUNS: Record<string, string> = {
 
 /**
  * The same tasks as bare display names, for where an article can't go — "A note
- * about tomorrow's school pickup", not "tomorrow's the school pickup". These are
+ * about tomorrow's school run", not "tomorrow's the school run". These are
  * the names the helper's own screen already shows (rally ReleaseSlot.tsx
  * SLOT_TYPE_LABELS), lower-cased mid-sentence. Never a raw key like
  * school_pickup.
  */
 const TASK_NAMES: Record<string, string> = {
   meal: "meal",
-  school_pickup: "school pickup",
+  school_pickup: "school run",
   child_care: "child care",
   errand: "errand",
   dog_walking: "dog walking",
@@ -333,9 +338,9 @@ export function recipientFlexibleRescheduled(params: {
  */
 export function recipientNotePassedOn(params: {
   helperName: string;
-  /** "the school pickup" — taskLabel(). */
+  /** "the school run" — taskLabel(). */
   task: string;
-  /** "school pickup" — taskName(), for the subject. */
+  /** "school run" — taskName(), for the subject. */
   taskName: string;
   note: string;
   soon: SoonDay | null;

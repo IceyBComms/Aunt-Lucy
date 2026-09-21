@@ -47,7 +47,7 @@ const SUGGESTIONS: Record<Occasion, SuggestedTask[]> = {
     { key: "nb_shop", slotType: "shopping", label: "A grocery run", dated: false, trustedHelpersOnly: false },
     { key: "nb_hold", slotType: "other", label: "Hold the baby so I can shower", dated: false, trustedHelpersOnly: false },
     { key: "nb_wash", slotType: "other", label: "A load of washing", dated: false, trustedHelpersOnly: false },
-    { key: "nb_pickup", slotType: "school_pickup", label: "School pickup for the big kids", dated: false, trustedHelpersOnly: true },
+    { key: "nb_pickup", slotType: "school_pickup", label: "School run for the big kids", dated: false, trustedHelpersOnly: true },
     { key: "nb_visit", slotType: "visit", label: "A short visit, no fuss", dated: false, trustedHelpersOnly: false },
   ],
   illness_recovery: [

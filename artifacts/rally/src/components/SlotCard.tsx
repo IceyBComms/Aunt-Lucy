@@ -18,7 +18,7 @@ interface SlotCardProps {
 const getSlotDetails = (type: string) => {
   const map: Record<string, { icon: string; label: string }> = {
     meal: { icon: "🍲", label: "Meal" },
-    school_pickup: { icon: "🚗", label: "School Pickup" },
+    school_pickup: { icon: "🚗", label: "School Run" },
     child_care: { icon: "👶", label: "Child Care" },
     errand: { icon: "🧺", label: "Errand" },
     dog_walking: { icon: "🐕", label: "Dog Walking" },
