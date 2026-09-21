@@ -81,3 +81,18 @@ export function useAuth() {
   if (!ctx) throw new Error("useAuth must be used within AuthProvider");
   return ctx;
 }
+
+/**
+ * Auth if there is any, null if there isn't — for screens that are reached
+ * WITHOUT an account (Part A, 21 September 2026).
+ *
+ * /manage is the case. Almost everybody on it arrived by a link sent to them —
+ * a recipient, or a manager the family added — and has no account at all; an
+ * organiser signed in on the same screen is the exception. Such a screen wants
+ * to ASK whether anyone is signed in, which is a different question from
+ * useAuth's "I require a signed-in context and it is a bug if there isn't
+ * one". Throwing would be wrong for them, so this does not.
+ */
+export function useOptionalAuth(): AuthContextValue | null {
+  return useContext(AuthContext);
+}

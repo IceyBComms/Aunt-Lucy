@@ -1011,6 +1011,50 @@ paths:
               schema:
                 $ref: "#/components/schemas/NotFoundError"
 
+  /manage/{token}/tasks:
+    post:
+      operationId: addTask
+      tags: [manage]
+      summary: Add a task to a page that is already live (Part C)
+      description: >-
+        Adds a task to a running page. Recipient and manager grants alike, with
+        no account. A closed page refuses with 410 before this runs.
+        SENDS NOTHING — no invite, no SMS, no email, no notification of any
+        kind, including for a trusted-only task. Adding a task puts a line on
+        the page; the asking is a separate, deliberate act through the invite
+        flow. school_pickup and child_care are always trusted-only whatever is
+        sent.
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddTaskRequest"
+      responses:
+        "201":
+          description: Task added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ManageTaskSummary"
+        "400":
+          description: An invalid or missing value
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationError"
+        "410":
+          description: This page has been closed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationError"
   /manage/{token}/tasks/{slotId}:
     patch:
       operationId: editTask
@@ -2385,6 +2429,49 @@ components:
           type: string
           nullable: true
           description: Set/clear the optional mobile for future SMS updates.
+
+    AddTaskRequest:
+      type: object
+      description: >-
+        A new task on a running page (Part C). Validated by the same function
+        the setup wizard uses (api-server lib/newTaskInput), so the rules are
+        identical on both doors: a dated task always; a lift must say whether
+        the helper waits and must carry a time; meal detail is meal-only; and
+        a school run or minding the kids is trusted-only whatever is sent.
+      required: [slotType, slotDate]
+      properties:
+        slotType:
+          $ref: "#/components/schemas/SlotType"
+        slotDate:
+          type: string
+          description: YYYY-MM-DD. Required.
+        slotTime:
+          type: string
+          nullable: true
+          description: HH:MM (24h). Required for a lift (a dated errand).
+        liftWaitMode:
+          $ref: "#/components/schemas/LiftWaitMode"
+        customLabel:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        trustedHelpersOnly:
+          type: boolean
+          description: >-
+            Ignored when the type is school_pickup or child_care — those are
+            always trusted-only.
+        dietaryNotes:
+          type: string
+          nullable: true
+          description: Meal tasks only; ignored on other types.
+        headcount:
+          type: integer
+          nullable: true
+          description: Meal tasks only; ignored on other types.
+        flexibility:
+          $ref: "#/components/schemas/SlotFlexibility"
 
     EditTaskRequest:
       type: object

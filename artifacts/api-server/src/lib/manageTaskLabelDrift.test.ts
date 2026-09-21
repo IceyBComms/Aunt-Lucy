@@ -33,7 +33,7 @@ describe("the raw-key fallback is gone from routes/manage.ts", () => {
     expect(manage).not.toMatch(/label:\s*\S+\.customLabel\s*\?\?\s*\S+\.slotType/);
   });
 
-  it("both TASK label sites go through taskName()", () => {
+  it("every TASK label site goes through taskName()", () => {
     // Only lines that name a task. manage.ts also carries a `label:` on a log
     // line (inviteSms:…), which is a metric name no human ever reads — sweeping
     // it in here is how this test would start failing for reasons that have
@@ -42,9 +42,12 @@ describe("the raw-key fallback is gone from routes/manage.ts", () => {
       .filter((line) => /^\s*label:/.test(line))
       .filter((line) => /customLabel|slotType|taskName\(/.test(line));
 
-    // Two, and exactly two: the GET payload and the PATCH response. A third
-    // would be a new place for the raw key to escape from.
-    expect(taskLabelLines).toHaveLength(2);
+    // Three, and exactly three: the GET payload, the PATCH response, and the
+    // POST /manage/:token/tasks response added in Part C (21 September 2026).
+    // A FOURTH would be a new place for the raw key to escape from — this
+    // count is the guard, so it goes up only alongside a site that has been
+    // read and shown to call taskName().
+    expect(taskLabelLines).toHaveLength(3);
     for (const line of taskLabelLines) {
       expect(line).toContain("taskName(");
     }
