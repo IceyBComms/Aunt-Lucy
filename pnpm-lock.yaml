@@ -99,6 +99,9 @@ importers:
       '@workspace/db':
         specifier: workspace:*
         version: link:../../lib/db
+      '@workspace/task-copy':
+        specifier: workspace:*
+        version: link:../../lib/task-copy
       bcryptjs:
         specifier: ^2.4.3
         version: 2.4.3
@@ -410,6 +413,9 @@ importers:
       '@workspace/api-client-react':
         specifier: workspace:*
         version: link:../../lib/api-client-react
+      '@workspace/task-copy':
+        specifier: workspace:*
+        version: link:../../lib/task-copy
       class-variance-authority:
         specifier: 'catalog:'
         version: 0.7.1
@@ -501,6 +507,8 @@ importers:
       drizzle-kit:
         specifier: ^0.31.9
         version: 0.31.9
+
+  lib/task-copy: {}
 
   scripts:
     dependencies:
