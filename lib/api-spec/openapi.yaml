@@ -38,16 +38,15 @@ paths:
       operationId: getSupportPage
       tags: [pages]
       summary: Get a support page by slug
-      description: Returns page details and all slots. For PIN-protected pages, requires the PIN to be passed as a query parameter.
+      description: >-
+        Returns page details and all slots. Open to anyone holding the link —
+        there is no PIN (dropped 21 Sep 2026, bug #129). Tasks marked
+        trusted-only are filtered out of this response entirely; their people
+        reach them through their own invite link.
       parameters:
         - name: slug
           in: path
           required: true
-          schema:
-            type: string
-        - name: pin
-          in: query
-          required: false
           schema:
             type: string
       responses:
@@ -57,12 +56,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SupportPageWithSlots"
-        "401":
-          description: PIN required or incorrect
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/PinRequiredError"
         "404":
           description: Page not found
           content:
@@ -95,12 +88,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SlotResponse"
-        "401":
-          description: PIN required or incorrect (for PIN-protected pages)
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/PinRequiredError"
         "409":
           description: Slot already claimed
           content:
@@ -1231,6 +1218,12 @@ components:
         privacy:
           type: string
           enum: [open, pin_protected]
+          description: >-
+            The stored flag, still returned because the column still exists.
+            NOTHING READS IT AND NOTHING NEW CAN BE "pin_protected": the PIN was
+            dropped 21 Sep 2026 (bug #129) and every page is created open. Old
+            rows keep their value and open regardless. Dropping the column and
+            the enum value is a migration, deliberately a separate job.
         goodToKnow:
           type: string
           nullable: true
@@ -1274,10 +1267,6 @@ components:
             helpers on the public page; when false or omitted, only the recipient
             sees it (the public page shows an ambient count instead). Defaults to
             false — hidden by default, never surprised into being shown.
-        pin:
-          type: string
-          nullable: true
-          description: Required when claiming a slot on a PIN-protected page.
       required:
         - firstName
         - contact
@@ -1812,17 +1801,6 @@ components:
       required:
         - slug
         - status
-
-    PinRequiredError:
-      type: object
-      properties:
-        error:
-          type: string
-        pinRequired:
-          type: boolean
-      required:
-        - error
-        - pinRequired
 
     ValidationError:
       type: object

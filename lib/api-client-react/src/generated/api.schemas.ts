@@ -73,6 +73,9 @@ export const SupportPageWithSlotsStatus = {
   closed: "closed",
 } as const;
 
+/**
+ * The stored flag, still returned because the column still exists. NOTHING READS IT AND NOTHING NEW CAN BE "pin_protected": the PIN was dropped 21 Sep 2026 (bug #129) and every page is created open. Old rows keep their value and open regardless. Dropping the column and the enum value is a migration, deliberately a separate job.
+ */
 export type SupportPageWithSlotsPrivacy =
   (typeof SupportPageWithSlotsPrivacy)[keyof typeof SupportPageWithSlotsPrivacy];
 
@@ -88,6 +91,7 @@ export interface SupportPageWithSlots {
   situationDescription?: string | null;
   location?: string | null;
   status: SupportPageWithSlotsStatus;
+  /** The stored flag, still returned because the column still exists. NOTHING READS IT AND NOTHING NEW CAN BE "pin_protected": the PIN was dropped 21 Sep 2026 (bug #129) and every page is created open. Old rows keep their value and open regardless. Dropping the column and the enum value is a migration, deliberately a separate job. */
   privacy: SupportPageWithSlotsPrivacy;
   /** An optional free-text note from the recipient, shown to every helper. Null when they didn't leave one. */
   goodToKnow?: string | null;
@@ -102,8 +106,6 @@ export interface ClaimSlotRequest {
   note?: string | null;
   /** The helper's opt-in choice: when true, their name is shown to other helpers on the public page; when false or omitted, only the recipient sees it (the public page shows an ambient count instead). Defaults to false — hidden by default, never surprised into being shown. */
   showName?: boolean | null;
-  /** Required when claiming a slot on a PIN-protected page. */
-  pin?: string | null;
 }
 
 export type GiftOccasion = (typeof GiftOccasion)[keyof typeof GiftOccasion];
@@ -347,11 +349,6 @@ export interface ActivatedPage {
   scheduledActivateAt?: string | null;
   /** The private per-page management token — the recipient's re-entry credential for adding people and sending invites. Not the public slug or gift link. */
   manageToken?: string | null;
-}
-
-export interface PinRequiredError {
-  error: string;
-  pinRequired: boolean;
 }
 
 export interface ValidationError {
@@ -731,7 +728,3 @@ export interface BereavementGateError {
   error: string;
   message?: string;
 }
-
-export type GetSupportPageParams = {
-  pin?: string;
-};

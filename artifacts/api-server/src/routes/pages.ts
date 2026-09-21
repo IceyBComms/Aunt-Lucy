@@ -1,13 +1,11 @@
 import { Router, type IRouter } from "express";
 import { db, supportPagesTable, slotsTable } from "@workspace/db";
 import { and, eq } from "drizzle-orm";
-import { verifyPin } from "../lib/pin";
 
 const router: IRouter = Router();
 
 router.get("/pages/:slug", async (req, res) => {
   const { slug } = req.params;
-  const { pin } = req.query as { pin?: string };
 
   const page = await db.query.supportPagesTable.findFirst({
     where: eq(supportPagesTable.slug, slug),
@@ -32,12 +30,18 @@ router.get("/pages/:slug", async (req, res) => {
     return;
   }
 
-  if (page.privacy === "pin_protected") {
-    if (!pin || !(await verifyPin(pin, page.pin))) {
-      res.status(401).json({ error: "A PIN is required to view this page.", pinRequired: true });
-      return;
-    }
-  }
+  // NO PIN GATE. Dropped 21 September 2026 (Kate's ruling, bug #129). The PIN
+  // was a leftover of the first build and contradicted the access model this
+  // file already implements four lines down: the link is not the lock. What is
+  // private is kept private by never being in the response — trusted-only tasks
+  // are filtered out of the query, and their people arrive by invite link. A
+  // second door with a code nobody could recover locked a real page (Pookey)
+  // against the very helpers it was made for.
+  //
+  // Rows that still say privacy = "pin_protected" simply open. The column and
+  // the enum value are left in place, dead, deliberately: switching a live
+  // page's stored flag is a data change and belongs in its own job, and nothing
+  // reads either any more.
 
   // Trusted-only tasks are not part of the public page at all — they are
   // filtered out in the query, so the row never leaves the database. Their

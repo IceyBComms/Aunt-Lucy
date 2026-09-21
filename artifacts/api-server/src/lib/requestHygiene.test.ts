@@ -83,7 +83,9 @@ describe("logSafePath", () => {
     [`/api/manage/${SECRET}/tasks/slot-1`, "/api/manage/:redacted/tasks/slot-1"],
     [`/api/slots/release/${SECRET}`, "/api/slots/release/:redacted"],
     [`/api/calendar/${SECRET}.ics`, "/api/calendar/:redacted"],
-    [`/api/pages/${SECRET}?pin=1234`, "/api/pages/:redacted"],
+    // Any query string is dropped, whatever it carries. (This line used
+    // `?pin=1234` until the PIN was dropped — bug #129.)
+    [`/api/pages/${SECRET}?from=email`, "/api/pages/:redacted"],
   ])("%s → %s", (input, expected) => {
     expect(logSafePath(input)).toBe(expected);
   });

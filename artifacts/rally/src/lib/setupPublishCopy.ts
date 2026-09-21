@@ -7,8 +7,8 @@
  *
  * ✅ RULED BY KATE, 14 Sep 2026: every string in this file except `noTasks`.
  *    First ruling: step2Continue, step3Heading, step3Button, confirmTitle,
- *    confirmYes, confirmNo, confirmBody (both variants — the PIN variant was
- *    her addition). Second ruling: step3Body, backToTasks, confirmYesBusy and
+ *    confirmYes, confirmNo, confirmBody. Second ruling: step3Body,
+ *    backToTasks, confirmYesBusy and
  *    publishFailed as written; notDraft CHANGED to "This page is already live."
  * ⏸️ NOT RULED: `noTasks` — see the note on it.
  *
@@ -59,35 +59,32 @@ export const SETUP_PUBLISH_COPY = {
   /**
    * ✅ Kate's ruling, 14 Sep: KEEP "Anyone with the link". Never soften it to
    * "anyone you share the link with" — a link CAN be forwarded, and on a crisis
-   * page what gets forwarded is somebody's illness. The PIN gap is closed by a
-   * second variant, not by hedging the first.
+   * page what gets forwarded is somebody's illness.
    *
-   * Chosen by the page's `privacy`: "pin_protected" is exactly the condition
-   * under which the public page demands a PIN (routes/pages.ts), and a page
-   * can only be created pin_protected with a PIN (routes/organiser.ts).
+   * ⚠️ THERE WAS A SECOND VARIANT AND IT IS GONE (21 Sep 2026, bug #129). It
+   * read "… and your PIN …" and was shown when the page's `privacy` was
+   * "pin_protected". The PIN itself has been dropped, so that sentence is no
+   * longer true of any page, and a variant chosen by a flag nothing sets is a
+   * trap for the next reader. The wording below is Kate's ruled `open` copy,
+   * unchanged word for word — only the choosing is gone.
    *
    * Shown only when NO invitations are waiting. "Pressing this doesn't send
    * anyone a message" is true then and ONLY then — publishing sends a page's
    * held invitations straight away (#113), so a page with some gets
    * confirmBodyWithInvitations instead.
    */
-  confirmBody: {
-    open: "Anyone with the link will be able to see the page and offer to help. Pressing this doesn't send anyone a message — you share the link when you're ready.",
-    pinProtected:
-      "Anyone with the link and your PIN will be able to see the page and offer to help. Pressing this doesn't send anyone a message — you share the link when you're ready.",
-  },
+  confirmBody:
+    "Anyone with the link will be able to see the page and offer to help. Pressing this doesn't send anyone a message — you share the link when you're ready.",
   /**
    * ✅ Kate's ruling, 14 Sep 2026 (#113), for a page WITH invitations waiting.
-   * Keeps "Anyone with the link" / "…and your PIN" exactly as ruled above.
-   * "Everyone else sees the page when you share the link" is her amendment —
-   * it replaced "everyone else, you share the link with when you're ready",
-   * which is clumsy read aloud. Chosen by `privacy`, the same as confirmBody.
+   * Keeps "Anyone with the link" exactly as ruled above. "Everyone else sees
+   * the page when you share the link" is her amendment — it replaced "everyone
+   * else, you share the link with when you're ready", which is clumsy read
+   * aloud. Its PIN variant went the same way as confirmBody's, for the same
+   * reason; this is her ruled wording, untouched.
    */
-  confirmBodyWithInvitations: {
-    open: "Anyone with the link will be able to see the page and offer to help. Making it live sends the invitations you've added. Everyone else sees the page when you share the link.",
-    pinProtected:
-      "Anyone with the link and your PIN will be able to see the page and offer to help. Making it live sends the invitations you've added. Everyone else sees the page when you share the link.",
-  },
+  confirmBodyWithInvitations:
+    "Anyone with the link will be able to see the page and offer to help. Making it live sends the invitations you've added. Everyone else sees the page when you share the link.",
   confirmYes: "Make it live",
   confirmNo: "Not yet",
   // ✅ Ruled.

@@ -127,6 +127,12 @@ async function seed() {
     console.log(`Seeded /s/test-page (ID: ${page.id})`);
   });
 
+  // A LEGACY ROW, ON PURPOSE. The PIN was dropped on 21 September 2026
+  // (Kate's ruling, bug #129) and nothing can create a pin_protected page any
+  // more — but real rows like this one exist in production, so the seed keeps
+  // one to develop against. It must open like any other page: no code asked
+  // for, tasks claimable. If this page ever demands a PIN again, the gate has
+  // come back.
   await seedPage("pin-test-page", async () => {
     const [pinPage] = await db
       .insert(supportPagesTable)
@@ -160,7 +166,7 @@ async function seed() {
       },
     ]);
 
-    console.log(`Seeded /s/pin-test-page (PIN: 1234, ID: ${pinPage.id})`);
+    console.log(`Seeded /s/pin-test-page — a legacy pin_protected row that must now open with NO code (ID: ${pinPage.id})`);
   });
 
   const GIFT_TOKEN = "test-gift-token";

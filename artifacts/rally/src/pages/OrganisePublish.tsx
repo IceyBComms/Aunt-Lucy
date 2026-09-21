@@ -21,8 +21,6 @@ interface PublishPage {
   slug: string;
   recipientName: string;
   status: string;
-  /** "open" | "pin_protected" — decides which confirm body is true. */
-  privacy: string;
   /**
    * Invitations added while this page was a draft, waiting for it to go live
    * (#113). Publishing sends them straight away, so when there are any the
@@ -306,7 +304,7 @@ export default function OrganisePublish() {
               {COPY.confirmTitle(page.recipientName)}
             </h2>
             <p className="text-muted-foreground leading-relaxed mb-6">
-              {page.privacy === "pin_protected" ? confirmBody.pinProtected : confirmBody.open}
+              {confirmBody}
             </p>
             {publishError && <p className="text-sm text-destructive mb-4">{publishError}</p>}
             {publishError && refusedAsLive && pageUrl && (

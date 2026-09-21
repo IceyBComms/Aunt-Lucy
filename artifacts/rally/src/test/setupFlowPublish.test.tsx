@@ -125,28 +125,31 @@ describe("going live takes the button AND the confirm", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
-  it("the confirm says 'Anyone with the link' on a page with no PIN — and not the PIN variant", async () => {
+  it("the confirm says 'Anyone with the link' — Kate's ruled wording, 14 Sep", async () => {
     resetServer({ privacy: "open", slots: [TASK] });
     renderAt(STEP_3);
     const step = await screen.findByTestId("publish-step");
     fireEvent.click(within(step).getByRole("button", { name: COPY.step3Button }));
     const dialog = await screen.findByRole("dialog");
 
-    expect(within(dialog).getByText(COPY.confirmBody.open)).toBeTruthy();
-    expect(within(dialog).queryByText(COPY.confirmBody.pinProtected)).toBeNull();
+    expect(within(dialog).getByText(COPY.confirmBody)).toBeTruthy();
+    expect(within(dialog).getByText(/Anyone with the link/)).toBeTruthy();
   });
 
-  it("the confirm says 'Anyone with the link and your PIN' on a PIN page — and not the open variant", async () => {
-    // Kate's ruling, 14 Sep: keep "Anyone with the link" — a link can be
-    // forwarded — and close the PIN gap with a second, true variant.
+  it("a page still flagged pin_protected gets the SAME confirm — no PIN sentence", async () => {
+    // There used to be a second variant here, shown when `privacy` was
+    // "pin_protected", reading "Anyone with the link and your PIN…". The PIN
+    // was dropped on 21 Sep 2026 (bug #129), so that sentence is now false of
+    // every page — including the old rows that still carry the flag. This is
+    // the test that would catch it coming back.
     resetServer({ privacy: "pin_protected", slots: [TASK] });
     renderAt(STEP_3);
     const step = await screen.findByTestId("publish-step");
     fireEvent.click(within(step).getByRole("button", { name: COPY.step3Button }));
     const dialog = await screen.findByRole("dialog");
 
-    expect(within(dialog).getByText(COPY.confirmBody.pinProtected)).toBeTruthy();
-    expect(within(dialog).queryByText(COPY.confirmBody.open)).toBeNull();
+    expect(within(dialog).getByText(COPY.confirmBody)).toBeTruthy();
+    expect(within(dialog).queryByText(/your PIN/)).toBeNull();
   });
 
   it("'Not yet' closes the confirm and publishes nothing", async () => {
@@ -248,19 +251,20 @@ describe("step 3 says invitations will send — only when some are waiting", () 
 
     fireEvent.click(within(step).getByRole("button", { name: COPY.step3Button }));
     const dialog = await screen.findByRole("dialog");
-    expect(within(dialog).getByText(COPY.confirmBodyWithInvitations.open)).toBeTruthy();
-    expect(within(dialog).queryByText(COPY.confirmBody.open)).toBeNull();
+    expect(within(dialog).getByText(COPY.confirmBodyWithInvitations)).toBeTruthy();
+    expect(within(dialog).queryByText(COPY.confirmBody)).toBeNull();
   });
 
-  it("a PIN page with invitations waiting gets the PIN variant of the sending line", async () => {
+  it("a page flagged pin_protected WITH invitations gets the same sending line", async () => {
+    // The other half of the dropped variant (#129): the flag changes nothing
+    // here either, and no confirm on any page mentions a PIN.
     resetServer({ privacy: "pin_protected", slots: [TASK], heldInviteCount: 1 });
     renderAt(STEP_3);
     const step = await screen.findByTestId("publish-step");
     fireEvent.click(within(step).getByRole("button", { name: COPY.step3Button }));
     const dialog = await screen.findByRole("dialog");
-    expect(within(dialog).getByText(COPY.confirmBodyWithInvitations.pinProtected)).toBeTruthy();
-    expect(within(dialog).queryByText(COPY.confirmBodyWithInvitations.open)).toBeNull();
-    expect(within(dialog).queryByText(COPY.confirmBody.pinProtected)).toBeNull();
+    expect(within(dialog).getByText(COPY.confirmBodyWithInvitations)).toBeTruthy();
+    expect(within(dialog).queryByText(/your PIN/)).toBeNull();
   });
 
   it("with none waiting: the lines that say nothing is sent — true on this page", async () => {
@@ -272,8 +276,8 @@ describe("step 3 says invitations will send — only when some are waiting", () 
 
     fireEvent.click(within(step).getByRole("button", { name: COPY.step3Button }));
     const dialog = await screen.findByRole("dialog");
-    expect(within(dialog).getByText(COPY.confirmBody.open)).toBeTruthy();
-    expect(within(dialog).queryByText(COPY.confirmBodyWithInvitations.open)).toBeNull();
+    expect(within(dialog).getByText(COPY.confirmBody)).toBeTruthy();
+    expect(within(dialog).queryByText(COPY.confirmBodyWithInvitations)).toBeNull();
   });
 
   it("the ruled words are the ones on screen", () => {
@@ -282,11 +286,12 @@ describe("step 3 says invitations will send — only when some are waiting", () 
     expect(COPY.step3BodyWithInvitations).toBe(
       "Nothing's live yet, and no one's been invited. Have a last look — when you make it live, Aunt Lucy will send the invitations you've added.",
     );
-    expect(COPY.confirmBodyWithInvitations.open).toBe(
+    expect(COPY.confirmBodyWithInvitations).toBe(
       "Anyone with the link will be able to see the page and offer to help. Making it live sends the invitations you've added. Everyone else sees the page when you share the link.",
     );
-    expect(COPY.confirmBodyWithInvitations.pinProtected).toBe(
-      "Anyone with the link and your PIN will be able to see the page and offer to help. Making it live sends the invitations you've added. Everyone else sees the page when you share the link.",
-    );
+    // Her ruled wording is UNCHANGED by #129 — only the second, PIN variant
+    // was removed. Neither confirm may mention a code again.
+    expect(COPY.confirmBody).not.toMatch(/PIN/);
+    expect(COPY.confirmBodyWithInvitations).not.toMatch(/PIN/);
   });
 });

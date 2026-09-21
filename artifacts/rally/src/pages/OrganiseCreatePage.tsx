@@ -17,8 +17,6 @@ export default function OrganiseCreatePage() {
     recipientName: "",
     situationDescription: "",
     location: "",
-    privacy: "open" as "open" | "pin_protected",
-    pin: "",
   });
   // Section E — the affected person's own contact + readiness. Optional; the
   // toggle only appears once a contact is entered. Nothing stored unless ready.
@@ -34,11 +32,6 @@ export default function OrganiseCreatePage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-
-    if (form.privacy === "pin_protected" && !/^\d{4,8}$/.test(form.pin)) {
-      setError("Please enter a 4–8 digit PIN.");
-      return;
-    }
 
     setIsLoading(true);
     try {
@@ -158,62 +151,14 @@ export default function OrganiseCreatePage() {
             <p className="text-xs text-muted-foreground pl-1">Suburb or city only — helps helpers know if they can realistically help.</p>
           </div>
 
-          <div className="space-y-3">
-            <Label className="text-foreground/80 pl-1">Page privacy</Label>
-            <div className="space-y-2">
-              {[
-                {
-                  value: "open",
-                  label: "Open",
-                  desc: "Anyone with the link can see the page and claim slots.",
-                },
-                {
-                  value: "pin_protected",
-                  label: "PIN protected",
-                  desc: "Visitors must enter a PIN before they can see the page.",
-                },
-              ].map((opt) => (
-                <label
-                  key={opt.value}
-                  className={`flex items-start gap-3 p-4 rounded-2xl border-2 cursor-pointer transition-colors ${
-                    form.privacy === opt.value
-                      ? "border-primary bg-primary/5"
-                      : "border-border bg-card hover:border-primary/30"
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="privacy"
-                    value={opt.value}
-                    checked={form.privacy === opt.value}
-                    onChange={() => set("privacy", opt.value)}
-                    className="mt-0.5 accent-primary"
-                  />
-                  <div>
-                    <p className="font-medium text-foreground text-sm">{opt.label}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">{opt.desc}</p>
-                  </div>
-                </label>
-              ))}
-            </div>
-          </div>
-
-          {form.privacy === "pin_protected" && (
-            <div className="space-y-1.5">
-              <Label htmlFor="pin" className="text-foreground/80 pl-1">PIN</Label>
-              <Input
-                id="pin"
-                type="text"
-                inputMode="numeric"
-                pattern="\d{4,8}"
-                placeholder="e.g. 1234"
-                value={form.pin}
-                onChange={(e) => set("pin", e.target.value.replace(/\D/g, ""))}
-                maxLength={8}
-              />
-              <p className="text-xs text-muted-foreground pl-1">4–8 digits. Share this with people you want to have access.</p>
-            </div>
-          )}
+          {/*
+            NO "Page privacy" CHOICE, AND NO PIN. Both were removed on 21
+            September 2026 (Kate's ruling, bug #129) and nothing replaces them:
+            every page is open, so there is no decision here to get wrong. A
+            page locked with a hashed code nobody could recover is not privacy,
+            it is homework — and the real protection is elsewhere, in what a
+            given person is shown once they are on the page.
+          */}
 
           {error && <p className="text-sm text-destructive pl-1">{error}</p>}
 

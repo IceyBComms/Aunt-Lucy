@@ -3,7 +3,6 @@ import crypto from "crypto";
 import { db, slotsTable, supportPagesTable } from "@workspace/db";
 import { eq, and, sql } from "drizzle-orm";
 import { sendClaimConfirmationToHelper } from "../lib/claimNotify";
-import { verifyPin } from "../lib/pin";
 import { calendarFeedUrl } from "../lib/calendarFeed";
 import { logger } from "../lib/logger";
 import { notifyRecipientOfTaskEvent, shareLinkFor } from "../lib/item17Notify";
@@ -27,11 +26,12 @@ function mintToken(): string {
 
 router.post("/slots/:slotId/claim", async (req, res) => {
   const { slotId } = req.params;
-  const { firstName, contact, note, pin, showName } = req.body as {
+  // No `pin`. A client that still sends one (a cached bundle, mid-deploy) is
+  // not refused — the field is simply not read. See the note on the gate below.
+  const { firstName, contact, note, showName } = req.body as {
     firstName: string;
     contact: string;
     note?: string;
-    pin?: string;
     showName?: boolean;
   };
 
@@ -47,7 +47,8 @@ router.post("/slots/:slotId/claim", async (req, res) => {
     return;
   }
 
-  // Load slot together with its parent page to enforce PIN protection
+  // Load the slot together with its parent page: the page decides whether this
+  // claim is allowed at all (is it live? is the task trusted-only?).
   const [result] = await db
     .select({ slot: slotsTable, page: supportPagesTable })
     .from(slotsTable)
@@ -81,13 +82,11 @@ router.post("/slots/:slotId/claim", async (req, res) => {
     return;
   }
 
-  // PIN-protected pages require the PIN when claiming
-  if (page.privacy === "pin_protected") {
-    if (!pin || !(await verifyPin(pin, page.pin))) {
-      res.status(401).json({ error: "A valid PIN is required to claim a slot on this page." });
-      return;
-    }
-  }
+  // NO PIN GATE. Dropped 21 September 2026 (Kate's ruling, bug #129) together
+  // with the one on GET /pages/:slug. The two checks above are the real ones:
+  // the page must be live, and a trusted-only task is never claimable through
+  // the public door whatever the claimer holds. A PIN added nothing to either
+  // and, because it is stored hashed, could lock a page irrecoverably.
 
   const cancelToken = mintToken();
   // Sibling of cancelToken, minted on the same claim: the private handle to this
