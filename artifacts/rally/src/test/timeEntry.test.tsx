@@ -52,6 +52,23 @@ function setBadInput(el: HTMLInputElement, bad: boolean) {
   });
 }
 
+/**
+ * Half-type a time box — BOTH halves of what the browser does.
+ *
+ * ⚠️ The second half was missing at first, and the sabotage is what found it.
+ * A time box that goes from a complete value to a blank segment reports value
+ * "" AND fires a change, so React's state clears with it. Faking only
+ * `validity` left `editForm.slotTime` still holding "15:15", which meant an
+ * UNGUARDED save would have sent the old time back unchanged — so the edit
+ * dialog's headline assertion ("the 3:15 survived") could not fail for the
+ * right reason. With the change fired, an unguarded save sends null, which is
+ * the real harm this guard exists to stop.
+ */
+function halfType(el: HTMLInputElement) {
+  fireEvent.change(el, { target: { value: "" } });
+  setBadInput(el, true);
+}
+
 function q<T extends Element = HTMLElement>(root: ParentNode, selector: string): T {
   const el = root.querySelector<T>(selector);
   if (!el) throw new Error(`nothing matches ${selector}`);
@@ -242,7 +259,7 @@ async function settle() {
 describe("row #144, door 1 — the /manage add-task form", () => {
   it("a half-typed time BLOCKS the save, says so beside the box, and keeps the focus", async () => {
     const time = await openAddTaskForm();
-    setBadInput(time, true);
+    halfType(time);
     act(() => time.focus());
 
     fireEvent.click(addButton());
@@ -285,7 +302,7 @@ describe("row #144, door 1 — the /manage add-task form", () => {
 
   it("finishing the time clears the message — it never outlives the problem", async () => {
     const time = await openAddTaskForm();
-    setBadInput(time, true);
+    halfType(time);
     fireEvent.click(addButton());
     expect(screen.getByTestId("add-task-time-help")).toBeTruthy();
 
@@ -324,7 +341,7 @@ describe("row #144, door 2 — the setup wizard's task cards", () => {
       target: { value: "2026-09-23" },
     });
     const time = q<HTMLInputElement>(card, 'input[type="time"]');
-    setBadInput(time, true);
+    halfType(time);
 
     fireEvent.click(screen.getByRole("button", { name: /Continue/ }));
     await settle(); // or "nothing was posted" is a claim about the clock
@@ -352,7 +369,7 @@ describe("row #144, door 2 — the setup wizard's task cards", () => {
     fireEvent.change(notes, { target: { value: "No nuts, please" } });
 
     const time = q<HTMLInputElement>(card, 'input[type="time"]');
-    setBadInput(time, true);
+    halfType(time);
     act(() => time.focus());
     act(() => outside().focus());
 
@@ -439,7 +456,7 @@ describe("row #144, door 3 — the edit-a-task dialog on /manage", () => {
     const time = await openEditDialog();
     // What Chromium reports mid-correction: the old value gone from `value`,
     // badInput set, and no change event to tell React anything happened.
-    setBadInput(time, true);
+    halfType(time);
     act(() => time.focus());
 
     fireEvent.click(updateButton());
@@ -491,7 +508,7 @@ describe("row #144, door 3 — the edit-a-task dialog on /manage", () => {
 
   it("finishing the time clears the message, and the save then goes through", async () => {
     const time = await openEditDialog();
-    setBadInput(time, true);
+    halfType(time);
     fireEvent.click(updateButton());
     expect(screen.getByTestId("edit-task-time-help")).toBeTruthy();
     await settle();
