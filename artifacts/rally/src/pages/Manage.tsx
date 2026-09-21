@@ -246,11 +246,20 @@ export function Manage() {
       dietaryNotes: t.dietaryNotes ?? "",
       headcount: t.headcount != null ? String(t.headcount) : "",
     });
+    setEditTimePartial(false);
     setEditing(t);
   };
 
   const saveEdit = () => {
     if (!editing) return;
+    // Row #144 — a half-typed time stops the save, which is what leaves the
+    // time already on the task untouched. The same predicate and the same
+    // sentence as both add forms: three doors, one rule.
+    if (isPartialTime(editTimeRef.current)) {
+      setEditTimePartial(true);
+      editTimeRef.current?.focus();
+      return;
+    }
     const isMeal = editing.slotType === "meal";
     editTask.mutate(
       {
@@ -314,6 +323,23 @@ export function Manage() {
    */
   const newTimeRef = useRef<HTMLInputElement>(null);
   const [newTimePartial, setNewTimePartial] = useState(false);
+  /**
+   * Row #144, the EDIT dialog's own time box — the third door (Kate, 21 Sep
+   * 2026, after the first two were built).
+   *
+   * Worse here than on the two add forms, and that is why it is guarded the
+   * same way rather than differently: an add form with a half-typed time saved
+   * a task with no time, but the EDIT form is sitting on a time that already
+   * exists, so a half-typed replacement wrote `null` OVER IT. Somebody
+   * correcting 3:15pm to 3:45pm and stopping one tap short lost the 3:15.
+   *
+   * The refusal is the whole protection. Nothing is sent, so the stored time is
+   * left exactly as it was — it is never re-written to null and never guessed
+   * at. A box the person fully CLEARS still means "Any time that day", as it
+   * always has: an empty box is an answer, a half-typed one is not.
+   */
+  const editTimeRef = useRef<HTMLInputElement>(null);
+  const [editTimePartial, setEditTimePartial] = useState(false);
   /**
    * "Does it need to be at that time?" — seeded from the TASK TYPE's own
    * default, the same one the server uses. There is no second copy of the rule
@@ -2113,11 +2139,31 @@ export function Manage() {
                 <label className="flex flex-1 flex-col gap-1.5">
                   <span className="text-[0.85rem] font-semibold text-foreground">Time</span>
                   <input
+                    ref={editTimeRef}
                     type="time"
                     value={editForm.slotTime}
-                    onChange={(e) => setEditForm((f) => ({ ...f, slotTime: e.target.value }))}
+                    /* A change means the browser parsed something. A box
+                       BECOMING half-typed fires no change event at all, which
+                       is why the guard reads validity rather than value. */
+                    onChange={(e) => {
+                      setEditForm((f) => ({ ...f, slotTime: e.target.value }));
+                      setEditTimePartial(false);
+                    }}
+                    onBlur={(e) => setEditTimePartial(isPartialTime(e.currentTarget))}
+                    aria-invalid={editTimePartial || undefined}
+                    aria-describedby={editTimePartial ? "edit-task-time-help" : undefined}
                     className="w-full rounded-[0.7rem] border border-border bg-background px-3 py-2.5 text-[0.97rem] text-foreground focus:border-primary focus:outline-none"
                   />
+                  {/* Row #144 — beside the box, never in a form-level strip. */}
+                  {editTimePartial && (
+                    <span
+                      id="edit-task-time-help"
+                      data-testid="edit-task-time-help"
+                      className="text-[0.84rem] leading-snug text-[#c0563a]"
+                    >
+                      {PARTIAL_TIME_MESSAGE}
+                    </span>
+                  )}
                 </label>
               </div>
 

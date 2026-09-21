@@ -101,11 +101,47 @@ const MANAGE_PAYLOAD = {
   invites: [],
 };
 
-/** Every POST the add-task form actually made. The journal an absence needs. */
-const posts = vi.hoisted(() => ({ tasks: [] as any[] }));
+/**
+ * Every POST the add-task form made, every PATCH the edit dialog made, and —
+ * for door 3 — the row the server actually holds.
+ *
+ * `stored` is a real server-side value, not a journal entry, because Kate's
+ * ruling for the edit dialog is about what SURVIVES: "keeps the existing time
+ * exactly as it was". A test that only counted requests would pass against a
+ * PATCH that fired and wrote null.
+ */
+const posts = vi.hoisted(() => ({
+  tasks: [] as any[],
+  patches: [] as any[],
+  stored: null as any,
+}));
+
+/** The saved task door 3 edits: a school run at 3:15pm. */
+function storedTask() {
+  return {
+    id: "slot-1",
+    slotType: "school_pickup",
+    label: "School run",
+    customLabel: null,
+    notes: null,
+    flexibility: "fixed",
+    trustedHelpersOnly: true,
+    isClaimed: false,
+    claimedByName: null,
+    claimedNote: null,
+    claimedAt: null,
+    slotDate: "2026-09-23",
+    slotTime: "15:15",
+    liftWaitMode: null,
+    dietaryNotes: null,
+    headcount: null,
+  };
+}
 
 beforeEach(() => {
   posts.tasks = [];
+  posts.patches = [];
+  posts.stored = null;
   resetServer();
   vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
@@ -135,11 +171,26 @@ beforeEach(() => {
         { status: 201, headers: { "Content-Type": "application/json" } },
       );
     }
-    if (url.includes("/api/manage/")) {
-      return new Response(JSON.stringify(MANAGE_PAYLOAD), {
+    if (url.includes("/api/manage/") && method === "PATCH") {
+      const body = JSON.parse(String(init?.body ?? "{}"));
+      posts.patches.push(body);
+      // A real write: whatever the dialog sent is what the row now holds. This
+      // is what makes "the 3:15 survived" a fact about the server rather than
+      // a fact about the request count.
+      Object.assign(posts.stored, body);
+      return new Response(JSON.stringify(posts.stored), {
         status: 200,
         headers: { "Content-Type": "application/json" },
       });
+    }
+    if (url.includes("/api/manage/")) {
+      return new Response(
+        JSON.stringify({
+          ...MANAGE_PAYLOAD,
+          tasks: posts.stored ? [posts.stored] : [],
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
     }
     throw new Error(`unexpected ${method} ${url}`);
   });
@@ -319,5 +370,107 @@ describe("row #144, door 2 — the setup wizard's task cards", () => {
 
     await waitFor(() => expect(screen.getByTestId("step-3-stub")).toBeTruthy());
     expect(slotPosts()).toHaveLength(1);
+  });
+});
+
+// ─── DOOR 3: the EDIT-a-task dialog on /manage ───────────────────────────────
+//
+// Kate's ruling, 21 September 2026, once the first two doors were built: the
+// same guard and the same sentence here. This door is the one with something to
+// lose — the other two save a task with no time, this one wrote null OVER a
+// time that already existed. So the claim these tests make is not "no request
+// was sent", it is "the 3:15 is still there", asserted against the row the fake
+// server actually holds.
+//
+// ⚠️ P2 again. "The time survived" would pass for free against a dialog whose
+// save button does nothing at all, so both positive controls are here: a
+// COMPLETE new time really does replace it, and a fully CLEARED box really does
+// write null ("Any time that day"). A guard that blocked everything would fail
+// both.
+
+/** Open the saved 3:15pm task's edit dialog, and hand back its time box. */
+async function openEditDialog(): Promise<HTMLInputElement> {
+  posts.stored = storedTask();
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(
+    <QueryClientProvider client={client}>
+      <Router hook={(() => ["/manage/tok", () => {}]) as never}>
+        <Route path="/manage/:token" component={Manage} />
+      </Router>
+    </QueryClientProvider>,
+  );
+  fireEvent.click(await screen.findByRole("button", { name: /Change this task/i }));
+  // The dialog carries no role="dialog" (components/ui/dialog-framer.tsx is a
+  // plain framer-motion panel), so it is found by its own heading. While it is
+  // open the add-task form is closed, which makes the ONE time box in the
+  // document its own.
+  await screen.findByRole("heading", { name: /Change this task/i });
+  const time = q<HTMLInputElement>(document.body, 'input[type="time"]');
+  // The dialog really did open on the stored value — without this, every
+  // assertion below would be about a box that had never held 3:15pm.
+  expect(time.value).toBe("15:15");
+  return time;
+}
+
+const updateButton = () => screen.getByRole("button", { name: /Update the task/i });
+
+describe("row #144, door 3 — the edit-a-task dialog on /manage", () => {
+  it("half-typing over a saved 3:15pm and pressing save LEAVES 3:15pm stored", async () => {
+    const time = await openEditDialog();
+    // What Chromium reports mid-correction: the old value gone from `value`,
+    // badInput set, and no change event to tell React anything happened.
+    setBadInput(time, true);
+    act(() => time.focus());
+
+    fireEvent.click(updateButton());
+
+    // The thing that matters: the row is untouched. Not null, not coerced.
+    expect(posts.stored.slotTime).toBe("15:15");
+    // And nothing was even attempted, which is what leaves it untouched.
+    expect(posts.patches).toHaveLength(0);
+    // Kate's sentence, beside that box, with the focus still in it.
+    expect(screen.getByTestId("edit-task-time-help").textContent).toBe(PARTIAL_TIME_MESSAGE);
+    expect(time.getAttribute("aria-describedby")).toBe("edit-task-time-help");
+    expect(time.getAttribute("aria-invalid")).toBe("true");
+    expect(document.activeElement).toBe(time);
+  });
+
+  it("a COMPLETE new time really does replace it — the positive control", async () => {
+    const time = await openEditDialog();
+    setBadInput(time, false);
+    fireEvent.change(time, { target: { value: "15:45" } });
+
+    fireEvent.click(updateButton());
+
+    await waitFor(() => expect(posts.patches).toHaveLength(1));
+    expect(posts.stored.slotTime).toBe("15:45");
+  });
+
+  it("a fully CLEARED box still means 'Any time that day' — the other control", async () => {
+    const time = await openEditDialog();
+    setBadInput(time, false);
+    fireEvent.change(time, { target: { value: "" } });
+
+    fireEvent.click(updateButton());
+
+    await waitFor(() => expect(posts.patches).toHaveLength(1));
+    // An empty box is an ANSWER; a half-typed one is not. This is the
+    // distinction the guard exists to draw, and the line it must not cross.
+    expect(posts.stored.slotTime).toBeNull();
+  });
+
+  it("finishing the time clears the message, and the save then goes through", async () => {
+    const time = await openEditDialog();
+    setBadInput(time, true);
+    fireEvent.click(updateButton());
+    expect(screen.getByTestId("edit-task-time-help")).toBeTruthy();
+    expect(posts.stored.slotTime).toBe("15:15");
+
+    setBadInput(time, false);
+    fireEvent.change(time, { target: { value: "15:45" } });
+    expect(screen.queryByTestId("edit-task-time-help")).toBeNull();
+
+    fireEvent.click(updateButton());
+    await waitFor(() => expect(posts.stored.slotTime).toBe("15:45"));
   });
 });
