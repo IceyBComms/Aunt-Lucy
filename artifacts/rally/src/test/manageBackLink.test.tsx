@@ -316,6 +316,63 @@ describe("Row #143 — the time question only appears once a time is entered", (
   });
 });
 
+
+/**
+ * The errand hint — the same line, from the same place, on both doors.
+ *
+ * There is no `lift` slot type: this codebase models a lift as a DATED ERRAND,
+ * which is also why a dated errand defaults to fixed and why the wait-or-not
+ * question appears on one. Someone scanning the choices for "lift" would not
+ * find it, and "Errand" on its own does not say so. Kate's ruling, 21 Sep 2026:
+ * the LABEL stays "Errand"; a line under the choices does the explaining.
+ */
+describe("the errand hint on /manage", () => {
+  async function openForm() {
+    renderManage();
+    fireEvent.click(await screen.findByRole("button", { name: /Add a task/ }));
+    expect(await screen.findByText("What kind of help?")).toBeTruthy();
+  }
+
+  it("is ABSENT on the form's own opening type, Meal", async () => {
+    await openForm();
+
+    // Positive control from the same render: the Errand choice IS on screen,
+    // so the missing hint is a decision rather than an empty page.
+    expect(screen.getByRole("button", { name: /Errand/ })).toBeTruthy();
+    expect(screen.queryByText(/Includes lifts/)).toBeNull();
+  });
+
+  it("APPEARS when Errand is chosen", async () => {
+    await openForm();
+    fireEvent.click(screen.getByRole("button", { name: /Errand/ }));
+
+    expect(
+      screen.getByText(
+        "Includes lifts — to appointments, the station, wherever they're needed.",
+      ),
+    ).toBeTruthy();
+  });
+
+  it("the LABEL is still 'Errand' — the hint explains, it does not rename", async () => {
+    await openForm();
+    fireEvent.click(screen.getByRole("button", { name: /Errand/ }));
+
+    const chosen = screen.getByRole("button", { name: /Errand/ });
+    expect(chosen.getAttribute("aria-pressed")).toBe("true");
+    expect(chosen.textContent).toContain("Errand");
+    expect(chosen.textContent).not.toContain("lift");
+  });
+
+  it("goes again when another type is chosen", async () => {
+    await openForm();
+    fireEvent.click(screen.getByRole("button", { name: /Errand/ }));
+    expect(screen.getByText(/Includes lifts/)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: /School run/ }));
+    expect(screen.queryByText(/Includes lifts/)).toBeNull();
+  });
+});
+
 /**
  * ── SABOTAGE LOG ─────────────────────────────────────────────────────────────
  * Each applied to the real source, suite run, change reverted.

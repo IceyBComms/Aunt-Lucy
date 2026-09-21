@@ -16,6 +16,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { taskPickerHint } from "@workspace/task-copy";
 
 const review = vi.hoisted(() => ({
   data: null as unknown,
@@ -189,5 +190,72 @@ describe("Row #143 — a dated task with no time says so, in the shared words", 
 
     expect(document.body.textContent).toContain("Any time that day");
     expect(document.body.textContent).not.toContain("Time to be confirmed");
+  });
+});
+
+/**
+ * The errand hint — the same line, from the same place, as /manage's.
+ *
+ * There is no `lift` slot type: this codebase models a lift as a DATED ERRAND,
+ * which is also why a dated errand defaults to fixed and why the wait-or-not
+ * question appears on one. Someone scanning the choices for "lift" would not
+ * find it, and "Errand" on its own does not say so. Kate's ruling, 21 Sep 2026:
+ * the LABEL stays "Errand"; a line under the choices does the explaining.
+ */
+describe("the errand hint on the setup wizard", () => {
+  const HINT = "Includes lifts — to appointments, the station, wherever they're needed.";
+
+  function openTheAddForm() {
+    render(<GiftActivation token="tok" />);
+    fireEvent.click(screen.getByRole("button", { name: /Add something else/ }));
+  }
+
+  it("is ABSENT on the form's own opening type", () => {
+    openTheAddForm();
+
+    // Positive control from the same render: the picker IS on screen, and it
+    // does offer Errand — so the missing hint is a decision, not a blank form.
+    const picker = screen.getByLabelText("What kind of help");
+    expect(picker).toBeTruthy();
+    expect(
+      [...picker.querySelectorAll("option")].map((o) => o.textContent),
+    ).toContain("Errand");
+    expect(screen.queryByText(HINT)).toBeNull();
+  });
+
+  it("APPEARS when Errand is chosen", () => {
+    openTheAddForm();
+    fireEvent.change(screen.getByLabelText("What kind of help"), {
+      target: { value: "errand" },
+    });
+
+    expect(screen.getByText(HINT)).toBeTruthy();
+  });
+
+  it("the OPTION is still 'Errand' — the hint explains, it does not rename", () => {
+    openTheAddForm();
+    fireEvent.change(screen.getByLabelText("What kind of help"), {
+      target: { value: "errand" },
+    });
+
+    const chosen = [...screen.getByLabelText("What kind of help").querySelectorAll("option")]
+      .find((o) => (o as HTMLOptionElement).value === "errand");
+    expect(chosen?.textContent).toBe("Errand");
+  });
+
+  it("goes again when another type is chosen", () => {
+    openTheAddForm();
+    const picker = screen.getByLabelText("What kind of help");
+    fireEvent.change(picker, { target: { value: "errand" } });
+    expect(screen.getByText(HINT)).toBeTruthy();
+
+    fireEvent.change(picker, { target: { value: "meal" } });
+    expect(screen.queryByText(HINT)).toBeNull();
+  });
+
+  it("it is the SAME line both doors show — one string, not two", () => {
+    // The whole point of the package: /manage's test asserts this exact
+    // sentence too. If the two ever diverged, one of the two would go red.
+    expect(HINT).toBe(taskPickerHint("errand"));
   });
 });

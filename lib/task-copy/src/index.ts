@@ -13,6 +13,7 @@ export {
   taskNoun,
   taskShortNoun,
   taskInstruction,
+  taskPickerHint,
   type SlotType,
   type TaskCopy,
 } from "./taskNames";

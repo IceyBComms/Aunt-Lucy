@@ -70,6 +70,15 @@ export interface TaskCopy {
    * text: "Dropping off a meal", "Running an errand".
    */
   instruction: string;
+  /**
+   * A line shown UNDER the choices on a task form, once this type is picked —
+   * for a name that does more than it says. Absent on almost every type, and
+   * absent renders nothing at all: no line, no gap.
+   *
+   * ⚠️ This is a COLUMN, not a second table. If another type needs a hint one
+   * day, it goes here; it does not get a lookup of its own in a component.
+   */
+  pickerHint?: string;
 }
 
 /**
@@ -111,6 +120,12 @@ export const TASK_COPY: Record<SlotType, TaskCopy> = {
     noun: "an errand",
     shortNoun: "errand",
     instruction: "Running an errand",
+    // There is no `lift` slot type: this codebase models a lift as a DATED
+    // errand, which is also why a dated errand defaults to fixed and why the
+    // wait-or-not question (#033) appears on one. Someone looking for "lift"
+    // in the picker would not find it, and "Errand" on its own does not say
+    // so. The label stays "Errand"; this line does the explaining.
+    pickerHint: "Includes lifts — to appointments, the station, wherever they're needed.",
   },
   dog_walking: {
     label: "Dog walking",
@@ -171,4 +186,15 @@ export function taskShortNoun(slotType: string, customLabel?: string | null): st
 /** What the helper is doing: "Dropping off a meal" — or the family's wording. */
 export function taskInstruction(slotType: string, customLabel?: string | null): string {
   return withCustom(customLabel, copyFor(slotType).instruction);
+}
+
+/**
+ * The line shown under a task form's choices once this type is picked, or null.
+ *
+ * Null is the common case and must render NOTHING — not an empty paragraph, not
+ * a gap. Takes no customLabel: this explains what the TYPE covers, which is
+ * true whatever the family called their own task.
+ */
+export function taskPickerHint(slotType: string): string | null {
+  return copyFor(slotType).pickerHint ?? null;
 }

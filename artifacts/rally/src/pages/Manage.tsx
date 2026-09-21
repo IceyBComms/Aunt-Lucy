@@ -71,6 +71,7 @@ import {
   formatShortDate,
   taskLabel,
   taskNoun,
+  taskPickerHint,
   taskWhenCard,
 } from "@workspace/task-copy";
 import { useOptionalAuth } from "@/contexts/AuthContext";
@@ -789,6 +790,18 @@ export function Manage() {
                 </button>
               ))}
             </div>
+
+            {/* A line for a name that does more than it says: there is no
+                "lift" task type, because this codebase models a lift as a
+                DATED ERRAND. Someone looking for one would not find it in
+                these choices. Null on every other type and renders nothing —
+                no line, no gap. Same line, from the same place, as the setup
+                wizard's. */}
+            {taskPickerHint(newType) && (
+              <p className="-mt-2 mb-4 text-[0.82rem] leading-snug text-[#8b7e74]">
+                {taskPickerHint(newType)}
+              </p>
+            )}
 
             <div className="mb-4 flex gap-3">
               <label className="flex-1">

@@ -43,6 +43,7 @@ import {
   formatTaskDate,
   formatTaskTime,
   taskLabel,
+  taskPickerHint,
   type SlotFlexibility,
 } from "@workspace/task-copy";
 
@@ -1281,6 +1282,16 @@ function AddTaskForm({
           </option>
         ))}
       </select>
+      {/* A line for a name that does more than it says: there is no "lift"
+          task type, because this codebase models a lift as a DATED ERRAND.
+          Someone looking for one would not find it in these choices. Null on
+          every other type and renders nothing — no line, no gap. Same line,
+          from the same place, as /manage's. */}
+      {taskPickerHint(slotType) && (
+        <p className="-mt-1.5 text-[0.8rem] leading-snug text-[#8b7e74]">
+          {taskPickerHint(slotType)}
+        </p>
+      )}
       <div className="flex flex-col gap-1">
         <label className="flex items-center gap-2.5 text-[0.9rem] text-[#52493f]">
           <input

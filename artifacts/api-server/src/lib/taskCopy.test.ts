@@ -34,6 +34,7 @@ import {
   formatTaskTime,
   taskLabel,
   taskNoun,
+  taskPickerHint,
   taskShortNoun,
   taskWhenCard,
   taskWhenClause,
@@ -122,6 +123,27 @@ describe("the one task list covers every slot type", () => {
   it("an unknown type falls back rather than printing the key", () => {
     expect(taskLabel("hovercraft", null)).toBe(TASK_COPY.other.label);
     expect(taskNoun("hovercraft", null)).toBe(TASK_COPY.other.noun);
+  });
+
+  it("the picker hint is on ERRAND and nowhere else", () => {
+    // There is no `lift` slot type — this codebase models a lift as a DATED
+    // errand — so someone looking for one would not find it in the choices.
+    expect(taskPickerHint("errand")).toContain("lift");
+
+    // ⚠️ Null on every other type, and null must render NOTHING: no line, no
+    // gap. A hint that quietly appeared under "Meal" would be a second table
+    // starting, which is the shape this whole package exists to stop.
+    for (const type of SLOT_TYPES) {
+      if (type === "errand") continue;
+      expect(taskPickerHint(type), type).toBeNull();
+    }
+    expect(taskPickerHint("hovercraft")).toBeNull();
+  });
+
+  it("the hint explains the TYPE, so a custom label cannot change it", () => {
+    // Deliberately takes no customLabel: "Lift to the hospital Tuesday" is
+    // still an errand, and what an errand covers is true either way.
+    expect(taskPickerHint("errand")).toBe(TASK_COPY.errand.pickerHint);
   });
 
   it("every mid-sentence noun carries an article, or is a gerund", () => {
