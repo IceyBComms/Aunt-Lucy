@@ -222,6 +222,23 @@ async function openAddTaskForm(): Promise<HTMLInputElement> {
 
 const addButton = () => screen.getByRole("button", { name: /Add to the page/i });
 
+/**
+ * Let anything the click STARTED actually finish.
+ *
+ * A save is a react-query mutation: an unguarded one fires its request a tick
+ * after the click, so "nothing was written" asserted immediately is a claim
+ * about the clock, not about the code. The sabotage run proved this is not
+ * theoretical — with the guard removed, the row was STILL untouched at the
+ * moment of assertion, and only the missing message gave it away. P2's
+ * green-by-default, in this file. Everything here is in-memory, so a macrotask
+ * is long enough for a real write to land and be seen.
+ */
+async function settle() {
+  await act(async () => {
+    await new Promise((r) => setTimeout(r, 50));
+  });
+}
+
 describe("row #144, door 1 — the /manage add-task form", () => {
   it("a half-typed time BLOCKS the save, says so beside the box, and keeps the focus", async () => {
     const time = await openAddTaskForm();
@@ -229,6 +246,7 @@ describe("row #144, door 1 — the /manage add-task form", () => {
     act(() => time.focus());
 
     fireEvent.click(addButton());
+    await settle(); // or "nothing was posted" is a claim about the clock
 
     // The absence…
     expect(posts.tasks).toHaveLength(0);
@@ -309,6 +327,7 @@ describe("row #144, door 2 — the setup wizard's task cards", () => {
     setBadInput(time, true);
 
     fireEvent.click(screen.getByRole("button", { name: /Continue/ }));
+    await settle(); // or "nothing was posted" is a claim about the clock
 
     // The absence…
     expect(slotPosts()).toHaveLength(0);
@@ -342,6 +361,7 @@ describe("row #144, door 2 — the setup wizard's task cards", () => {
         PARTIAL_TIME_MESSAGE,
       ),
     );
+    await settle();
     expect(slotPosts()).toHaveLength(0);
     expect(card.dataset.cardState).toBe("draft");
   });
@@ -424,6 +444,16 @@ describe("row #144, door 3 — the edit-a-task dialog on /manage", () => {
 
     fireEvent.click(updateButton());
 
+    // ⚠️ SETTLE FIRST, AND THIS LINE IS THE WHOLE TEST.
+    //
+    // The save is a mutation, so a PATCH fired by an UNGUARDED dialog lands a
+    // tick or two after the click. Asserting straight after the click found
+    // the row still holding "15:15" whatever the code did — the sabotage run
+    // proved it, going red only on the MESSAGE while the two assertions this
+    // test exists for passed on timing alone. That is P2's green-by-default
+    // exactly, and it was in this file.
+    await settle();
+
     // The thing that matters: the row is untouched. Not null, not coerced.
     expect(posts.stored.slotTime).toBe("15:15");
     // And nothing was even attempted, which is what leaves it untouched.
@@ -464,6 +494,7 @@ describe("row #144, door 3 — the edit-a-task dialog on /manage", () => {
     setBadInput(time, true);
     fireEvent.click(updateButton());
     expect(screen.getByTestId("edit-task-time-help")).toBeTruthy();
+    await settle();
     expect(posts.stored.slotTime).toBe("15:15");
 
     setBadInput(time, false);
