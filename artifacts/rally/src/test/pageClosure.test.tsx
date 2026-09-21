@@ -213,8 +213,41 @@ describe("/manage on a closed page", () => {
     const text = document.body.textContent ?? "";
     // The page comes back…
     expect(text).toMatch(/reopen/i);
-    // …the commitments do not. "You can undo this" alone is not true.
-    expect(text).toMatch(/come back unclaimed|doesn't bring back|minus the tasks/i);
+    // …the bookings do not. "You can undo this" alone is not true.
+    // Kate's wording, 21 Sep 2026 (#132), asserted as the exact string so a
+    // reword has to be a deliberate one.
+    expect(text).toContain(closeCopy.reopenWarning);
+    expect(text).toContain("brings the tasks back, but not the bookings");
+  });
+
+  it("no longer claims reopening restores the page 'exactly as it was'", async () => {
+    // THE OLD LINE WAS BOTH SELF-CONTRADICTORY AND UNTRUE (#132). It said
+    // reopening brought the page back "exactly as it was, minus the tasks
+    // people had booked" — but the TASKS come back and the BOOKINGS do not,
+    // so it named the wrong thing as the loss while promising no loss at all.
+    renderAt("/manage/tok", "/manage/:token", Manage);
+    await screen.findByTestId("manage-closed");
+    const text = document.body.textContent ?? "";
+    // Positive control: the closed screen really rendered its own words.
+    expect(text).toContain(closeCopy.closedTitle);
+    expect(text).toContain(closeCopy.closedBody);
+    expect(text).not.toMatch(/exactly as it was/i);
+    expect(text).not.toMatch(/minus the tasks/i);
+    expect(text).not.toMatch(/come back unclaimed/i);
+  });
+
+  it("promises no retention window, because nothing enforces one yet", async () => {
+    // Kate has RULED the number (30 days, one clock for reopening and for
+    // destruction) and written the line, but there is no destruction job and
+    // nothing blocks a reopen on day 31. Saying it here before it is true
+    // would be a claim about the world, not a fact about the page. The
+    // approved wording is parked in pageClosureCopy.ts, above closedBody.
+    renderAt("/manage/tok", "/manage/:token", Manage);
+    await screen.findByTestId("manage-closed");
+    const text = document.body.textContent ?? "";
+    expect(text).toContain(closeCopy.closedBody);
+    expect(text).not.toMatch(/30 days|thirty days/i);
+    expect(text).not.toMatch(/delete|deleted|for good|permanently/i);
   });
 
   it("reopening posts to reopen and NOTHING re-claims anything", async () => {

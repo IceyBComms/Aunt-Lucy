@@ -27,6 +27,8 @@ This file was substantially updated in July 2026 following an extended design se
 - Trickle vs "ask everyone" pacing for how needs reach helpers
 - Presence-vs-names visibility split for helpers
 - The crisis-admin "born restrained" model and the transparency-plus-reversibility approach to impersonation (design-only, not being built yet — see "Parked, deliberately")
+- **"Aunt Lucy describes the page, never the world" (locked 21 Sep 2026)** — now Privacy Requirement #5. A copy rule with a legal spine: it protects the marketplace/communication-tool frame, which is created by conduct rather than by the Terms. Do not quietly drop it in a copy pass.
+- **"School run", not "school pickup" (21 Sep 2026)** — reverses what the Australian-context section said. Display text only; the `school_pickup` enum key is unchanged.
 
 **Still accurate, carried forward unchanged:** GST itemisation requirements (receipts/invoices), Australian English requirement, "what Aunt Lucy is not," core brand tone, OpenAPI/Orval workflow.
 
@@ -156,6 +158,9 @@ The product intentionally avoids storing clinical or medical information. The "s
 
 **4. Helper-name visibility is opt-in.**
 A helper chooses at the moment of claiming whether their name is shown to other helpers. Never assume it, never default it on, and never surface it retrospectively. The recipient always sees who claimed what regardless — see "Helper visibility — presence vs names" above.
+
+**5. AUNT LUCY DESCRIBES THE PAGE, NEVER THE WORLD (locked 21 Sep 2026).**
+"The slot is open again" is a fact about the page. "Someone will bring dinner", "we'll tell them", "you're being looked after" are claims about the world, and Aunt Lucy is not in a position to make them. The lawyer's frame is that Aunt Lucy is a marketplace / communication tool, and that frame is created by conduct, not by a clause in the Terms — every sentence asserting an outcome, or promising Aunt Lucy's own service will reach a person, erodes it. The test for any line of copy: could a human make this false tomorrow? Then rewrite it as attribution or as a fact about the page. This is NOT a licence to strip the warmth — attribution is just as warm and it is true. Full reasoning in `product/PRODUCT_SPEC.md` (not in this repo) and `legal/LEGAL_POSITION_18SEP.md` (also outside this repo).
 
 ---
 
@@ -300,7 +305,7 @@ The product should make people feel like they have a capable, kind friend who ha
 
 ## Australian context
 
-Australian English throughout — "mum" not "mom," "neighbour" not "neighbor," "organisation" not "organization," "colour" not "color." Local terms matter: school pickup (not school run), GP (not physician), and similar. Copy, templates, email subject lines and UI labels should all reflect this.
+Australian English throughout — "mum" not "mom," "neighbour" not "neighbor," "organisation" not "organization," "colour" not "color." Local terms matter: **school run (not school pickup — Kate's ruling, 21 Sep 2026: "pickup" sounds like collecting them at the end of the day, when the real task is getting them there and home again)**, GP (not physician), and similar. The database enum key `school_pickup` is unchanged; this is display text only, and it lives in one lookup (`api-server/src/lib/item17Copy.ts`). Copy, templates, email subject lines and UI labels should all reflect this.
 
 ---
 

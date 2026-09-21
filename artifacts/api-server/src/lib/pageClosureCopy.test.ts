@@ -38,7 +38,7 @@ describe("the fixed fact", () => {
     // it for all three ways of saying "nothing was added".
     for (const note of [null, "", "   "]) {
       const body = helperClosureMessage({ ...BASE, note });
-      expect(body).toContain("the school pickup");
+      expect(body).toContain("the school run");
       expect(body).toContain("Tuesday 22 September");
       expect(body).toMatch(/isn't going ahead/);
     }
@@ -47,14 +47,14 @@ describe("the fixed fact", () => {
   it("is still present when the box WAS filled in, and the note is attributed", () => {
     const body = helperClosureMessage({ ...BASE, note: "Tammy passed away on Friday." });
     // The fact, unchanged…
-    expect(body).toContain("the school pickup");
+    expect(body).toContain("the school run");
     expect(body).toMatch(/isn't going ahead/);
     // …and the note, clearly theirs and clearly separate.
     expect(body).toContain("From Fergus:");
     expect(body).toContain("Tammy passed away on Friday.");
     // The fact comes FIRST. A note that ran ahead of it would be read first and
     // the fact skimmed past.
-    expect(body.indexOf("school pickup")).toBeLessThan(body.indexOf("From Fergus:"));
+    expect(body.indexOf("school run")).toBeLessThan(body.indexOf("From Fergus:"));
   });
 
   it("names an undated offer as one rather than inventing a day", () => {
@@ -76,8 +76,8 @@ describe("the task name is never a raw enum key", () => {
   // WHICH FUNCTION: taskLabel(slotType, customLabel) from lib/item17Copy.ts —
   // the same lookup the shipped task-edit, task-cancel and helper-note messages
   // use. Closure does not own a display-name table of its own, which is the
-  // point: "School pickup" is being renamed "School run" in a separate PR, and
-  // this message will follow that rename with no change here.
+  // point: "school pickup" was renamed "school run" on 21 Sep 2026 (#127) in
+  // item17Copy.ts alone, and this message followed it with no change here.
   const EVERY_SLOT_TYPE = [
     "meal",
     "school_pickup",
@@ -164,7 +164,7 @@ describe("it never says why", () => {
     for (const occasion of [null, "bereavement", "new_baby", "illness_recovery", "surgery"]) {
       const body = helperClosureMessage({ ...BASE, occasion });
       // The positive control: this IS the real message, not an empty string.
-      expect(body).toContain("the school pickup");
+      expect(body).toContain("the school run");
       for (const reason of REASONS) expect(body).not.toMatch(reason);
       expect(body).not.toMatch(/bereavement|new_baby|illness|surgery/i);
     }

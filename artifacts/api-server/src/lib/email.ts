@@ -134,11 +134,19 @@ export function buildHtml(params: ClaimEmailParams): string {
           </p>`
     : "";
 
-  // A gentle, no-guilt way out if plans change. Rendered only when a release
-  // link is present.
+  // A gentle, no-guilt way out if plans change (#135, Kate's ruling, 21 Sep
+  // 2026). This line used to be preceded by "If anything changes, just let the
+  // person looking after the page know" — a dead end: a helper has no way to
+  // reach that person from here, and no reason to think it is their job. THIS
+  // is the thing they can actually do, so it now stands on its own. Do not
+  // reinstate the other line.
+  //
+  // The guard stays even though releaseUrl is always present on this email:
+  // there is deliberately no link-less variant of the sentence, but nor should
+  // a tokenless call ever render a dead href.
   const releaseBlock = releaseUrl
     ? `<p style="margin:0 0 8px;color:#333;font-size:16px;line-height:1.6;">
-            Can't make it after all? No worries at all — <a href="${escapeHtml(releaseUrl)}" style="color:#2D6A4F;font-weight:600;">release this slot</a> and someone else can pick it up.
+            Something come up? You can <a href="${escapeHtml(releaseUrl)}" style="color:#2D6A4F;font-weight:600;">release this slot</a> — no need to explain. It goes straight back on the page for someone else.
           </p>`
     : "";
 
@@ -200,9 +208,6 @@ export function buildHtml(params: ClaimEmailParams): string {
             </td></tr>
             <tr><td height="24" style="height:24px;line-height:24px;font-size:0;">&nbsp;</td></tr>
           </table>
-          <p style="margin:0 0 8px;color:#333;font-size:16px;line-height:1.6;">
-            If anything changes, just let the person looking after the page know.
-          </p>
           ${calendarBlock}
           ${releaseBlock}
           <p style="margin:24px 0 0;color:#2D6A4F;font-size:15px;line-height:1.6;">
@@ -247,7 +252,6 @@ export function buildPlainText(params: ClaimEmailParams): string {
   if (dietaryNotes) text += `Dietary needs: ${dietaryNotes}\n`;
   if (location) text += `Location: ${location}\n`;
   if (notes) text += `Notes: ${notes}\n`;
-  text += `\nIf anything changes, just let the person looking after the page know.\n`;
   if (calendarUrl) {
     // Approved copy, bug #037 — the "it'll update if the time changes" clause
     // is gone and must not return (see the HTML block above for why).
@@ -258,7 +262,7 @@ export function buildPlainText(params: ClaimEmailParams): string {
     text += `\nAdd this to your calendar so it's there when you need it:\n${calendarUrl}\n`;
   }
   if (releaseUrl) {
-    text += `\nCan't make it after all? No worries at all — release this slot so someone else can pick it up:\n${releaseUrl}\n`;
+    text += `\nSomething come up? You can release this slot — no need to explain. It goes straight back on the page for someone else.\n${releaseUrl}\n`;
   }
   text += `\nWarmly,\nThe Aunt Lucy Team\n`;
   return text;

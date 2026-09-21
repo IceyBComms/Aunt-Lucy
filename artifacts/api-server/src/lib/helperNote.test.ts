@@ -100,12 +100,12 @@ async function send(notice: ReturnType<typeof helperNoteNotice>) {
 
 /** The EMAIL body — keeps the 💛. */
 const APPROVED_TOMORROW =
-  `Aunt Lucy here 💛 kate R left a note about the school pickup tomorrow: "${NOTE}". ` +
+  `Aunt Lucy here 💛 kate R left a note about the school run tomorrow: "${NOTE}". ` +
   `They're still doing it. If the timing matters, you may want a backup plan.`;
 
 /** The SMS — Kate's ruling, 16 Sep 2026: no 💛, every fixed character GSM-7. */
 const APPROVED_TOMORROW_SMS =
-  `Aunt Lucy here: kate R left a note about the school pickup tomorrow: "${NOTE}". ` +
+  `Aunt Lucy here: kate R left a note about the school run tomorrow: "${NOTE}". ` +
   `They're still doing it. If the timing matters, you may want a backup plan.`;
 
 describe("soonDay — Australia/Sydney, by the calendar", () => {
@@ -157,7 +157,7 @@ describe("a note on a fixed task tomorrow, on a crisis page with a mobile", () =
       helperNoteNotice({ slot: pickup("2026-09-17"), note: NOTE, now: WED_9AM }),
     );
     expect(emails).toEqual([
-      { to: "kate@example.com", subject: "A note about tomorrow's school pickup", body: APPROVED_TOMORROW },
+      { to: "kate@example.com", subject: "A note about tomorrow's school run", body: APPROVED_TOMORROW },
     ]);
   });
 
@@ -170,8 +170,8 @@ describe("a note on a fixed task tomorrow, on a crisis page with a mobile", () =
 
   it("on the day, it says today", () => {
     const { message } = helperNoteNotice({ slot: pickup("2026-09-16"), note: NOTE, now: WED_9AM });
-    expect(message.subject).toBe("A note about today's school pickup");
-    expect(message.body).toContain("left a note about the school pickup today:");
+    expect(message.subject).toBe("A note about today's school run");
+    expect(message.body).toContain("left a note about the school run today:");
   });
 });
 
@@ -184,7 +184,7 @@ describe("every other note", () => {
     expect(texts).toEqual([
       {
         to: "+61400000001",
-        body: `kate R left a note on the school pickup: "${NOTE}"\n\nJust keeping you in the loop.`,
+        body: `kate R left a note on the school run: "${NOTE}"\n\nJust keeping you in the loop.`,
       },
     ]);
     expect(texts[0].body).not.toMatch(/nothing needed/i);
@@ -236,12 +236,14 @@ describe("the time-sensitive note SMS stays GSM-7 (Kate's ruling, 16 Sep 2026; s
     expect(measureSms(await smsFor("x".repeat(40)))).toMatchObject({ encoding: "GSM-7", segments: 2 });
   });
 
-  it("a 160-character plain note — recorded: 307 characters, 3 segments", async () => {
-    // One character over two segments (2 × 153 = 306). Was 5 with the 💛.
+  it("a 160-character plain note — recorded: 304 characters, 2 segments", async () => {
+    // Two characters under two segments (2 × 153 = 306). Was 5 with the 💛, then
+    // 307/3 until "school pickup" became "school run" on 21 Sep 2026 (#127) and
+    // took three characters out of every fixed task's SMS.
     expect(measureSms(await smsFor("x".repeat(160)))).toMatchObject({
       encoding: "GSM-7",
-      chars: 307,
-      segments: 3,
+      chars: 304,
+      segments: 2,
     });
   });
 
@@ -277,7 +279,7 @@ describe("the time-sensitive note SMS stays GSM-7 (Kate's ruling, 16 Sep 2026; s
     const { recipientFixedLostHelper } = await import("./item17Copy");
     const msg = recipientFixedLostHelper({
       helperName: "Jo",
-      task: "the school pickup",
+      task: "the school run",
       when: "Thursday 17 September at 3:15pm",
       shareLink: "https://x/s/y",
     });

@@ -74,16 +74,41 @@ export const closure = {
 
   // ── The closed page's own /manage screen ─────────────────────────────────
   closedTitle: "This page is closed",
+  /**
+   * Kate's ruling, 21 Sep 2026 (#132). The old line said reopening brought the
+   * page back "exactly as it was, minus the tasks people had booked" — which
+   * was both self-contradictory and untrue: the TASKS come back, the BOOKINGS
+   * do not. The main line no longer carries the mechanics at all; it carries
+   * the relief. The mechanics are in reopenWarning, next to the button.
+   *
+   * — RETENTION, NOT YET BUILT — DO NOT ADD THIS LINE YET.
+   * Kate has ruled the number (30 days, one clock for both reopening and
+   * destruction) and has written the wording, but NOTHING ENFORCES IT: there
+   * is no destruction job, and nothing blocks a reopen on day 31. Saying it on
+   * the screen before it is true would be a promise about the world, not a
+   * fact about the page. When retention is built, this is the approved line,
+   * which says WHY and not just what:
+   *
+   *   "You can open it again any time in the next 30 days. After that we close
+   *    it for good and delete everyone's details — we don't hold on to
+   *    people's information once it isn't needed."
+   */
   closedBody:
-    "Nobody can see it or offer help. Everything on it is kept — reopening " +
-    "brings the page back exactly as it was, minus the tasks people had booked.",
+    "Nothing more is being asked of anyone. It's all still here, and you can " +
+    "open it again whenever you want.",
   /** Rendered only when we hold a date. */
   closedOn: (when: string) => `Closed on ${when}.`,
   reopenButton: "Reopen this page",
   reopening: "Reopening…",
+  /**
+   * Both halves of the truth, at the point of acting on it (#132, 21 Sep 2026).
+   * "Bookings", not "commitments" or "claims" — it is the word a person who
+   * has never read the schema would use.
+   */
   reopenWarning:
-    "Tasks that were cancelled come back unclaimed — anyone who wants them can " +
-    "offer again. Invitations that were cancelled aren't sent.",
+    "Reopening brings the tasks back, but not the bookings — anyone who'd " +
+    "offered would need asking again, and invitations that hadn't gone out " +
+    "stay cancelled.",
 
   failed: "That didn't go through. Please try again.",
 } as const;
