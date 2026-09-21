@@ -260,6 +260,62 @@ describe('Part C — "Does it need to be at that time?" starts from the task typ
   });
 });
 
+
+/**
+ * ROW #143 — the question is not asked until there is a time to ask about.
+ *
+ * Kate, testing the add-task form on 21 September 2026: she left the time
+ * empty, and the form still asked "Does the time matter?" with "Roughly then is
+ * fine" selected — roughly WHEN? The question only means something once a time
+ * exists, so it only appears once one does.
+ */
+describe("Row #143 — the time question only appears once a time is entered", () => {
+  const QUESTION = "Does it need to be at that time?";
+
+  async function openForm() {
+    renderManage();
+    fireEvent.click(await screen.findByRole("button", { name: /Add a task/ }));
+    // Positive control: the form is really on screen, so an absent question
+    // below means "not rendered", not "nothing rendered".
+    expect(await screen.findByText("What kind of help?")).toBeTruthy();
+  }
+
+  it("is ABSENT with no time — and so are both of its answers", async () => {
+    await openForm();
+
+    expect(screen.queryByText(QUESTION)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Yes, at that time" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Around then is fine" })).toBeNull();
+  });
+
+  it("APPEARS the moment a time is entered", async () => {
+    await openForm();
+    fireEvent.change(screen.getByLabelText("Time"), { target: { value: "15:00" } });
+
+    expect(screen.getByText(QUESTION)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Yes, at that time" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Around then is fine" })).toBeTruthy();
+  });
+
+  it("goes again if the time is cleared", async () => {
+    await openForm();
+    const time = screen.getByLabelText("Time");
+    fireEvent.change(time, { target: { value: "15:00" } });
+    expect(screen.getByText(QUESTION)).toBeTruthy();
+
+    fireEvent.change(time, { target: { value: "" } });
+    expect(screen.queryByText(QUESTION)).toBeNull();
+  });
+
+  it("the old wording is gone from the screen entirely", async () => {
+    await openForm();
+    fireEvent.change(screen.getByLabelText("Time"), { target: { value: "15:00" } });
+
+    expect(document.body.textContent).not.toContain("Does the time matter?");
+    expect(document.body.textContent).not.toContain("Roughly then is fine");
+  });
+});
+
 /**
  * ── SABOTAGE LOG ─────────────────────────────────────────────────────────────
  * Each applied to the real source, suite run, change reverted.
