@@ -17,7 +17,7 @@
  * assertion below matches across a line break.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Route, Router } from "wouter";
 
@@ -171,6 +171,77 @@ describe("Part C — the add-a-task door", () => {
   });
 });
 
+describe('Part C — "Does the time matter?" starts from the task type', () => {
+  /** The answer currently showing, read off the pressed state of the two pills. */
+  function chosenAnswer(): string | null {
+    for (const label of ["Yes, that time", "Roughly then is fine"]) {
+      const btn = screen.queryByRole("button", { name: label });
+      if (btn?.getAttribute("aria-pressed") === "true") return label;
+    }
+    return null;
+  }
+
+  async function openForm() {
+    renderManage();
+    const open = await screen.findByRole("button", { name: /Add a task/ });
+    fireEvent.click(open);
+    // Positive control: the form really opened, so a null answer below would
+    // mean "nothing is selected", not "nothing rendered".
+    expect(await screen.findByText("What kind of help?")).toBeTruthy();
+  }
+
+  it("a MEAL is flexible by default — the same answer the wizard gives it", async () => {
+    await openForm();
+
+    // The form opens on Meal, and a meal's time is the helper's to nudge.
+    // Before this, the form always opened on "Yes, that time", so the identical
+    // meal came out fixed from /manage and flexible from setup.
+    expect(chosenAnswer()).toBe("Roughly then is fine");
+  });
+
+  it("choosing a SCHOOL RUN moves the answer to fixed", async () => {
+    await openForm();
+    expect(chosenAnswer()).toBe("Roughly then is fine");
+
+    fireEvent.click(screen.getByRole("button", { name: /School Run/ }));
+
+    // A school run's time is the family's fact, not a helper's to shift.
+    expect(chosenAnswer()).toBe("Yes, that time");
+  });
+
+  it("a dated ERRAND — a lift — is fixed", async () => {
+    await openForm();
+    fireEvent.click(screen.getByRole("button", { name: /Errand/ }));
+
+    expect(chosenAnswer()).toBe("Yes, that time");
+  });
+
+  it("once the person answers it themselves, changing the type does NOT overwrite them", async () => {
+    await openForm();
+
+    // They deliberately say the time matters for this meal.
+    fireEvent.click(screen.getByRole("button", { name: "Yes, that time" }));
+    expect(chosenAnswer()).toBe("Yes, that time");
+
+    // Now they change their mind about the KIND of task. Shopping's default is
+    // flexible — and it must not silently undo what they just said.
+    fireEvent.click(screen.getByRole("button", { name: /Shopping/ }));
+    expect(chosenAnswer()).toBe("Yes, that time");
+  });
+
+  it("reopening the form starts from the default again", async () => {
+    await openForm();
+    fireEvent.click(screen.getByRole("button", { name: "Yes, that time" }));
+    expect(chosenAnswer()).toBe("Yes, that time");
+
+    fireEvent.click(screen.getByRole("button", { name: "Not now" }));
+    fireEvent.click(await screen.findByRole("button", { name: /Add a task/ }));
+
+    // A new task is a new question — the last one's answer is not carried over.
+    expect(chosenAnswer()).toBe("Roughly then is fine");
+  });
+});
+
 /**
  * ── SABOTAGE LOG ─────────────────────────────────────────────────────────────
  * Each applied to the real source, suite run, change reverted.
@@ -183,4 +254,17 @@ describe("Part C — the add-a-task door", () => {
  *        context", which is the whole reason useOptionalAuth exists.
  * 3. the add-a-task section moved above the closed-page early return
  *      → "is NOT offered on a closed page" FAILS.
+ * 4. openAddTask() reseeds the answer to a flat "fixed" instead of the task
+ *    type's default
+ *      → "a MEAL is flexible by default" FAILS, and so do the school-run and
+ *        reopen cases. ⚠️ Note for whoever changes this: sabotaging the
+ *        useState INITIALISER instead does NOT go red, and that is correct —
+ *        the form is only ever reached through openAddTask, which reseeds
+ *        before anything is on screen. The reset is the line that decides.
+ * 5. the `!newFlexibilityTouched` guard removed, so changing the task type
+ *    overwrites an answer the person gave
+ *      → "once the person answers it themselves…" FAILS.
+ * 6. rally's DATED_SLOT_FLEXIBILITY drifts from the server (meal → fixed)
+ *      → api-server's slotFlexibilityDrift FAILS on two counts, which is the
+ *        whole reason that cross-package test exists.
  */

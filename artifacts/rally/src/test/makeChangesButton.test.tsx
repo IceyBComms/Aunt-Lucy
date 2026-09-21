@@ -82,6 +82,17 @@ function longDate(iso: string): string {
   });
 }
 
+/** The draft line's form: day and month, and the year only when it differs. */
+function startedDate(iso: string): string {
+  const d = new Date(iso);
+  const thisYear = d.getFullYear() === new Date().getFullYear();
+  return d.toLocaleDateString("en-AU", {
+    day: "numeric",
+    month: "long",
+    ...(thisYear ? {} : { year: "numeric" }),
+  });
+}
+
 function hasLine(expected: string): HTMLElement {
   return screen.getByText((_content, el) => el?.textContent === expected);
 }
@@ -159,7 +170,7 @@ describe("Part A — the buttons on a dashboard card", () => {
     expect(await screen.findByText("Support for Tammy Hughes")).toBeTruthy();
     // Row #130 — two drafts for the same person were identical cards.
     expect(
-      hasLine(`Not live yet · started ${longDate("2026-08-12T00:00:00.000Z")}`),
+      hasLine(`Not live yet · started ${startedDate("2026-08-12T00:00:00.000Z")}`),
     ).toBeTruthy();
 
     expect(screen.getByRole("button", { name: /Continue setting up/ })).toBeTruthy();
@@ -180,6 +191,74 @@ describe("Part A — the buttons on a dashboard card", () => {
     // credential for every page at once.
     expect(api.calls).toContain("/organiser/pages");
     expect(api.calls.some((c) => c.endsWith("/manage-link"))).toBe(false);
+  });
+});
+
+// ─── PART A: how the draft date is written ───────────────────────────────────
+
+describe("the draft line's date (Kate's ruling, 21 Sep 2026)", () => {
+  const WEEKDAYS = [
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+    "Sunday",
+  ];
+
+  /** An ISO date in a given year, built from today so this never goes stale. */
+  function iso(yearsAgo: number): string {
+    const d = new Date();
+    d.setFullYear(d.getFullYear() - yearsAgo);
+    // Midday, so no timezone can shift it into a neighbouring day and change
+    // which weekday name we would be looking for.
+    d.setHours(12, 0, 0, 0);
+    return d.toISOString();
+  }
+
+  /** The whole "Not live yet · started …" line, as rendered. */
+  async function draftLine(createdAt: string): Promise<string> {
+    api.pages = [page({ status: "draft", createdAt })];
+    renderDashboard();
+    await screen.findByText("Support for Tammy Hughes");
+    const el = screen.getByText((_c, e) =>
+      (e?.textContent ?? "").startsWith("Not live yet · started"),
+    );
+    return el.textContent ?? "";
+  }
+
+  it("carries no weekday — which Wednesday it was is not what tells drafts apart", async () => {
+    const line = await draftLine(iso(0));
+
+    // Positive control: the line really rendered, with a real date on it.
+    expect(line).toContain("Not live yet · started");
+    expect(line.length).toBeGreaterThan("Not live yet · started ".length);
+
+    for (const day of WEEKDAYS) {
+      expect(line).not.toContain(day);
+    }
+  });
+
+  it("carries no year when the draft is from this year", async () => {
+    const thisYear = String(new Date().getFullYear());
+    const line = await draftLine(iso(0));
+
+    expect(line).toContain("Not live yet · started");
+    expect(line).not.toContain(thisYear);
+  });
+
+  it("DOES carry the year when the draft is from another year", async () => {
+    // A draft left over from last year is a different kind of thing from one
+    // started on Tuesday, and the year is the whole point.
+    const lastYear = String(new Date().getFullYear() - 1);
+    const line = await draftLine(iso(1));
+
+    expect(line).toContain(lastYear);
+    // Still no weekday, even here.
+    for (const day of WEEKDAYS) {
+      expect(line).not.toContain(day);
+    }
   });
 });
 
@@ -283,7 +362,10 @@ describe("Part D — the heading on the coloured header", () => {
  *        database words are gone".
  * 4. `text-white` removed from the dashboard h1
  *      → "My dashboard carries its own white" FAILS.
- * 5. the manage-link fetch moved into the list effect (fetched for every page
+ * 5. the weekday and year put back on the draft line's date
+ *      → "carries no weekday" and "carries no year when the draft is from
+ *        this year" both FAIL, along with the exact-line assertion.
+ * 6. the manage-link fetch moved into the list effect (fetched for every page
  *    up front)
  *      → "the token is fetched on CLICK, never with the list" FAILS.
  */

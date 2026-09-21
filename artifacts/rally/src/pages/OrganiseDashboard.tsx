@@ -37,6 +37,25 @@ function coveredLabel(n: number): string {
   return `${n} ${n === 1 ? "has" : "have"} someone`;
 }
 
+/**
+ * "12 August" — the day a draft was started (Kate's ruling, 21 Sep 2026).
+ *
+ * No weekday: which Wednesday it was is not what tells two drafts apart, and
+ * it made an already-long line longer. No year either, UNLESS the draft is
+ * from a different year from today — in which case the year is the whole
+ * point, because a draft left over from last year is a different kind of
+ * thing from one started on Tuesday.
+ */
+function startedDate(iso: string): string {
+  const d = new Date(iso);
+  const thisYear = d.getFullYear() === new Date().getFullYear();
+  return d.toLocaleDateString("en-AU", {
+    day: "numeric",
+    month: "long",
+    ...(thisYear ? {} : { year: "numeric" }),
+  });
+}
+
 /** "Tuesday, 12 August 2026" — the same en-AU form /manage uses. */
 function longDate(iso: string): string {
   return new Date(iso).toLocaleDateString("en-AU", {
@@ -287,7 +306,7 @@ export default function OrganiseDashboard() {
                   */}
                   {page.status === "draft" && (
                     <p className="text-sm text-muted-foreground mb-4">
-                      Not live yet · started {longDate(page.createdAt)}
+                      Not live yet · started {startedDate(page.createdAt)}
                     </p>
                   )}
 

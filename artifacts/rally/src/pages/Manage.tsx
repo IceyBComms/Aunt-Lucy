@@ -66,6 +66,7 @@ import {
 } from "@/lib/liftWaitMode";
 import { SiteFooter } from "@/components/SiteFooter";
 import { SLOT_TYPES } from "@/pages/OrganiseAddSlots";
+import { defaultFlexibilityForType } from "@/lib/slotFlexibility";
 import { useOptionalAuth } from "@/contexts/AuthContext";
 
 /**
@@ -296,7 +297,23 @@ export function Manage() {
   const [newType, setNewType] = useState<string>("meal");
   const [newDate, setNewDate] = useState("");
   const [newTime, setNewTime] = useState("");
-  const [newFlexibility, setNewFlexibility] = useState<SlotFlexibility>("fixed");
+  /**
+   * "Does the time matter?" — seeded from the TASK TYPE's own default, the
+   * same one the server would have chosen (lib/slotFlexibility, kept honest by
+   * api-server's slotFlexibilityDrift test). A meal starts on "Roughly then is
+   * fine" exactly as it does in the setup wizard; a school run starts fixed.
+   *
+   * The second piece of state is why this is not one. The answer FOLLOWS the
+   * task type while it is still the default — change your mind from Meal to
+   * School run and it moves with you — but the moment the person answers the
+   * question themselves it stops moving, because silently overwriting
+   * someone's own answer when they adjust a different field is how a form
+   * loses their trust.
+   */
+  const [newFlexibility, setNewFlexibility] = useState<SlotFlexibility>(() =>
+    defaultFlexibilityForType("meal"),
+  );
+  const [newFlexibilityTouched, setNewFlexibilityTouched] = useState(false);
   const [newWaitMode, setNewWaitMode] = useState<LiftWaitMode | null>(null);
   const [newNotes, setNewNotes] = useState("");
   const [newTrusted, setNewTrusted] = useState(false);
@@ -318,7 +335,8 @@ export function Manage() {
     setNewType("meal");
     setNewDate("");
     setNewTime("");
-    setNewFlexibility("fixed");
+    setNewFlexibility(defaultFlexibilityForType("meal"));
+    setNewFlexibilityTouched(false);
     setNewWaitMode(null);
     setNewNotes("");
     setNewTrusted(false);
@@ -753,7 +771,12 @@ export function Manage() {
                 <button
                   key={t.value}
                   type="button"
-                  onClick={() => setNewType(t.value)}
+                  onClick={() => {
+                    setNewType(t.value);
+                    if (!newFlexibilityTouched) {
+                      setNewFlexibility(defaultFlexibilityForType(t.value));
+                    }
+                  }}
                   aria-pressed={newType === t.value}
                   className={
                     newType === t.value
@@ -800,7 +823,10 @@ export function Manage() {
                 <button
                   key={value}
                   type="button"
-                  onClick={() => setNewFlexibility(value)}
+                  onClick={() => {
+                    setNewFlexibility(value);
+                    setNewFlexibilityTouched(true);
+                  }}
                   aria-pressed={newFlexibility === value}
                   className={
                     newFlexibility === value
