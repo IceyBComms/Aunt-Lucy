@@ -306,6 +306,59 @@ describe('"to be confirmed" is gone from the product', () => {
 });
 
 /**
+ * ⚠️ A NINTH TABLE CANNOT BE STARTED.
+ *
+ * This is the guard that replaces the deleted drift test, and it is a stronger
+ * one: the old test listed the nine files that named a task and checked their
+ * spelling, so a TENTH file would simply not have been looked at. This forbids
+ * the SHAPE instead — a slot_type key mapped to a display string — anywhere
+ * outside the package, which is what every one of the eight tables looked like:
+ *
+ *     school_pickup: "School Run",
+ *     school_pickup: { icon: "🚗", label: "School Run" },
+ *
+ * Icons are deliberately still allowed to live in rally: an emoji carries no
+ * ASCII letter, so `school_pickup: "🚗"` passes and `school_pickup: "School
+ * Run"` does not. Emoji were out of scope for this job and stayed put.
+ *
+ * `other` is NOT in the key list: it is also a value of the OCCASION enum, and
+ * `other: "Other"` is a legitimate occasion label in four files. Seven keys is
+ * enough — a table is a table because it covers the types, and nobody writes
+ * one with only `other` in it.
+ */
+describe("no second task-name table can be started", () => {
+  // A regex LITERAL, not a built string: the seven keys are spelled out so
+  // nothing is lost to escaping between here and the pattern.
+  const TABLE_LINE =
+    /^\s*(?:meal|school_pickup|child_care|errand|dog_walking|shopping|visit)\s*:.*"[^"]*[A-Za-z][^"]*"/;
+
+  it("the pattern really does catch what it is for", () => {
+    // Positive control, on the exact lines the eight deleted tables held.
+    expect(TABLE_LINE.test('  school_pickup: "School Run",')).toBe(true);
+    expect(TABLE_LINE.test('  school_pickup: { icon: "🚗", label: "School run" },')).toBe(
+      true,
+    );
+    expect(TABLE_LINE.test('  meal: "Dropping off a meal",')).toBe(true);
+    // …and does NOT catch what the job deliberately left in place.
+    expect(TABLE_LINE.test('  school_pickup: "🚗",')).toBe(false);
+    expect(TABLE_LINE.test('  slotType: "school_pickup",')).toBe(false);
+  });
+
+  it("no shipped file outside @workspace/task-copy holds one", () => {
+    const offenders: string[] = [];
+    for (const file of sourceFiles()) {
+      if (file.includes(path.join("lib", "task-copy"))) continue;
+      for (const line of codeLines(file)) {
+        if (TABLE_LINE.test(line)) {
+          offenders.push(`${path.relative(REPO, file)}: ${line.trim()}`);
+        }
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+});
+
+/**
  * ⚠️ THE ONE THAT COSTS MONEY.
  *
  * "·" is not in the GSM-7 alphabet. One of them in a text drops the per-segment
